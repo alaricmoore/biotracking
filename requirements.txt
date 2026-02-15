@@ -1,0 +1,15 @@
+# biotracking dependencies
+# Install with: pip install -r requirements.txt
+
+# Web framework
+flask>=3.0.0
+
+# Data handling
+pandas>=2.0.0
+
+# HTTP requests for UV API
+requests>=2.31.0
+
+# Statistical analysis for lag correlation
+scipy>=1.11.0
+numpy>=1.24.0
