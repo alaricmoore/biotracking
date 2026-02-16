@@ -1,11 +1,574 @@
 {% extends "base.html" %}
+
 {% block title %}search — biotracking{% endblock %}
+
+{% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+{% endblock %}
+
 {% block content %}
 <div class="page-header">
     <h1>search</h1>
 </div>
-<div class="empty-state">
-    <p>This view is under construction.</p>
-    <p style="margin-top:1rem;"><a href="{{ url_for('daily_entry') }}">← back to today</a></p>
+
+<!-- Search form -->
+<form method="GET" action="{{ url_for('search') }}"
+      style="display:flex; gap:var(--space-md); margin-bottom:var(--space-lg); align-items:center;">
+    <input type="text" name="q" value="{{ query }}"
+           placeholder="search notes, labs, events, medications..."
+           autofocus
+           style="flex:1; font-size:1rem; padding:var(--space-sm) var(--space-md);">
+    <button type="submit" class="btn btn-primary">search</button>
+    {% if query %}
+    <a href="{{ url_for('search') }}" class="btn btn-secondary">clear</a>
+    {% endif %}
+</form>
+
+{% if query %}
+    {% if total == 0 %}
+    <div class="empty-state">
+        <p>No results for <strong style="color:var(--text-primary);">{{ query }}</strong>.</p>
+    </div>
+    {% else %}
+
+    <!-- Results header + report button -->
+    <div style="display:flex; justify-content:space-between; align-items:center;
+                margin-bottom:var(--space-lg); flex-wrap:wrap; gap:var(--space-md);">
+        <p style="color:var(--text-muted);">
+            {{ total }} result{% if total != 1 %}s{% endif %} for
+            <strong style="color:var(--text-primary);">{{ query }}</strong>
+        </p>
+        <div style="display:flex; gap:var(--space-sm); align-items:center;">
+            <span id="selectedCount" style="color:var(--text-muted);
+                  font-size:0.85rem; font-family:var(--font-mono);">
+                0 selected
+            </span>
+            <button class="btn btn-secondary" onclick="selectAll()">select all</button>
+            <button class="btn btn-secondary" onclick="clearAll()">clear</button>
+            <button class="btn btn-primary" id="reportBtn"
+                    onclick="generateReport()" disabled>
+                generate report →
+            </button>
+        </div>
+    </div>
+
+    <!-- Result groups -->
+    {% set groups = [
+        ('daily',       'daily entries',   'badge-neuro'),
+        ('labs',        'lab results',     'badge-muscle'),
+        ('events',      'clinical events', 'badge-cognitive'),
+        ('medications', 'medications',     'badge-derm'),
+    ] %}
+
+    {% for key, label, badge_class in groups %}
+    {% if grouped[key] %}
+    <div class="result-group" style="margin-bottom:var(--space-xl);">
+        <div style="display:flex; align-items:center; gap:var(--space-sm);
+                    margin-bottom:var(--space-md);">
+            <h3 style="margin:0; font-size:1rem; color:var(--text-secondary);">
+                {{ label }}
+            </h3>
+            <span class="badge {{ badge_class }}">{{ grouped[key]|length }}</span>
+        </div>
+
+        {% for result in grouped[key] %}
+        <div class="result-card" id="card_{{ result.id }}"
+             onclick="toggleResult('{{ result.id }}')"
+             style="cursor:pointer;">
+            <div style="display:flex; gap:var(--space-md); align-items:flex-start;">
+                <input type="checkbox"
+                       id="chk_{{ result.id }}"
+                       data-id="{{ result.id }}"
+                       data-type="{{ result.type }}"
+                       data-date="{{ result.date }}"
+                       data-title="{{ result.title | e }}"
+                       data-snippet="{{ result.snippet | e }}"
+                       {% if result.type == 'daily' %}
+                       data-pain="{{ result.pain or '' }}"
+                       data-fatigue="{{ result.fatigue or '' }}"
+                       {% endif %}
+                       onclick="event.stopPropagation(); handleCheck(this)"
+                       style="margin-top:3px; flex-shrink:0;
+                              accent-color:var(--color-accent);">
+                <div style="flex:1; min-width:0;">
+                    <div style="display:flex; gap:var(--space-md);
+                                align-items:baseline; flex-wrap:wrap;
+                                margin-bottom:4px;">
+                        <span class="mono" style="color:var(--text-muted);
+                              font-size:0.85rem; flex-shrink:0;">
+                            {{ result.date }}
+                        </span>
+                        <span style="color:var(--text-primary); font-weight:500;">
+                            {{ result.title }}
+                        </span>
+                    </div>
+                    {% if result.snippet %}
+                    <p class="result-snippet">{{ result.snippet }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endfor %}
+
+    {% endif %}
+{% endif %}
+
+<!-- Report modal -->
+<div id="reportModal"
+     style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55);
+            z-index:100; overflow-y:auto; padding:var(--space-xl);">
+    <div style="max-width:720px; margin:0 auto; background:var(--bg-card);
+                border:1px solid var(--border-medium); border-radius:var(--radius-lg);
+                padding:var(--space-xl);">
+
+        <div style="display:flex; justify-content:space-between; align-items:center;
+                    margin-bottom:var(--space-lg);">
+            <h2 style="margin:0;">report preview</h2>
+            <button onclick="closeReport()" class="btn btn-secondary">✕ close</button>
+        </div>
+
+        <!-- Auto-summary -->
+        <div id="reportSummary"
+             style="background:var(--bg-elevated); border:1px solid var(--border-subtle);
+                    border-radius:var(--radius-md); padding:var(--space-lg);
+                    margin-bottom:var(--space-lg); font-size:0.9rem;
+                    color:var(--text-secondary); line-height:1.7;">
+        </div>
+
+        <!-- Mini chart -->
+        <div id="reportChartContainer" style="display:none; margin-bottom:var(--space-lg);">
+            <div style="font-size:0.75rem; color:var(--text-muted);
+                        margin-bottom:var(--space-xs); text-transform:uppercase;
+                        letter-spacing:0.06em;">
+                uv previous day · sleep · basal temp — 3-day rolling average
+            </div>
+            <canvas id="reportChart" style="max-height:160px;"></canvas>
+        </div>
+
+        <!-- Entry list -->
+        <div id="reportContent"></div>
+
+        <div style="margin-top:var(--space-xl); display:flex; gap:var(--space-md);">
+            <button onclick="window.print()" class="btn btn-primary">
+                print / save pdf
+            </button>
+            <button onclick="closeReport()" class="btn btn-secondary">close</button>
+        </div>
+    </div>
 </div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ============================================================
+// Data from Flask
+// ============================================================
+const CHART_DATA    = {{ chart_dataset_json | safe }};
+const TRACKING_START = "{{ tracking_start or '' }}";
+const TRACKING_END   = "{{ tracking_end or '' }}";
+const HCQ_START      = "{{ hcq_start or '' }}";
+const PATIENT_NAME   = "{{ patient_name or '' }}";
+const QUERY          = {{ query | tojson }};
+const ACTIVE_MEDS = {{ (active_meds or []) | tojson }};
+
+// ============================================================
+// Selection state — persists across searches via sessionStorage
+// ============================================================
+let selected = new Map();
+let reportChartInstance = null;
+
+function loadSelected() {
+    try {
+        const stored = sessionStorage.getItem('reportSelection');
+        if (stored) {
+            const arr = JSON.parse(stored);
+            arr.forEach(([k, v]) => selected.set(k, v));
+        }
+    } catch(e) {}
+}
+
+function saveSelected() {
+    try {
+        sessionStorage.setItem('reportSelection',
+            JSON.stringify([...selected.entries()]));
+    } catch(e) {}
+}
+
+function handleCheck(checkbox) {
+    const id = checkbox.dataset.id;
+    if (checkbox.checked) {
+        selected.set(id, {
+            type:    checkbox.dataset.type,
+            date:    checkbox.dataset.date,
+            title:   checkbox.dataset.title,
+            snippet: checkbox.dataset.snippet,
+            pain:    checkbox.dataset.pain || null,
+            fatigue: checkbox.dataset.fatigue || null,
+        });
+    } else {
+        selected.delete(id);
+    }
+    saveSelected();
+    updateUI();
+}
+
+function toggleResult(id) {
+    const chk = document.getElementById(`chk_${id}`);
+    if (chk) { chk.checked = !chk.checked; handleCheck(chk); }
+}
+
+function selectAll() {
+    document.querySelectorAll('[data-id]').forEach(chk => {
+        chk.checked = true; handleCheck(chk);
+    });
+}
+
+function clearAll() {
+    selected.clear();
+    saveSelected();
+    document.querySelectorAll('[data-id]').forEach(chk => { chk.checked = false; });
+    updateUI();
+}
+
+function updateUI() {
+    const count = selected.size;
+    document.getElementById('selectedCount').textContent = `${count} selected`;
+    document.getElementById('reportBtn').disabled = count === 0;
+    document.querySelectorAll('.result-card').forEach(card => {
+        const id = card.id.replace('card_', '');
+        card.classList.toggle('selected', selected.has(id));
+    });
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    loadSelected();
+    document.querySelectorAll('[data-id]').forEach(chk => {
+        if (selected.has(chk.dataset.id)) chk.checked = true;
+    });
+    updateUI();
+});
+
+// ============================================================
+// Rolling average helper
+// ============================================================
+function rollingAvg(arr, window) {
+    return arr.map((_, i) => {
+        const slice = arr.slice(Math.max(0, i - window + 1), i + 1)
+                         .filter(v => v !== null && v !== undefined);
+        if (slice.length < 2) return null;
+        return Math.round((slice.reduce((a, b) => a + b, 0) / slice.length) * 100) / 100;
+    });
+}
+
+// ============================================================
+// Report generation
+// ============================================================
+function generateReport() {
+    if (selected.size === 0) return;
+
+    const items = [...selected.values()]
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+    // Date range of selected items
+    const dates    = items.map(i => i.date).sort();
+    const minDate  = dates[0];
+    const maxDate  = dates[dates.length - 1];
+
+    // Pain/fatigue stats from selected daily entries
+    const dailyItems = items.filter(i => i.type === 'daily');
+    const painVals    = dailyItems.map(i => parseFloat(i.pain)).filter(v => !isNaN(v));
+    const fatigueVals = dailyItems.map(i => parseFloat(i.fatigue)).filter(v => !isNaN(v));
+    const meanPain    = painVals.length
+        ? (painVals.reduce((a, b) => a + b, 0) / painVals.length).toFixed(1)
+        : null;
+    const meanFatigue = fatigueVals.length
+        ? (fatigueVals.reduce((a, b) => a + b, 0) / fatigueVals.length).toFixed(1)
+        : null;
+
+    // Group by type for counts
+    const typeCounts = {};
+    items.forEach(i => { typeCounts[i.type] = (typeCounts[i.type] || 0) + 1; });
+    const typeLabels = {
+        daily: 'daily observation', lab: 'lab result',
+        event: 'clinical event',   medication: 'medication',
+    };
+    const countStr = Object.entries(typeCounts)
+        .map(([t, n]) => `${n} ${typeLabels[t] || t}${n !== 1 ? 's' : ''}`)
+        .join(', ');
+
+    // Active meds summary
+    const medStr = ACTIVE_MEDS.length
+        ? ACTIVE_MEDS.map(m => {
+            const dose = m.dose ? `${m.dose}${m.unit || ''}` : '';
+            const freq = m.frequency || '';
+            return `${m.name}${dose ? ' ' + dose : ''}${freq ? ' ' + freq : ''}`;
+          }).join('; ')
+        : 'none recorded';
+
+    // Build summary HTML
+    const today = new Date().toLocaleDateString('en-US',
+        { year: 'numeric', month: 'long', day: 'numeric' });
+
+    let summaryHTML = `
+        <div style="margin-bottom:var(--space-sm);">
+            <strong style="color:var(--text-primary);">
+                ${PATIENT_NAME || 'Patient'}
+            </strong>
+            &nbsp;·&nbsp; Generated ${today}
+        </div>
+        <div style="margin-bottom:var(--space-xs);">
+            This summary includes ${countStr} matching
+            <strong style="color:var(--text-primary);">${QUERY}</strong>,
+            spanning ${minDate} to ${maxDate}.
+            Full tracking record: ${TRACKING_START} – ${TRACKING_END}.
+        </div>`;
+
+    if (meanPain !== null || meanFatigue !== null) {
+        summaryHTML += `<div style="margin-bottom:var(--space-xs);">`;
+        if (meanPain !== null)
+            summaryHTML += `Mean pain (selected entries): <strong style="color:#c94040;">${meanPain}/10</strong>. `;
+        if (meanFatigue !== null)
+            summaryHTML += `Mean fatigue: <strong style="color:#d4a054;">${meanFatigue}/10</strong>.`;
+        summaryHTML += `</div>`;
+    }
+
+    summaryHTML += `
+        <div>
+            <strong>Current medications:</strong>
+            <span style="color:var(--text-muted);">${medStr}</span>
+        </div>`;
+
+    if (HCQ_START) {
+        summaryHTML += `
+        <div style="margin-top:4px; color:var(--text-muted); font-size:0.85rem;">
+            Hydroxychloroquine started ${HCQ_START}.
+        </div>`;
+    }
+
+    document.getElementById('reportSummary').innerHTML = summaryHTML;
+
+    // Build entry list HTML
+    const groups = {};
+    items.forEach(item => {
+        if (!groups[item.type]) groups[item.type] = [];
+        groups[item.type].push(item);
+    });
+
+    const entryTypeLabels = {
+        daily: 'Daily Observations', lab: 'Laboratory Results',
+        event: 'Clinical Events',    medication: 'Medications',
+    };
+
+    let contentHTML = '';
+    Object.entries(groups).forEach(([type, typeItems]) => {
+        contentHTML += `
+            <div style="margin-bottom:var(--space-xl);">
+                <h3 style="color:var(--text-secondary); font-size:0.8rem;
+                           text-transform:uppercase; letter-spacing:0.08em;
+                           margin:0 0 var(--space-md) 0;
+                           border-bottom:1px solid var(--border-subtle);
+                           padding-bottom:var(--space-xs);">
+                    ${entryTypeLabels[type] || type}
+                </h3>`;
+
+        typeItems.forEach(item => {
+            contentHTML += `
+                <div style="margin-bottom:var(--space-md); padding-left:var(--space-md);
+                            border-left:2px solid var(--border-subtle);">
+                    <div style="display:flex; gap:var(--space-md); margin-bottom:4px;">
+                        <span style="font-family:var(--font-mono); font-size:0.8rem;
+                                     color:var(--text-muted); flex-shrink:0;">
+                            ${item.date}
+                        </span>
+                        <strong style="color:var(--text-primary);">${item.title}</strong>
+                    </div>
+                    ${item.snippet ? `
+                    <p style="margin:0; color:var(--text-secondary); font-size:0.875rem;">
+                        ${item.snippet}
+                    </p>` : ''}
+                </div>`;
+        });
+
+        contentHTML += `</div>`;
+    });
+
+    document.getElementById('reportContent').innerHTML = contentHTML;
+
+    // Build mini chart for date range of selected items
+    buildReportChart(minDate, maxDate);
+
+    document.getElementById('reportModal').style.display = 'block';
+    document.body.style.overflow = 'hidden';
+}
+
+// ============================================================
+// Mini chart — UV/sleep/temp for selected date range
+// ============================================================
+function buildReportChart(minDate, maxDate) {
+    const container = document.getElementById('reportChartContainer');
+    const canvas    = document.getElementById('reportChart');
+
+    // Destroy previous instance if exists
+    if (reportChartInstance) {
+        reportChartInstance.destroy();
+        reportChartInstance = null;
+    }
+
+    // Filter to date range
+    const allDates = CHART_DATA.dates;
+    const indices  = allDates
+        .map((d, i) => ({ d, i }))
+        .filter(({ d }) => d >= minDate && d <= maxDate);
+
+    if (indices.length < 3) {
+        container.style.display = 'none';
+        return;
+    }
+
+    const labels   = indices.map(({ d }) => d);
+    const sleepRaw = indices.map(({ i }) => CHART_DATA.sleep[i]);
+    const bbtRaw   = indices.map(({ i }) => CHART_DATA.bbt[i]);
+    const uvRaw    = indices.map(({ d }) => {
+        // UV from previous day (lag 1)
+        const allIdx = allDates.indexOf(d);
+        if (allIdx <= 0) return null;
+        const prevDate = allDates[allIdx - 1];
+        return CHART_DATA.uv[prevDate] ?? null;
+    });
+
+    const sleep3 = rollingAvg(sleepRaw, 3);
+    const bbt3   = rollingAvg(bbtRaw, 3);
+    const uv3    = rollingAvg(uvRaw, 3);
+
+    const hasData = sleep3.some(v => v !== null) ||
+                    bbt3.some(v => v !== null) ||
+                    uv3.some(v => v !== null);
+
+    if (!hasData) {
+        container.style.display = 'none';
+        return;
+    }
+
+    container.style.display = 'block';
+
+    reportChartInstance = new Chart(canvas, {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: 'sleep (hr)',
+                    data: sleep3,
+                    borderColor: '#9b72cf',
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0.4,
+                    spanGaps: true,
+                    yAxisID: 'ySleep',
+                },
+                {
+                    label: 'temp delta',
+                    data: bbt3,
+                    borderColor: '#d4784a',
+                    backgroundColor: 'transparent',
+                    borderWidth: 1.5,
+                    borderDash: [4, 3],
+                    pointRadius: 0,
+                    tension: 0.4,
+                    spanGaps: true,
+                    yAxisID: 'yTemp',
+                },
+                {
+                    label: 'uv prev day',
+                    data: uv3,
+                    borderColor: '#d4b84a',
+                    backgroundColor: 'rgba(212,184,74,0.08)',
+                    borderWidth: 1,
+                    pointRadius: 0,
+                    tension: 0.4,
+                    fill: true,
+                    spanGaps: true,
+                    yAxisID: 'yUV',
+                },
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    labels: { color: '#9994a8', boxWidth: 10, padding: 12,
+                              font: { size: 11 } }
+                },
+                tooltip: { enabled: false },
+            },
+            scales: {
+                x: {
+                    grid: { color: 'rgba(255,255,255,0.06)' },
+                    ticks: { maxTicksLimit: 8, maxRotation: 45,
+                             color: '#9994a8', font: { size: 10 } }
+                },
+                ySleep: {
+                    type: 'linear', position: 'left',
+                    min: 0, max: 14,
+                    grid: { color: 'rgba(255,255,255,0.06)' },
+                    ticks: { color: '#9b72cf', font: { size: 10 } },
+                },
+                yTemp: {
+                    type: 'linear', position: 'right',
+                    grid: { display: false },
+                    ticks: { color: '#d4784a', font: { size: 10 } },
+                },
+                yUV: {
+                    type: 'linear', position: 'right',
+                    min: 0, display: false,
+                },
+            }
+        }
+    });
+}
+
+function closeReport() {
+    document.getElementById('reportModal').style.display = 'none';
+    document.body.style.overflow = '';
+}
+
+document.getElementById('reportModal')?.addEventListener('click', e => {
+    if (e.target === document.getElementById('reportModal')) closeReport();
+});
+</script>
+
+<style>
+.result-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+    margin-bottom: var(--space-sm);
+    transition: border-color 0.15s, background 0.15s;
+}
+.result-card:hover { border-color: var(--border-medium); }
+.result-card.selected {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 8%, var(--bg-elevated));
+}
+.result-snippet {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    white-space: pre-wrap;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+}
+@media print {
+    nav, form, .add-toggle-row,
+    #reportModal > div > div:last-child { display: none; }
+}
+</style>
 {% endblock %}

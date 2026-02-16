@@ -536,10 +536,155 @@ def end_medication(med_id):
 
 @app.route("/search")
 def search():
-    """Keyword search across all note fields."""
+    """Keyword search across all note fields, grouped by source type."""
     query = request.args.get("q", "").strip()
-    results = db.search_notes(query) if query else []
-    return render_template("search.html", query=query, results=results)
+
+    grouped = {
+        "daily":       [],
+        "labs":        [],
+        "events":      [],
+        "medications": [],
+    }
+    total = 0
+
+    # Always fetch full dataset for report summary and chart
+    all_observations = db.get_all_daily_observations()
+    all_meds         = db.get_all_medications()
+
+    tracking_start = all_observations[0]["date"] if all_observations else None
+    tracking_end   = all_observations[-1]["date"] if all_observations else None
+
+    today_str = date.today().isoformat()
+    active_meds = [
+        m for m in all_meds
+        if m["start_date"] <= today_str and
+           (m.get("end_date") is None or m["end_date"] >= today_str)
+    ]
+
+    uv_all = []
+    if tracking_start and tracking_end:
+        uv_all = db.get_uv_data_range(tracking_start, tracking_end)
+
+    chart_dataset = {
+        "dates": [o["date"] for o in all_observations],
+        "sleep": [o.get("hours_slept") for o in all_observations],
+        "bbt":   [o.get("basal_temp_delta") for o in all_observations],
+        "uv":    {u["date"]: u.get("uv_noon") for u in uv_all},
+    }
+
+    if query:
+        q = query.lower()
+
+        # Daily entries
+        for o in all_observations:
+            fields = [
+                o.get("notes") or "",
+                o.get("neuro_notes") or "",
+                o.get("cognitive_notes") or "",
+                o.get("musculature_notes") or "",
+                o.get("migraine_notes") or "",
+                o.get("air_hunger_notes") or "",
+                o.get("derm_notes") or "",
+                o.get("emotional_notes") or "",
+            ]
+            combined = " ".join(fields).lower()
+            if q in combined:
+                snippet = next(
+                    (f.strip() for f in fields if q in f.lower() and f.strip()),
+                    ""
+                )
+                grouped["daily"].append({
+                    "id":      f"daily_{o['date']}",
+                    "date":    o["date"],
+                    "type":    "daily",
+                    "title":   "daily entry",
+                    "snippet": snippet[:200] if snippet else combined[:200],
+                    "pain":    o.get("pain_scale"),
+                    "fatigue": o.get("fatigue_scale"),
+                })
+                total += 1
+
+        # Lab results
+        labs = db.get_lab_results()
+        for lab in labs:
+            fields = [
+                lab.get("test_name") or "",
+                lab.get("notes") or "",
+                lab.get("provider") or "",
+                lab.get("lab_facility") or "",
+            ]
+            combined = " ".join(fields).lower()
+            if q in combined:
+                val = (f"{lab['numeric_value']} {lab['unit'] or ''}".strip()
+                       if lab.get("numeric_value") is not None
+                       else lab.get("qualitative_result") or "")
+                grouped["labs"].append({
+                    "id":      f"lab_{lab['id']}",
+                    "date":    lab["date"],
+                    "type":    "lab",
+                    "title":   lab["test_name"],
+                    "snippet": f"{val} — {lab.get('notes') or lab.get('provider') or ''}".strip(" —"),
+                })
+                total += 1
+
+        # Clinical events
+        events = db.get_clinical_events()
+        for e in events:
+            fields = [
+                e.get("notes") or "",
+                e.get("provider") or "",
+                e.get("facility") or "",
+                e.get("event_type") or "",
+            ]
+            combined = " ".join(fields).lower()
+            if q in combined:
+                snippet = next(
+                    (f.strip() for f in fields if q in f.lower() and f.strip()),
+                    ""
+                )
+                grouped["events"].append({
+                    "id":      f"event_{e['id']}",
+                    "date":    e["date"],
+                    "type":    "event",
+                    "title":   f"{e['event_type']} — {e.get('provider') or e.get('facility') or ''}".strip(" —"),
+                    "snippet": snippet[:200],
+                })
+                total += 1
+
+        # Medications
+        for med in all_meds:
+            fields = [
+                med.get("drug_name") or "",
+                med.get("indication") or "",
+                med.get("notes") or "",
+            ]
+            combined = " ".join(fields).lower()
+            if q in combined:
+                dose_str = f"{med.get('dose') or ''} {med.get('unit') or ''} {med.get('frequency') or ''}".strip()
+                grouped["medications"].append({
+                    "id":      f"med_{med['id']}",
+                    "date":    med["start_date"],
+                    "type":    "medication",
+                    "title":   med["drug_name"],
+                    "snippet": f"{dose_str} — {med.get('indication') or ''}".strip(" —"),
+                })
+                total += 1
+
+        for key in grouped:
+            grouped[key].sort(key=lambda x: x["date"], reverse=True)
+
+    return render_template(
+        "search.html",
+        query=query,
+        grouped=grouped,
+        total=total,
+        tracking_start=tracking_start,
+        tracking_end=tracking_end,
+        active_meds=active_meds,
+        chart_dataset_json=json.dumps(chart_dataset),
+        patient_name=CONFIG.get("patient_name", ""),
+        hcq_start=HCQ_START_DATE,
+    )
 
 
 # ============================================================
