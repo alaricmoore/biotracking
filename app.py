@@ -685,7 +685,128 @@ def search():
         patient_name=CONFIG.get("patient_name", ""),
         hcq_start=HCQ_START_DATE,
     )
+# ============================================================
+# Clinical Report
+# ============================================================
 
+def generate_findings(observations, uv_data, start_date, end_date):
+    """Auto-generate clinical findings from data."""
+    import numpy as np
+    from scipy import stats
+    
+    findings = []
+    
+    # UV lag correlation for period
+    if len(observations) >= 10 and len(uv_data) >= 10:
+        obs_by_date = {o["date"]: o for o in observations}
+        uv_by_date  = {u["date"]: u for u in uv_data}
+        
+        dates_with_both = [d for d in obs_by_date 
+                           if d in uv_by_date and uv_by_date[d].get("uv_noon")]
+        
+        if len(dates_with_both) >= 10:
+            # Same-day musculature correlation
+            uv_vals = []
+            muscle_vals = []
+            for d in dates_with_both:
+                uv = uv_by_date[d].get("uv_noon")
+                muscle = obs_by_date[d].get("musculature")
+                if uv is not None and muscle is not None:
+                    uv_vals.append(float(uv))
+                    muscle_vals.append(float(muscle))
+            
+            if len(uv_vals) >= 8:
+                r, p = stats.pearsonr(np.array(uv_vals), np.array(muscle_vals))
+                if p < 0.01 and abs(r) >= 0.15:
+                    findings.append({
+                        "type": "uv_correlation",
+                        "text": f"UV exposure shows significant same-day correlation with musculature symptoms (r={r:.3f}, p={p:.4f}, n={len(uv_vals)})."
+                    })
+    
+    return findings
+
+#========================
+# Report generation
+#========================
+
+@app.route("/report")
+def clinical_report():
+    """Standalone clinical report page with auto-generated findings."""
+    # Date range - default last 90 days
+    end_date = request.args.get("end", date.today().isoformat())
+    start_date = request.args.get(
+        "start",
+        (date.today() - timedelta(days=90)).isoformat()
+    )
+    
+    # Fetch data for period
+    observations = [o for o in db.get_all_daily_observations()
+                    if start_date <= o["date"] <= end_date]
+    
+    uv_data = db.get_uv_data_range(start_date, end_date) if observations else []
+    
+    # Active medications
+    all_meds = db.get_all_medications()
+    today_str = date.today().isoformat()
+    active_meds = [m for m in all_meds
+                   if m["start_date"] <= today_str and
+                      (m.get("end_date") is None or m["end_date"] >= today_str)]
+    
+    # Flagged lab abnormals in period
+    all_labs = db.get_lab_results()
+    flagged_labs = [lab for lab in all_labs
+                    if start_date <= lab["date"] <= end_date
+                    and lab.get("flag") in ("high", "low", "critical", "abnormal")]
+    
+    # Clinical events in period
+    all_events = db.get_clinical_events()
+    events = [e for e in all_events
+              if start_date <= e["date"] <= end_date]
+    events.sort(key=lambda x: x["date"], reverse=True)
+    
+    # Mean pain/fatigue for period
+    pain_vals = [o.get("pain_scale") for o in observations
+                 if o.get("pain_scale") is not None]
+    fatigue_vals = [o.get("fatigue_scale") for o in observations
+                    if o.get("fatigue_scale") is not None]
+    
+    mean_pain = round(sum(pain_vals) / len(pain_vals), 1) if pain_vals else None
+    mean_fatigue = round(sum(fatigue_vals) / len(fatigue_vals), 1) if fatigue_vals else None
+    
+    # Auto-generated findings
+    findings = generate_findings(observations, uv_data, start_date, end_date)
+    
+    # Chart data for period
+    chart_dataset = {
+        "dates": [o["date"] for o in observations],
+        "sleep": [o.get("hours_slept") for o in observations],
+        "bbt":   [o.get("basal_temp_delta") for o in observations],
+        "uv":    {u["date"]: u.get("uv_noon") for u in uv_data},
+    }
+    
+    # Full tracking period
+    all_obs = db.get_all_daily_observations()
+    tracking_start = all_obs[0]["date"] if all_obs else None
+    tracking_end   = all_obs[-1]["date"] if all_obs else None
+    
+    return render_template(
+        "report.html",
+        start_date=start_date,
+        end_date=end_date,
+        today=date.today().strftime("%B %d, %Y"),
+        tracking_start=tracking_start,
+        tracking_end=tracking_end,
+        patient_name=CONFIG.get("patient_name", ""),
+        hcq_start=HCQ_START_DATE,
+        observations=observations,
+        active_meds=active_meds,
+        flagged_labs=flagged_labs,
+        events=events,
+        mean_pain=mean_pain,
+        mean_fatigue=mean_fatigue,
+        findings=findings,
+        chart_dataset_json=json.dumps(chart_dataset),
+    )
 
 # ============================================================
 # API endpoints for Chart.js (JSON only)

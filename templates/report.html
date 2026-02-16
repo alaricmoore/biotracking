@@ -1,0 +1,399 @@
+{% extends "base.html" %}
+
+{% block title %}clinical report — biotracking{% endblock %}
+
+{% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@media print {
+    nav, .no-print { display: none !important; }
+    .page-break { page-break-before: always; }
+    body { background: white; color: black; }
+}
+.report-section {
+    margin-bottom: var(--space-xl);
+    padding-bottom: var(--space-lg);
+    border-bottom: 1px solid var(--border-subtle);
+}
+.report-section:last-child { border-bottom: none; }
+.finding-card {
+    background: var(--bg-elevated);
+    border-left: 3px solid var(--color-accent);
+    padding: var(--space-md);
+    margin-bottom: var(--space-sm);
+    border-radius: var(--radius-sm);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header no-print">
+    <h1>clinical report</h1>
+    <p class="page-subtitle">{{ start_date }} — {{ end_date }}</p>
+</div>
+
+<!-- Date range picker -->
+<div class="card no-print" style="margin-bottom:var(--space-lg);">
+    <form method="GET" action="{{ url_for('clinical_report') }}"
+          style="display:flex; gap:var(--space-md); align-items:flex-end; flex-wrap:wrap;">
+        <div class="form-group" style="margin:0; flex:1; min-width:140px;">
+            <label>from</label>
+            <input type="date" name="start" value="{{ start_date }}">
+        </div>
+        <div class="form-group" style="margin:0; flex:1; min-width:140px;">
+            <label>to</label>
+            <input type="date" name="end" value="{{ end_date }}">
+        </div>
+        <button type="submit" class="btn btn-secondary">update</button>
+        <a href="{{ url_for('clinical_report') }}" class="btn btn-secondary">reset to 90d</a>
+        <button type="button" onclick="window.print()" class="btn btn-primary">
+            print / save pdf
+        </button>
+    </form>
+</div>
+
+{% if observations|length == 0 %}
+<div class="empty-state">
+    <p>No observation data for this period.</p>
+    <p style="margin-top:1rem;"><a href="{{ url_for('daily_entry') }}">add today's entry</a></p>
+</div>
+
+{% else %}
+
+<!-- ============================================================
+     PATIENT SUMMARY
+     ============================================================ -->
+<div class="report-section">
+    <h2 style="margin:0 0 var(--space-md) 0; font-size:1.3rem; color:var(--text-primary);">
+        Clinical Summary
+    </h2>
+    
+    <div style="line-height:1.8; color:var(--text-secondary);">
+        <div style="margin-bottom:var(--space-xs);">
+            <strong style="color:var(--text-primary);">Patient:</strong>
+            {{ patient_name or 'not specified' }}
+        </div>
+        <div style="margin-bottom:var(--space-xs);">
+            <strong style="color:var(--text-primary);">Report period:</strong>
+            {{ start_date }} to {{ end_date }}
+            <span style="color:var(--text-muted);">
+                ({{ observations|length }} observation days)
+            </span>
+        </div>
+        <div style="margin-bottom:var(--space-xs);">
+            <strong style="color:var(--text-primary);">Full tracking record:</strong>
+            {{ tracking_start or '—' }} to {{ tracking_end or '—' }}
+        </div>
+        <div style="margin-bottom:var(--space-xs);">
+            <strong style="color:var(--text-primary);">Generated:</strong>
+            {{ today }}
+        </div>
+    </div>
+    
+    <!-- Active medications -->
+    <div style="margin-top:var(--space-md);">
+        <h3 style="font-size:1rem; color:var(--text-secondary); margin:0 0 var(--space-xs) 0;">
+            Current Medications
+        </h3>
+        {% if active_meds %}
+        <ul style="margin:0; padding-left:var(--space-lg); color:var(--text-secondary);">
+            {% for med in active_meds %}
+            <li style="margin-bottom:4px;">
+                <strong style="color:var(--text-primary);">{{ med.drug_name }}</strong>
+                {% if med.dose %}{{ med.dose }}{% endif %}
+                {% if med.unit %}{{ med.unit }}{% endif %}
+                {% if med.frequency %}{{ med.frequency }}{% endif %}
+                {% if med.indication %}
+                <span style="color:var(--text-muted);">— {{ med.indication }}</span>
+                {% endif %}
+                <span style="color:var(--text-muted); font-size:0.85rem;">
+                    (started {{ med.start_date }})
+                </span>
+            </li>
+            {% endfor %}
+        </ul>
+        {% if hcq_start %}
+        <div style="margin-top:var(--space-xs); color:var(--text-muted); font-size:0.9rem;">
+            Note: Hydroxychloroquine started {{ hcq_start }}.
+        </div>
+        {% endif %}
+        {% else %}
+        <p style="color:var(--text-muted); margin:0;">No medications recorded.</p>
+        {% endif %}
+    </div>
+    
+    <!-- Mean symptom scores -->
+    {% if mean_pain or mean_fatigue %}
+    <div style="margin-top:var(--space-md);">
+        <h3 style="font-size:1rem; color:var(--text-secondary); margin:0 0 var(--space-xs) 0;">
+            Mean Symptom Burden
+        </h3>
+        <div style="color:var(--text-secondary);">
+            {% if mean_pain is not none %}
+            <span>Pain: <strong style="color:#c94040;">{{ mean_pain }}/10</strong></span>
+            {% endif %}
+            {% if mean_fatigue is not none %}
+            <span style="margin-left:var(--space-lg);">
+                Fatigue: <strong style="color:#d4a054;">{{ mean_fatigue }}/10</strong>
+            </span>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- ============================================================
+     KEY FINDINGS
+     ============================================================ -->
+{% if findings %}
+<div class="report-section">
+    <h2 style="margin:0 0 var(--space-md) 0; font-size:1.3rem; color:var(--text-primary);">
+        Key Findings
+    </h2>
+    {% for finding in findings %}
+    <div class="finding-card">
+        {{ finding.text }}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- ============================================================
+     FLAGGED LAB ABNORMALS
+     ============================================================ -->
+{% if flagged_labs %}
+<div class="report-section">
+    <h2 style="margin:0 0 var(--space-md) 0; font-size:1.3rem; color:var(--text-primary);">
+        Flagged Laboratory Results
+    </h2>
+    <div style="overflow-x:auto;">
+        <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+            <thead>
+                <tr style="border-bottom:1px solid var(--border-medium);">
+                    <th style="text-align:left; padding:var(--space-xs); color:var(--text-muted);">
+                        Date
+                    </th>
+                    <th style="text-align:left; padding:var(--space-xs); color:var(--text-muted);">
+                        Test
+                    </th>
+                    <th style="text-align:left; padding:var(--space-xs); color:var(--text-muted);">
+                        Result
+                    </th>
+                    <th style="text-align:left; padding:var(--space-xs); color:var(--text-muted);">
+                        Reference Range
+                    </th>
+                    <th style="text-align:left; padding:var(--space-xs); color:var(--text-muted);">
+                        Flag
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for lab in flagged_labs | sort(attribute='date', reverse=True) %}
+                <tr style="border-bottom:1px solid var(--border-subtle);">
+                    <td style="padding:var(--space-xs); font-family:var(--font-mono);
+                               font-size:0.85rem; color:var(--text-muted);">
+                        {{ lab.date }}
+                    </td>
+                    <td style="padding:var(--space-xs); color:var(--text-primary);">
+                        {{ lab.test_name }}
+                    </td>
+                    <td style="padding:var(--space-xs); font-family:var(--font-mono);">
+                        {% if lab.numeric_value is not none %}
+                        {{ lab.numeric_value }}
+                        {% if lab.unit %}{{ lab.unit }}{% endif %}
+                        {% elif lab.qualitative_result %}
+                        {{ lab.qualitative_result }}
+                        {% endif %}
+                    </td>
+                    <td style="padding:var(--space-xs); color:var(--text-muted); font-size:0.85rem;">
+                        {{ lab.reference_range or '—' }}
+                    </td>
+                    <td style="padding:var(--space-xs);">
+                        <span class="badge
+                            {% if lab.flag == 'high' %}badge-migraine
+                            {% elif lab.flag == 'low' %}badge-air
+                            {% elif lab.flag == 'critical' %}badge-migraine
+                            {% else %}badge-muscle{% endif %}">
+                            {{ lab.flag }}
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- ============================================================
+     CLINICAL EVENTS
+     ============================================================ -->
+{% if events %}
+<div class="report-section">
+    <h2 style="margin:0 0 var(--space-md) 0; font-size:1.3rem; color:var(--text-primary);">
+        Clinical Events
+    </h2>
+    {% for event in events %}
+    <div style="margin-bottom:var(--space-md); padding-left:var(--space-md);
+                border-left:2px solid var(--border-subtle);">
+        <div style="display:flex; gap:var(--space-md); margin-bottom:4px; align-items:baseline;">
+            <span style="font-family:var(--font-mono); font-size:0.85rem;
+                         color:var(--text-muted); flex-shrink:0;">
+                {{ event.date }}
+            </span>
+            <span class="badge badge-cognitive">{{ event.event_type }}</span>
+            {% if event.provider %}
+            <span style="color:var(--text-secondary); font-size:0.9rem;">
+                {{ event.provider }}
+            </span>
+            {% endif %}
+            {% if event.facility %}
+            <span style="color:var(--text-muted); font-size:0.85rem;">
+                — {{ event.facility }}
+            </span>
+            {% endif %}
+        </div>
+        {% if event.notes %}
+        <p style="margin:0; color:var(--text-secondary); font-size:0.9rem;">
+            {{ event.notes }}
+        </p>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- ============================================================
+     UV / SLEEP / TEMP CHART
+     ============================================================ -->
+<div class="report-section page-break">
+    <h2 style="margin:0 0 var(--space-md) 0; font-size:1.3rem; color:var(--text-primary);">
+        UV Exposure, Sleep, and Basal Temperature
+    </h2>
+    <div style="font-size:0.85rem; color:var(--text-muted); margin-bottom:var(--space-sm);">
+        3-day rolling average for report period
+    </div>
+    <canvas id="reportChart" style="max-height:280px;"></canvas>
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if observations|length > 0 %}
+<script>
+const CHART_DATA = {{ chart_dataset_json | safe }};
+
+Chart.defaults.font.family = "'Source Serif 4', 'Times New Roman', serif";
+Chart.defaults.font.size = 12;
+Chart.defaults.color = '#9994a8';
+
+function rollingAvg(arr, window) {
+    return arr.map((_, i) => {
+        const slice = arr.slice(Math.max(0, i - window + 1), i + 1)
+                         .filter(v => v !== null && v !== undefined);
+        if (slice.length < 2) return null;
+        return Math.round((slice.reduce((a, b) => a + b, 0) / slice.length) * 100) / 100;
+    });
+}
+
+const dates = CHART_DATA.dates;
+const uvLag1 = dates.map((d, i) => {
+    if (i === 0) return null;
+    const prevDate = dates[i - 1];
+    return CHART_DATA.uv[prevDate] ?? null;
+});
+
+const sleep3 = rollingAvg(CHART_DATA.sleep, 3);
+const bbt3   = rollingAvg(CHART_DATA.bbt, 3);
+const uv3    = rollingAvg(uvLag1, 3);
+
+new Chart(document.getElementById('reportChart'), {
+    type: 'line',
+    data: {
+        labels: dates,
+        datasets: [
+            {
+                label: 'sleep (hr)',
+                data: sleep3,
+                borderColor: '#9b72cf',
+                backgroundColor: 'transparent',
+                borderWidth: 2,
+                pointRadius: 0,
+                tension: 0.4,
+                spanGaps: true,
+                yAxisID: 'ySleep',
+            },
+            {
+                label: 'temp delta (°F)',
+                data: bbt3,
+                borderColor: '#d4784a',
+                backgroundColor: 'transparent',
+                borderWidth: 1.5,
+                borderDash: [4, 3],
+                pointRadius: 0,
+                tension: 0.4,
+                spanGaps: true,
+                yAxisID: 'yTemp',
+            },
+            {
+                label: 'uv prev day',
+                data: uv3,
+                borderColor: '#d4b84a',
+                backgroundColor: 'rgba(212,184,74,0.08)',
+                borderWidth: 1,
+                pointRadius: 0,
+                tension: 0.4,
+                fill: true,
+                spanGaps: true,
+                yAxisID: 'yUV',
+            },
+        ]
+    },
+    options: {
+        responsive: true,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+            legend: {
+                labels: { color: '#9994a8', boxWidth: 12, padding: 16 }
+            },
+            tooltip: {
+                backgroundColor: '#1e1e28',
+                borderColor: '#2a2a38',
+                borderWidth: 1,
+                padding: 10,
+                cornerRadius: 6,
+            },
+        },
+        scales: {
+            x: {
+                grid: { color: 'rgba(255,255,255,0.06)' },
+                ticks: { maxTicksLimit: 12, maxRotation: 45 }
+            },
+            ySleep: {
+                type: 'linear',
+                position: 'left',
+                min: 0, max: 14,
+                grid: { color: 'rgba(255,255,255,0.06)' },
+                title: { display: true, text: 'hours slept', color: '#9b72cf' },
+                ticks: { color: '#9b72cf' },
+            },
+            yTemp: {
+                type: 'linear',
+                position: 'right',
+                grid: { display: false },
+                title: { display: true, text: 'temp delta (°F)', color: '#d4784a' },
+                ticks: { color: '#d4784a' },
+            },
+            yUV: {
+                type: 'linear',
+                position: 'right',
+                min: 0,
+                display: false,
+            }
+        }
+    }
+});
+</script>
+{% endif %}
+{% endblock %}
