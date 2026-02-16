@@ -316,13 +316,60 @@ def uv_lag():
 # HRV and autonomic
 # ============================================================
 
+HCQ_START_DATE = "2025-12-09"  # Oblander prescription, actual start date
+
+
+def compute_hrv_data(observations: list) -> dict:
+    """Compute HRV trend with 7-day rolling average and HCQ split."""
+    import numpy as np
+
+    hrv_obs = [o for o in observations if o.get("hrv") is not None]
+    if not hrv_obs:
+        return {}
+
+    dates    = [o["date"] for o in hrv_obs]
+    hrv_vals = [float(o["hrv"]) for o in hrv_obs]
+    fatigue  = [o.get("fatigue_scale") for o in hrv_obs]
+    pain     = [o.get("pain_scale") for o in hrv_obs]
+
+    rolling = []
+    for i in range(len(hrv_vals)):
+        window = hrv_vals[max(0, i - 6): i + 1]
+        rolling.append(round(sum(window) / len(window), 2) if len(window) >= 3 else None)
+
+    pre_vals  = [v for d, v in zip(dates, hrv_vals) if d < HCQ_START_DATE]
+    post_vals = [v for d, v in zip(dates, hrv_vals) if d >= HCQ_START_DATE]
+
+    def stats_dict(vals):
+        if not vals:
+            return {"mean": None, "std": None, "n": 0}
+        arr = np.array(vals)
+        return {"mean": round(float(arr.mean()), 2),
+                "std":  round(float(arr.std()), 2),
+                "n":    len(vals)}
+
+    return {
+        "dates":       dates,
+        "hrv_raw":     hrv_vals,
+        "hrv_rolling": rolling,
+        "fatigue":     fatigue,
+        "pain":        pain,
+        "pre_hcq":     stats_dict(pre_vals),
+        "post_hcq":    stats_dict(post_vals),
+        "hcq_start":   HCQ_START_DATE,
+    }
+
+
 @app.route("/hrv")
 def hrv_view():
-    """HRV trend vs symptom load view."""
+    """HRV trend with rolling average and HCQ before/after split."""
     observations = db.get_all_daily_observations()
+    hrv_data = compute_hrv_data(observations)
     return render_template(
         "hrv.html",
-        observations_json=json.dumps(observations, default=str),
+        has_data=bool(hrv_data),
+        hrv_json=json.dumps(hrv_data, default=lambda x: int(x) if isinstance(x, bool) else str(x)),
+        hcq_start=HCQ_START_DATE,
     )
 
 
