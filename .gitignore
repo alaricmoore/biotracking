@@ -14,6 +14,7 @@ config.json
 Export.xml
 apple_health_export/
 *.zip
+*.csv
 
 # ============================================================
 # Python
@@ -65,6 +66,7 @@ Icon?
 ._*
 .Spotlight-V100
 .Trashes
+
 
 # ============================================================
 # Editors
