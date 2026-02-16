@@ -1,11 +1,252 @@
 {% extends "base.html" %}
+
 {% block title %}uv lag — biotracking{% endblock %}
+
+{% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+{% endblock %}
+
 {% block content %}
 <div class="page-header">
     <h1>uv lag analysis</h1>
+    <p class="page-subtitle">
+        {% if has_data %}
+            {{ start_date }} — {{ end_date }} &nbsp;·&nbsp;
+            {{ n_observations }} observation days &nbsp;·&nbsp;
+            {{ n_uv_days }} days with UV data
+        {% endif %}
+    </p>
 </div>
+
+{% if not has_data %}
 <div class="empty-state">
-    <p>This view is under construction.</p>
-    <p style="margin-top:1rem;"><a href="{{ url_for('daily_entry') }}">← back to today</a></p>
+    {% if no_uv_message is defined and no_uv_message %}
+    <p>UV data not yet available.</p>
+    <p style="margin-top:1rem;">Run <code>python backfill_uv.py</code> to fetch historical UV data.</p>
+    {% else %}
+    <p>No observation data found.</p>
+    <p style="margin-top:1rem;"><a href="{{ url_for('daily_entry') }}">add today's entry</a></p>
+    {% endif %}
 </div>
+
+{% else %}
+
+<!-- Explanation -->
+<div class="card" style="margin-bottom:var(--space-lg);">
+    <p style="color:var(--text-secondary); font-size:0.9rem; line-height:1.7;">
+        Each bar shows the Pearson correlation (r) between UV noon index and a symptom
+        at a given lag. <strong style="color:var(--text-primary);">Lag 0</strong> = same day.
+        <strong style="color:var(--text-primary);">Lag 2</strong> = UV today predicts symptom
+        in two days. A bar marked <strong style="color:var(--color-flare);">*</strong>
+        is statistically significant (p &lt; 0.05).
+        Negative r means UV correlates with fewer symptoms that day.
+    </p>
+</div>
+
+<!-- Main correlation chart -->
+<div class="chart-container">
+    <div class="chart-title">uv noon → symptom correlation by lag window</div>
+    <canvas id="chartLag" style="max-height: 420px;"></canvas>
+</div>
+
+<!-- Per-symptom detail cards -->
+<div id="detailCards"
+     style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap:var(--space-md); margin-top:var(--space-lg);">
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if has_data %}
+<script>
+const correlations = {{ correlations_json | safe }};
+
+// ============================================================
+// Purple family for lag windows
+// ============================================================
+const LAG_COLORS = {
+    lag_0: '#b8aee8',   // light lavender  - same day
+    lag_1: '#9b8dd4',   // medium purple   - 1 day
+    lag_2: '#7c6fd4',   // anchor purple   - 2 days
+    lag_3: '#5c4fb8',   // deep indigo     - 3 days
+};
+
+const LAG_LABELS = {
+    lag_0: 'same day (lag 0)',
+    lag_1: '24h lag',
+    lag_2: '48h lag',
+    lag_3: '72h lag',
+};
+
+// Symptom display names and their badge colors
+const SYMPTOM_META = {
+    pain:           { label: 'pain',           color: '#c94040' },
+    fatigue:        { label: 'fatigue',         color: '#d4a054' },
+    flare:          { label: 'flare',           color: '#ffffff' },
+    neurological:   { label: 'neurological',    color: '#4a90d9' },
+    musculature:    { label: 'musculature',     color: '#d4a054' },
+    migraine:       { label: 'migraine',        color: '#c94040' },
+    cognitive:      { label: 'cognitive',       color: '#9b72cf' },
+    dermatological: { label: 'dermatological',  color: '#d4784a' },
+    air_hunger:     { label: 'air hunger',      color: '#4ab8b8' },
+};
+
+Chart.defaults.font.family = "'Source Serif 4', 'Times New Roman', serif";
+Chart.defaults.font.size = 12;
+Chart.defaults.color = '#9994a8';
+
+// ============================================================
+// Build grouped bar chart
+// ============================================================
+function buildLagChart() {
+    const symptoms = Object.keys(correlations);
+    const lags = ['lag_0', 'lag_1', 'lag_2', 'lag_3'];
+
+    const datasets = lags.map(lag => ({
+        label: LAG_LABELS[lag],
+        data: symptoms.map(sym => {
+            const d = correlations[sym]?.[lag];
+            return d ? d.r : 0;
+        }),
+        backgroundColor: LAG_COLORS[lag],
+        borderColor: LAG_COLORS[lag],
+        borderWidth: 1,
+        borderRadius: 3,
+    }));
+
+    const labels = symptoms.map(s => SYMPTOM_META[s]?.label || s);
+
+    new Chart(document.getElementById('chartLag'), {
+        type: 'bar',
+        data: { labels, datasets },
+        options: {
+            responsive: true,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: {
+                    labels: {
+                        color: '#9994a8',
+                        boxWidth: 12,
+                        padding: 16,
+                    }
+                },
+                tooltip: {
+                    backgroundColor: '#1e1e28',
+                    borderColor: '#2a2a38',
+                    borderWidth: 1,
+                    titleColor: '#e8e6e0',
+                    bodyColor: '#9994a8',
+                    padding: 10,
+                    cornerRadius: 6,
+                    callbacks: {
+                        label: ctx => {
+                            const sym = symptoms[ctx.dataIndex];
+                            const lag = lags[ctx.datasetIndex];
+                            const d = correlations[sym]?.[lag];
+                            if (!d) return `${ctx.dataset.label}: no data`;
+                            const sig = d.significant ? ' *' : '';
+                            return `${ctx.dataset.label}: r=${d.r}${sig}  (n=${d.n}, p=${d.p})`;
+                        }
+                    }
+                },
+            },
+            scales: {
+                x: {
+                    grid: { color: 'rgba(255,255,255,0.06)' },
+                    ticks: { color: '#9994a8' },
+                },
+                y: {
+                    min: -1,
+                    max: 1,
+                    grid: { color: 'rgba(255,255,255,0.06)' },
+                    title: {
+                        display: true,
+                        text: 'Pearson r',
+                        color: '#9994a8',
+                    },
+                    ticks: {
+                        color: '#9994a8',
+                        callback: v => v.toFixed(1),
+                    }
+                }
+            }
+        }
+    });
+}
+
+// ============================================================
+// Build per-symptom detail cards
+// ============================================================
+function buildDetailCards() {
+    const container = document.getElementById('detailCards');
+    const lags = ['lag_0', 'lag_1', 'lag_2', 'lag_3'];
+
+    Object.entries(correlations).forEach(([sym, lagData]) => {
+        const meta = SYMPTOM_META[sym] || { label: sym, color: '#9994a8' };
+
+        // Find strongest lag
+        let bestLag = null;
+        let bestR = 0;
+        lags.forEach(lag => {
+            const d = lagData[lag];
+            if (d && Math.abs(d.r) > Math.abs(bestR)) {
+                bestR = d.r;
+                bestLag = lag;
+            }
+        });
+
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.style.borderColor = meta.color + '44';
+
+        const rows = lags.map(lag => {
+            const d = lagData[lag];
+            if (!d) return `
+                <tr>
+                    <td style="color:var(--text-muted)">${LAG_LABELS[lag]}</td>
+                    <td style="color:var(--text-muted); font-family:var(--font-mono)">—</td>
+                    <td></td>
+                </tr>`;
+
+            const isStrong = lag === bestLag;
+            const sig = d.significant ? '<span style="color:var(--color-flare)"> *</span>' : '';
+            const weight = isStrong ? 'font-weight:600; color:var(--text-primary)' : '';
+
+            return `
+                <tr style="${weight}">
+                    <td style="color:var(--text-secondary)">${LAG_LABELS[lag]}</td>
+                    <td style="font-family:var(--font-mono); color:${LAG_COLORS[lag]}">
+                        r = ${d.r}${sig}
+                    </td>
+                    <td style="font-family:var(--font-mono); color:var(--text-muted);
+                               font-size:0.8rem">
+                        n=${d.n}
+                    </td>
+                </tr>`;
+        }).join('');
+
+        card.innerHTML = `
+            <div class="card-title" style="color:${meta.color}; margin-bottom:var(--space-md);">
+                ${meta.label}
+            </div>
+            <table style="width:100%; border-collapse:collapse; font-size:0.875rem;">
+                ${rows}
+            </table>
+            ${bestLag ? `
+            <div style="margin-top:var(--space-md); font-size:0.8rem;
+                        color:var(--text-muted); font-style:italic;">
+                strongest: ${LAG_LABELS[bestLag]} (r = ${bestR.toFixed(3)})
+            </div>` : ''}
+        `;
+
+        container.appendChild(card);
+    });
+}
+
+buildLagChart();
+buildDetailCards();
+</script>
+{% endif %}
 {% endblock %}

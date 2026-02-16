@@ -1,11 +1,363 @@
 {% extends "base.html" %}
+
 {% block title %}timeline — biotracking{% endblock %}
+
+{% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+{% endblock %}
+
 {% block content %}
 <div class="page-header">
     <h1>timeline</h1>
+    <p class="page-subtitle">{{ start_date }} — {{ end_date }}</p>
 </div>
-<div class="empty-state">
-    <p>This view is under construction.</p>
-    <p style="margin-top:1rem;"><a href="{{ url_for('daily_entry') }}">← back to today</a></p>
+
+<!-- Date range selector -->
+<div class="card" style="margin-bottom: var(--space-lg);">
+    <form method="GET" action="{{ url_for('timeline') }}"
+          style="display:flex; gap:var(--space-md); align-items:flex-end; flex-wrap:wrap;">
+        <div class="form-group" style="margin:0; flex:1; min-width:140px;">
+            <label>from</label>
+            <input type="date" name="start" value="{{ start_date }}">
+        </div>
+        <div class="form-group" style="margin:0; flex:1; min-width:140px;">
+            <label>to</label>
+            <input type="date" name="end" value="{{ end_date }}">
+        </div>
+        <button type="submit" class="btn btn-secondary">update</button>
+        <a href="{{ url_for('timeline') }}" class="btn btn-secondary">reset</a>
+    </form>
 </div>
+
+<!-- Legend -->
+<div style="display:flex; flex-wrap:wrap; gap:var(--space-sm);
+            margin-bottom:var(--space-lg);">
+    <span class="badge badge-neuro">neurological</span>
+    <span class="badge badge-muscle">musculature</span>
+    <span class="badge badge-migraine">migraine</span>
+    <span class="badge badge-cognitive">cognitive</span>
+    <span class="badge badge-derm">dermatological</span>
+    <span class="badge badge-air">air hunger</span>
+    <span class="badge badge-uv">uv index</span>
+    <span class="badge" style="background:rgba(255,255,255,0.1);
+                                color:var(--color-flare);">flare day</span>
+</div>
+
+<!-- Main symptom + UV chart -->
+<div class="chart-container">
+    <div class="chart-title">pain · fatigue · uv noon</div>
+    <canvas id="chartMain" style="max-height:320px;"></canvas>
+</div>
+
+<!-- Symptom flags chart -->
+<div class="chart-container">
+    <div class="chart-title">symptom categories (daily flags)</div>
+    <canvas id="chartFlags" style="max-height:220px;"></canvas>
+</div>
+
+<!-- HRV + temp delta chart -->
+<div class="chart-container">
+    <div class="chart-title">hrv · basal temp delta</div>
+    <canvas id="chartHRV" style="max-height:220px;"></canvas>
+</div>
+
+<!-- No data state -->
+<div id="noData" style="display:none;">
+    <div class="empty-state">
+        <p>No data for this date range.</p>
+        <p style="margin-top:1rem;">
+            <a href="{{ url_for('daily_entry') }}">add today's entry</a>
+        </p>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const rawData = {{ timeline_json | safe }};
+const daily = rawData.daily || [];
+const uvData = rawData.uv || [];
+
+if (daily.length === 0) {
+    document.getElementById('noData').style.display = 'block';
+    document.querySelectorAll('.chart-container').forEach(el => {
+        el.style.display = 'none';
+    });
+}
+
+const C = {
+    neuro:     '#4a90d9',
+    muscle:    '#d4a054',
+    migraine:  '#c94040',
+    cognitive: '#9b72cf',
+    derm:      '#d4784a',
+    air:       '#4ab8b8',
+    emotional: '#7a8499',
+    uv:        '#d4b84a',
+    pain:      '#c94040',
+    fatigue:   '#d4a054',
+    hrv:       '#4ab8b8',
+    temp:      '#9b72cf',
+    grid:      'rgba(255,255,255,0.06)',
+    text:      '#9994a8',
+};
+
+const uvByDate = {};
+uvData.forEach(u => { uvByDate[u.date] = u; });
+
+Chart.defaults.font.family = "'Source Serif 4', 'Times New Roman', serif";
+Chart.defaults.font.size = 12;
+Chart.defaults.color = C.text;
+
+function gridOpts() {
+    return { color: C.grid, drawBorder: false };
+}
+
+function tooltipOpts() {
+    return {
+        backgroundColor: '#1e1e28',
+        borderColor: '#2a2a38',
+        borderWidth: 1,
+        titleColor: '#e8e6e0',
+        bodyColor: '#9994a8',
+        padding: 10,
+        cornerRadius: 6,
+    };
+}
+
+const flareBandPlugin = {
+    id: 'flareBands',
+    beforeDraw(chart) {
+        const { ctx, chartArea, scales } = chart;
+        if (!chartArea) return;
+        daily.forEach(d => {
+            if (!d.flare_occurred) return;
+            const x = scales.x.getPixelForValue(d.date);
+            if (!x) return;
+            ctx.save();
+            ctx.fillStyle = 'rgba(255,255,255,0.04)';
+            ctx.fillRect(x - 2, chartArea.top, 4, chartArea.bottom - chartArea.top);
+            ctx.restore();
+        });
+    }
+};
+
+function buildMainChart() {
+    const labels  = daily.map(d => d.date);
+    const pain    = daily.map(d => d.pain_scale);
+    const fatigue = daily.map(d => d.fatigue_scale);
+    const uvNoon  = daily.map(d => {
+        const uv = uvByDate[d.date];
+        return uv ? uv.uv_noon : null;
+    });
+
+    new Chart(document.getElementById('chartMain'), {
+        type: 'line',
+        plugins: [flareBandPlugin],
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: 'pain',
+                    data: pain,
+                    borderColor: C.pain,
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    pointRadius: 2,
+                    pointHoverRadius: 5,
+                    tension: 0.3,
+                    spanGaps: true,
+                    yAxisID: 'ySymptom',
+                },
+                {
+                    label: 'fatigue',
+                    data: fatigue,
+                    borderColor: C.fatigue,
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    pointRadius: 2,
+                    pointHoverRadius: 5,
+                    tension: 0.3,
+                    spanGaps: true,
+                    yAxisID: 'ySymptom',
+                },
+                {
+                    label: 'uv noon',
+                    data: uvNoon,
+                    borderColor: C.uv,
+                    backgroundColor: 'rgba(212,184,74,0.08)',
+                    borderWidth: 1.5,
+                    pointRadius: 0,
+                    tension: 0.4,
+                    fill: true,
+                    spanGaps: true,
+                    yAxisID: 'yUV',
+                },
+            ]
+        },
+        options: {
+            responsive: true,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { labels: { color: C.text, boxWidth: 12, padding: 16 } },
+                tooltip: tooltipOpts(),
+            },
+            scales: {
+                x: {
+                    grid: gridOpts(),
+                    ticks: { maxTicksLimit: 12, maxRotation: 45 }
+                },
+                ySymptom: {
+                    type: 'linear',
+                    position: 'left',
+                    min: 0, max: 10,
+                    grid: gridOpts(),
+                    title: { display: true, text: 'score (0–10)', color: C.text }
+                },
+                yUV: {
+                    type: 'linear',
+                    position: 'right',
+                    min: 0,
+                    grid: { display: false },
+                    title: { display: true, text: 'uv index', color: C.uv },
+                    ticks: { color: C.uv }
+                }
+            }
+        }
+    });
+}
+
+function buildFlagsChart() {
+    const labels = daily.map(d => d.date);
+    const flagDefs = [
+        { key: 'neurological',   label: 'neuro',   color: C.neuro,    offset: 6 },
+        { key: 'musculature',    label: 'muscle',  color: C.muscle,   offset: 5 },
+        { key: 'migraine',       label: 'migraine',color: C.migraine, offset: 4 },
+        { key: 'cognitive',      label: 'cog',     color: C.cognitive,offset: 3 },
+        { key: 'dermatological', label: 'derm',    color: C.derm,     offset: 2 },
+        { key: 'air_hunger',     label: 'air',     color: C.air,      offset: 1 },
+        { key: 'word_loss',      label: 'words',   color: C.emotional,offset: 0 },
+    ];
+
+    const datasets = flagDefs.map(def => ({
+        label: def.label,
+        data: daily.map((d, i) => d[def.key] ? { x: labels[i], y: def.offset + 0.7 } : null),
+        borderColor: def.color,
+        backgroundColor: def.color + '55',
+        borderWidth: 1,
+        pointRadius: 3,
+        pointStyle: 'rect',
+        showLine: false,
+    }));
+
+    new Chart(document.getElementById('chartFlags'), {
+        type: 'scatter',
+        plugins: [flareBandPlugin],
+        data: { datasets },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { labels: { color: C.text, boxWidth: 10, padding: 12 } },
+                tooltip: {
+                    ...tooltipOpts(),
+                    callbacks: { label: ctx => ctx.dataset.label }
+                },
+            },
+            scales: {
+                x: {
+                    type: 'category',
+                    labels: labels,
+                    grid: gridOpts(),
+                    ticks: { maxTicksLimit: 12, maxRotation: 45 }
+                },
+                y: {
+                    min: -0.5, max: 7.5,
+                    grid: gridOpts(),
+                    ticks: {
+                        stepSize: 1,
+                        callback: val => {
+                            const names = ['words','air','derm','cog','migraine','muscle','neuro'];
+                            return names[Math.round(val)] || '';
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function buildHRVChart() {
+    const labels = daily.map(d => d.date);
+    const hrv    = daily.map(d => d.hrv);
+    const temp   = daily.map(d => d.basal_temp_delta);
+
+    new Chart(document.getElementById('chartHRV'), {
+        type: 'line',
+        plugins: [flareBandPlugin],
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: 'hrv',
+                    data: hrv,
+                    borderColor: C.hrv,
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    pointRadius: 2,
+                    tension: 0.3,
+                    spanGaps: true,
+                    yAxisID: 'yHRV',
+                },
+                {
+                    label: 'temp delta',
+                    data: temp,
+                    borderColor: C.temp,
+                    backgroundColor: 'transparent',
+                    borderWidth: 1.5,
+                    pointRadius: 2,
+                    borderDash: [4, 3],
+                    tension: 0.3,
+                    spanGaps: true,
+                    yAxisID: 'yTemp',
+                },
+            ]
+        },
+        options: {
+            responsive: true,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { labels: { color: C.text, boxWidth: 12, padding: 16 } },
+                tooltip: tooltipOpts(),
+            },
+            scales: {
+                x: {
+                    grid: gridOpts(),
+                    ticks: { maxTicksLimit: 12, maxRotation: 45 }
+                },
+                yHRV: {
+                    type: 'linear',
+                    position: 'left',
+                    grid: gridOpts(),
+                    title: { display: true, text: 'hrv (ms)', color: C.hrv },
+                    ticks: { color: C.hrv }
+                },
+                yTemp: {
+                    type: 'linear',
+                    position: 'right',
+                    grid: { display: false },
+                    title: { display: true, text: 'temp delta (°F)', color: C.temp },
+                    ticks: { color: C.temp }
+                }
+            }
+        }
+    });
+}
+
+if (daily.length > 0) {
+    buildMainChart();
+    buildFlagsChart();
+    buildHRVChart();
+}
+</script>
 {% endblock %}

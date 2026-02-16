@@ -181,23 +181,134 @@ def timeline():
 # UV lag analysis
 # ============================================================
 
+def compute_lag_correlations(observations: list, uv_data: list) -> dict:
+    """Compute Pearson correlation between UV noon and each symptom
+    at lag windows of 0, 1, 2, and 3 days.
+
+    UV on day D is correlated against symptom on day D+lag.
+    A high correlation at lag=2 means UV exposure predicts
+    that symptom two days later.
+
+    Args:
+        observations: list of daily_observation dicts
+        uv_data: list of uv_data dicts
+
+    Returns:
+        dict of {symptom_name: {lag_0: r, lag_1: r, lag_2: r, lag_3: r}}
+        r values are Pearson correlation coefficients (-1 to 1)
+        None means insufficient data for that lag/symptom combination
+    """
+    import numpy as np
+    from scipy import stats
+
+    # Build date-indexed lookups
+    obs_by_date = {o["date"]: o for o in observations}
+    uv_by_date  = {u["date"]: u for u in uv_data}
+
+    # Sorted date list that has both UV and observation data
+    dates_with_both = sorted([
+        d for d in obs_by_date
+        if d in uv_by_date and uv_by_date[d].get("uv_noon") is not None
+    ])
+
+    if len(dates_with_both) < 10:
+        return {}
+
+    # Symptom targets - continuous scales and boolean flags
+    targets = {
+        "pain":          lambda o: o.get("pain_scale"),
+        "fatigue":       lambda o: o.get("fatigue_scale"),
+        "neurological":  lambda o: o.get("neurological"),
+        "musculature":   lambda o: o.get("musculature"),
+        "migraine":      lambda o: o.get("migraine"),
+        "cognitive":     lambda o: o.get("cognitive"),
+        "dermatological":lambda o: o.get("dermatological"),
+        "air_hunger":    lambda o: o.get("air_hunger"),
+        "flare":         lambda o: o.get("flare_occurred"),
+    }
+
+    lag_days = [0, 1, 2, 3]
+    results = {}
+
+    for symptom_name, getter in targets.items():
+        results[symptom_name] = {}
+
+        for lag in lag_days:
+            uv_vals = []
+            sym_vals = []
+
+            for i, date_str in enumerate(dates_with_both):
+                # UV on this date
+                uv_noon = uv_by_date[date_str].get("uv_noon")
+                if uv_noon is None:
+                    continue
+
+                # Find the date lag days later
+                lag_date = (
+                    datetime.strptime(date_str, "%Y-%m-%d") +
+                    timedelta(days=lag)
+                ).strftime("%Y-%m-%d")
+
+                lag_obs = obs_by_date.get(lag_date)
+                if lag_obs is None:
+                    continue
+
+                sym_val = getter(lag_obs)
+                if sym_val is None:
+                    continue
+
+                uv_vals.append(float(uv_noon))
+                sym_vals.append(float(sym_val))
+
+            # Need at least 8 paired observations for meaningful correlation
+            if len(uv_vals) < 8:
+                results[symptom_name][f"lag_{lag}"] = None
+                continue
+
+            uv_arr  = np.array(uv_vals)
+            sym_arr = np.array(sym_vals)
+
+            # Skip if no variance (all zeros e.g. rare symptom)
+            if uv_arr.std() == 0 or sym_arr.std() == 0:
+                results[symptom_name][f"lag_{lag}"] = None
+                continue
+
+            r, p_value = stats.pearsonr(uv_arr, sym_arr)
+            results[symptom_name][f"lag_{lag}"] = {
+                "r":       round(float(r), 3),
+                "p":       round(float(p_value), 4),
+                "n":       len(uv_vals),
+                "significant": float(p_value) < 0.01 and abs(float(r)) >= 0.15,
+            }
+
+    return results
+
+
 @app.route("/uv-lag")
 def uv_lag():
     """UV lag correlation analysis view."""
-    # Default to all available data
     observations = db.get_all_daily_observations()
     if not observations:
         return render_template("uv_lag.html", has_data=False)
 
     start_date = observations[0]["date"]
-    end_date = observations[-1]["date"]
-    uv_data = db.get_uv_data_range(start_date, end_date)
+    end_date   = observations[-1]["date"]
+    uv_data    = db.get_uv_data_range(start_date, end_date)
+
+    if not uv_data:
+        return render_template("uv_lag.html", has_data=False,
+                               no_uv_message=True)
+
+    correlations = compute_lag_correlations(observations, uv_data)
 
     return render_template(
         "uv_lag.html",
         has_data=True,
-        observations_json=json.dumps(observations, default=str),
-        uv_json=json.dumps(uv_data, default=str),
+        correlations_json=json.dumps(correlations, default=lambda x: int(x) if isinstance(x, bool) else str(x)),
+        n_observations=len(observations),
+        n_uv_days=len(uv_data),
+        start_date=start_date,
+        end_date=end_date,
     )
 
 
