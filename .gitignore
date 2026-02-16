@@ -9,12 +9,13 @@ config.json
 *.db
 *.sqlite
 *.sqlite3
+*.csv
 
 # Apple Health exports - sensitive health data
 Export.xml
 apple_health_export/
 *.zip
-*.csv
+
 
 # ============================================================
 # Python
