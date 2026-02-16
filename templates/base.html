@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>{% block title %}biotracking{% endblock %}</title>
+
+    <!-- Serif typography from Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,300;1,8..60,400&family=IBM+Plex+Mono:wght@300;400&display=swap" rel="stylesheet">
+
+    <style>
+        /* ================================================
+           Design tokens
+           ================================================ */
+        :root {
+            /* Background layers */
+            --bg-base:        #0e0e12;
+            --bg-surface:     #16161d;
+            --bg-elevated:    #1e1e28;
+            --bg-input:       #23232f;
+
+            /* Borders */
+            --border-subtle:  #2a2a38;
+            --border-medium:  #38384a;
+
+            /* Text */
+            --text-primary:   #e8e6e0;
+            --text-secondary: #9994a8;
+            --text-muted:     #5a5870;
+            --text-inverse:   #0e0e12;
+
+            /* Symptom category colors */
+            --color-neuro:        #4a90d9;   /* cool blue    - neurological  */
+            --color-muscle:       #d4a054;   /* warm amber   - musculature   */
+            --color-migraine:     #c94040;   /* deep red     - migraine      */
+            --color-cognitive:    #9b72cf;   /* soft purple  - cognitive     */
+            --color-derm:         #d4784a;   /* muted orange - dermatological*/
+            --color-air:          #4ab8b8;   /* teal         - air hunger    */
+            --color-emotional:    #7a8499;   /* slate grey   - emotional     */
+            --color-uv:           #d4b84a;   /* yellow-gold  - UV index      */
+            --color-flare:        #ffffff;   /* white        - flare days    */
+
+            /* Semantic colors */
+            --color-success:  #4a9e6e;
+            --color-warning:  #d4a054;
+            --color-danger:   #c94040;
+            --color-accent:   #7a8de0;
+
+            /* Typography */
+            --font-display:  'Playfair Display', 'Times New Roman', Georgia, serif;
+            --font-body:     'Source Serif 4', 'Times New Roman', Georgia, serif;
+            --font-mono:     'IBM Plex Mono', 'Courier New', monospace;
+
+            /* Spacing */
+            --space-xs:  0.25rem;
+            --space-sm:  0.5rem;
+            --space-md:  1rem;
+            --space-lg:  1.5rem;
+            --space-xl:  2rem;
+            --space-2xl: 3rem;
+
+            /* Radius */
+            --radius-sm: 4px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+        }
+
+        /* ================================================
+           Reset and base
+           ================================================ */
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            font-size: 16px;
+            -webkit-text-size-adjust: 100%;
+        }
+
+        body {
+            font-family: var(--font-body);
+            font-weight: 300;
+            font-size: 1rem;
+            line-height: 1.6;
+            color: var(--text-primary);
+            background-color: var(--bg-base);
+            min-height: 100vh;
+        }
+
+        /* ================================================
+           Typography
+           ================================================ */
+        h1, h2, h3, h4 {
+            font-family: var(--font-display);
+            font-weight: 600;
+            line-height: 1.25;
+            color: var(--text-primary);
+        }
+
+        h1 { font-size: clamp(1.5rem, 4vw, 2rem); }
+        h2 { font-size: clamp(1.2rem, 3vw, 1.5rem); }
+        h3 { font-size: 1.1rem; }
+        h4 { font-size: 1rem; }
+
+        p { margin-bottom: var(--space-md); }
+        p:last-child { margin-bottom: 0; }
+
+        a {
+            color: var(--color-accent);
+            text-decoration: none;
+        }
+        a:hover { text-decoration: underline; }
+
+        code, .mono {
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        /* ================================================
+           Layout
+           ================================================ */
+        .app-wrapper {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .app-header {
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: var(--space-md) var(--space-lg);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-inner {
+            max-width: 900px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--space-md);
+        }
+
+        .app-wordmark {
+            font-family: var(--font-display);
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: 0.02em;
+        }
+
+        .app-wordmark span {
+            color: var(--color-accent);
+        }
+
+        /* Mobile nav */
+        .nav-links {
+            display: flex;
+            gap: var(--space-md);
+            list-style: none;
+            flex-wrap: wrap;
+        }
+
+        .nav-links a {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            padding: var(--space-xs) var(--space-sm);
+            border-radius: var(--radius-sm);
+            transition: color 0.15s, background 0.15s;
+        }
+
+        .nav-links a:hover,
+        .nav-links a.active {
+            color: var(--text-primary);
+            background: var(--bg-elevated);
+            text-decoration: none;
+        }
+
+        .app-main {
+            flex: 1;
+            padding: var(--space-lg);
+            max-width: 900px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .page-header {
+            margin-bottom: var(--space-xl);
+            padding-bottom: var(--space-md);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .page-header h1 {
+            margin-bottom: var(--space-xs);
+        }
+
+        .page-subtitle {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            font-style: italic;
+        }
+
+        /* ================================================
+           Cards and surfaces
+           ================================================ */
+        .card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            padding: var(--space-lg);
+            margin-bottom: var(--space-lg);
+        }
+
+        .card-title {
+            font-family: var(--font-display);
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: var(--space-md);
+            color: var(--text-primary);
+        }
+
+        /* ================================================
+           Forms
+           ================================================ */
+        .form-group {
+            margin-bottom: var(--space-lg);
+        }
+
+        label {
+            display: block;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-bottom: var(--space-xs);
+            font-weight: 400;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        input[type="date"],
+        input[type="search"],
+        textarea,
+        select {
+            width: 100%;
+            background: var(--bg-input);
+            border: 1px solid var(--border-medium);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-family: var(--font-body);
+            font-size: 1rem;
+            padding: var(--space-sm) var(--space-md);
+            transition: border-color 0.15s;
+            -webkit-appearance: none;
+        }
+
+        input:focus,
+        textarea:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--color-accent);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        /* Range sliders */
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            background: var(--bg-elevated);
+            border-radius: 3px;
+            border: none;
+            padding: 0;
+            cursor: pointer;
+            accent-color: var(--color-accent);
+        }
+
+        .range-row {
+            display: flex;
+            align-items: center;
+            gap: var(--space-md);
+        }
+
+        .range-value {
+            font-family: var(--font-mono);
+            font-size: 1.1rem;
+            min-width: 2.5rem;
+            text-align: right;
+            color: var(--text-primary);
+        }
+
+        /* Toggle switches for symptom flags */
+        .toggle-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: var(--space-sm);
+            margin-bottom: var(--space-md);
+        }
+
+        .toggle-item {
+            position: relative;
+        }
+
+        .toggle-item input[type="checkbox"] {
+            position: absolute;
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-label {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            padding: var(--space-sm) var(--space-md);
+            border: 1px solid var(--border-medium);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            background: var(--bg-input);
+            transition: all 0.15s;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .toggle-label:active {
+            transform: scale(0.97);
+        }
+
+        /* Checked state per symptom category */
+        .toggle-item.neuro input:checked ~ .toggle-label {
+            background: color-mix(in srgb, var(--color-neuro) 15%, var(--bg-surface));
+            border-color: var(--color-neuro);
+            color: var(--color-neuro);
+        }
+        .toggle-item.muscle input:checked ~ .toggle-label {
+            background: color-mix(in srgb, var(--color-muscle) 15%, var(--bg-surface));
+            border-color: var(--color-muscle);
+            color: var(--color-muscle);
+        }
+        .toggle-item.migraine input:checked ~ .toggle-label {
+            background: color-mix(in srgb, var(--color-migraine) 15%, var(--bg-surface));
+            border-color: var(--color-migraine);
+            color: var(--color-migraine);
+        }
+        .toggle-item.cognitive input:checked ~ .toggle-label {
+            background: color-mix(in srgb, var(--color-cognitive) 15%, var(--bg-surface));
+            border-color: var(--color-cognitive);
+            color: var(--color-cognitive);
+        }
+        .toggle-item.derm input:checked ~ .toggle-label {
+            background: color-mix(in srgb, var(--color-derm) 15%, var(--bg-surface));
+            border-color: var(--color-derm);
+            color: var(--color-derm);
+        }
+        .toggle-item.air input:checked ~ .toggle-label {
+            background: color-mix(in srgb, var(--color-air) 15%, var(--bg-surface));
+            border-color: var(--color-air);
+            color: var(--color-air);
+        }
+        .toggle-item.emotional input:checked ~ .toggle-label {
+            background: color-mix(in srgb, var(--color-emotional) 15%, var(--bg-surface));
+            border-color: var(--color-emotional);
+            color: var(--color-emotional);
+        }
+
+        /* Expandable note fields */
+        .notes-expand {
+            display: none;
+            margin-top: var(--space-sm);
+            animation: slideDown 0.15s ease;
+        }
+
+        .notes-expand.visible {
+            display: block;
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-4px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ================================================
+           Buttons
+           ================================================ */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-sm);
+            padding: var(--space-sm) var(--space-lg);
+            border-radius: var(--radius-md);
+            font-family: var(--font-body);
+            font-size: 1rem;
+            font-weight: 400;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: all 0.15s;
+            -webkit-tap-highlight-color: transparent;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: var(--color-accent);
+            color: var(--text-inverse);
+            border-color: var(--color-accent);
+        }
+
+        .btn-primary:hover {
+            filter: brightness(1.1);
+            text-decoration: none;
+            color: var(--text-inverse);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-secondary);
+            border-color: var(--border-medium);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+            text-decoration: none;
+        }
+
+        .btn-full {
+            width: 100%;
+            padding: var(--space-md);
+            font-size: 1.1rem;
+        }
+
+        /* ================================================
+           Symptom category badges
+           ================================================ */
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-family: var(--font-mono);
+            font-weight: 400;
+        }
+
+        .badge-neuro     { background: color-mix(in srgb, var(--color-neuro) 20%, transparent);
+                           color: var(--color-neuro); }
+        .badge-muscle    { background: color-mix(in srgb, var(--color-muscle) 20%, transparent);
+                           color: var(--color-muscle); }
+        .badge-migraine  { background: color-mix(in srgb, var(--color-migraine) 20%, transparent);
+                           color: var(--color-migraine); }
+        .badge-cognitive { background: color-mix(in srgb, var(--color-cognitive) 20%, transparent);
+                           color: var(--color-cognitive); }
+        .badge-derm      { background: color-mix(in srgb, var(--color-derm) 20%, transparent);
+                           color: var(--color-derm); }
+        .badge-air       { background: color-mix(in srgb, var(--color-air) 20%, transparent);
+                           color: var(--color-air); }
+        .badge-emotional { background: color-mix(in srgb, var(--color-emotional) 20%, transparent);
+                           color: var(--color-emotional); }
+        .badge-uv        { background: color-mix(in srgb, var(--color-uv) 20%, transparent);
+                           color: var(--color-uv); }
+
+        /* ================================================
+           UV display strip
+           ================================================ */
+        .uv-strip {
+            display: flex;
+            gap: var(--space-md);
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            padding: var(--space-md);
+            margin-bottom: var(--space-lg);
+        }
+
+        .uv-value {
+            flex: 1;
+            text-align: center;
+        }
+
+        .uv-value .label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            display: block;
+            margin-bottom: var(--space-xs);
+        }
+
+        .uv-value .number {
+            font-family: var(--font-mono);
+            font-size: 1.4rem;
+            color: var(--color-uv);
+        }
+
+        /* ================================================
+           Tables
+           ================================================ */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+        .data-table th {
+            text-align: left;
+            padding: var(--space-sm) var(--space-md);
+            border-bottom: 1px solid var(--border-medium);
+            color: var(--text-muted);
+            font-weight: 400;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .data-table td {
+            padding: var(--space-sm) var(--space-md);
+            border-bottom: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            vertical-align: top;
+        }
+
+        .data-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .data-table .mono {
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+        }
+
+        /* ================================================
+           Empty states
+           ================================================ */
+        .empty-state {
+            text-align: center;
+            padding: var(--space-2xl) var(--space-lg);
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        /* ================================================
+           Flash messages
+           ================================================ */
+        .flash {
+            padding: var(--space-md);
+            border-radius: var(--radius-md);
+            margin-bottom: var(--space-lg);
+            font-size: 0.9rem;
+        }
+
+        .flash-success {
+            background: color-mix(in srgb, var(--color-success) 15%, var(--bg-surface));
+            border: 1px solid var(--color-success);
+            color: var(--color-success);
+        }
+
+        .flash-error {
+            background: color-mix(in srgb, var(--color-danger) 15%, var(--bg-surface));
+            border: 1px solid var(--color-danger);
+            color: var(--color-danger);
+        }
+
+        /* ================================================
+           Mobile adjustments
+           ================================================ */
+        @media (max-width: 600px) {
+            .app-main {
+                padding: var(--space-md);
+            }
+
+            .header-inner {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: var(--space-sm);
+            }
+
+            .nav-links {
+                gap: var(--space-sm);
+            }
+
+            .nav-links a {
+                font-size: 0.8rem;
+                padding: var(--space-xs);
+            }
+
+            .toggle-group {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .uv-strip {
+                gap: var(--space-sm);
+            }
+        }
+
+        /* ================================================
+           Chart containers
+           ================================================ */
+        .chart-container {
+            position: relative;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            padding: var(--space-lg);
+            margin-bottom: var(--space-lg);
+        }
+
+        .chart-title {
+            font-family: var(--font-display);
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-bottom: var(--space-md);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        /* ================================================
+           Section dividers
+           ================================================ */
+        .section {
+            margin-bottom: var(--space-2xl);
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: var(--space-lg);
+            padding-bottom: var(--space-sm);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .section-title {
+            font-family: var(--font-display);
+            font-size: 1.1rem;
+        }
+
+    </style>
+
+    {% block head %}{% endblock %}
+</head>
+
+<body>
+<div class="app-wrapper">
+
+    <header class="app-header">
+        <div class="header-inner">
+            <div class="app-wordmark">bio<span>tracking</span></div>
+            <nav>
+                <ul class="nav-links">
+                    <li><a href="{{ url_for('daily_entry') }}"
+                        {% if request.endpoint == 'daily_entry' %}class="active"{% endif %}>
+                        today
+                    </a></li>
+                    <li><a href="{{ url_for('timeline') }}"
+                        {% if request.endpoint == 'timeline' %}class="active"{% endif %}>
+                        timeline
+                    </a></li>
+                    <li><a href="{{ url_for('uv_lag') }}"
+                        {% if request.endpoint == 'uv_lag' %}class="active"{% endif %}>
+                        uv lag
+                    </a></li>
+                    <li><a href="{{ url_for('hrv_view') }}"
+                        {% if request.endpoint == 'hrv_view' %}class="active"{% endif %}>
+                        hrv
+                    </a></li>
+                    <li><a href="{{ url_for('clinical_record') }}"
+                        {% if request.endpoint == 'clinical_record' %}class="active"{% endif %}>
+                        clinical
+                    </a></li>
+                    <li><a href="{{ url_for('search') }}"
+                        {% if request.endpoint == 'search' %}class="active"{% endif %}>
+                        search
+                    </a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main class="app-main">
+        {% block content %}{% endblock %}
+    </main>
+
+</div>
+
+{% block scripts %}{% endblock %}
+
+</body>
+</html>

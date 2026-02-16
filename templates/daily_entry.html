@@ -1,0 +1,304 @@
+{% extends "base.html" %}
+
+{% block title %}today — biotracking{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{{ entry_date }}</h1>
+    <p class="page-subtitle">daily entry</p>
+</div>
+
+<!-- UV strip - auto-fetched on page load -->
+{% if uv %}
+<div class="uv-strip">
+    <div class="uv-value">
+        <span class="label">morning</span>
+        <span class="number">{{ uv.uv_morning }}</span>
+    </div>
+    <div class="uv-value">
+        <span class="label">noon</span>
+        <span class="number">{{ uv.uv_noon }}</span>
+    </div>
+    <div class="uv-value">
+        <span class="label">evening</span>
+        <span class="number">{{ uv.uv_evening }}</span>
+    </div>
+    <div class="uv-value">
+        <span class="label">source</span>
+        <span class="number" style="font-size:0.85rem; color: var(--text-muted);">
+            {{ uv.source }}
+        </span>
+    </div>
+</div>
+{% else %}
+<div class="card" style="border-color: var(--border-medium);">
+    <p style="color: var(--text-muted); font-size:0.875rem; font-style:italic;">
+        UV data unavailable — no internet connection or API error.
+        You can enter UV values manually below.
+    </p>
+</div>
+{% endif %}
+
+<form method="POST" action="{{ url_for('daily_entry_submit') }}">
+    <input type="hidden" name="date" value="{{ entry_date }}">
+
+    <!-- Biometrics -->
+    <div class="card">
+        <div class="card-title">biometrics</div>
+
+        <div class="form-group">
+            <label>hours slept</label>
+            <div class="range-row">
+                <input type="range" name="hours_slept" min="0" max="14" step="0.25"
+                    value="{{ existing.hours_slept if existing and existing.hours_slept else 7 }}"
+                    oninput="this.nextElementSibling.textContent = this.value">
+                <span class="range-value">
+                    {{ existing.hours_slept if existing and existing.hours_slept else 7 }}
+                </span>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>HRV <span style="color:var(--text-muted)">(from watch)</span></label>
+            <input type="number" name="hrv" step="0.1" min="0"
+                placeholder="e.g. 28"
+                value="{{ existing.hrv if existing and existing.hrv else '' }}">
+        </div>
+
+        <div class="form-group">
+            <label>basal temp delta <span style="color:var(--text-muted)">(° from your baseline)</span></label>
+            <input type="number" name="basal_temp_delta" step="0.01"
+                placeholder="e.g. +0.6 or -0.3"
+                value="{{ existing.basal_temp_delta if existing and existing.basal_temp_delta else '' }}">
+        </div>
+
+        <div class="form-group">
+            <label>steps</label>
+            <input type="number" name="steps" min="0"
+                placeholder="from Apple Health"
+                value="{{ existing.steps if existing and existing.steps else '' }}">
+        </div>
+
+        <div class="form-group">
+            <label>sun exposure <span style="color:var(--text-muted)">(minutes — override API if needed)</span></label>
+            <input type="number" name="sun_exposure_min" min="0"
+                placeholder="estimated minutes outdoors"
+                value="{{ existing.sun_exposure_min if existing and existing.sun_exposure_min else '' }}">
+        </div>
+    </div>
+
+    <!-- Symptom flags -->
+    <div class="card">
+        <div class="card-title">symptoms</div>
+        <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:var(--space-md);">
+            tap to flag — note fields appear when flagged
+        </p>
+
+        <div class="toggle-group">
+
+            <div class="toggle-item neuro">
+                <input type="checkbox" name="neurological" id="tog-neuro"
+                    {% if existing and existing.neurological %}checked{% endif %}
+                    onchange="toggleNotes(this, 'notes-neuro')">
+                <label class="toggle-label" for="tog-neuro">
+                    <span>neurological</span>
+                </label>
+                <div class="notes-expand {% if existing and existing.neuro_notes %}visible{% endif %}"
+                     id="notes-neuro">
+                    <textarea name="neuro_notes" placeholder="numbness, tingling, vision, twitching…"
+                        >{{ existing.neuro_notes if existing and existing.neuro_notes else '' }}</textarea>
+                </div>
+            </div>
+
+            <div class="toggle-item cognitive">
+                <input type="checkbox" name="cognitive" id="tog-cognitive"
+                    {% if existing and existing.cognitive %}checked{% endif %}
+                    onchange="toggleNotes(this, 'notes-cognitive')">
+                <label class="toggle-label" for="tog-cognitive">
+                    <span>cognitive</span>
+                </label>
+                <div class="notes-expand {% if existing and existing.cognitive_notes %}visible{% endif %}"
+                     id="notes-cognitive">
+                    <textarea name="cognitive_notes" placeholder="brain fog, word loss, slow recall…"
+                        >{{ existing.cognitive_notes if existing and existing.cognitive_notes else '' }}</textarea>
+                </div>
+            </div>
+
+            <div class="toggle-item muscle">
+                <input type="checkbox" name="musculature" id="tog-muscle"
+                    {% if existing and existing.musculature %}checked{% endif %}
+                    onchange="toggleNotes(this, 'notes-muscle')">
+                <label class="toggle-label" for="tog-muscle">
+                    <span>musculature</span>
+                </label>
+                <div class="notes-expand {% if existing and existing.musculature_notes %}visible{% endif %}"
+                     id="notes-muscle">
+                    <textarea name="musculature_notes" placeholder="cramps, joint pain, stiffness, location…"
+                        >{{ existing.musculature_notes if existing and existing.musculature_notes else '' }}</textarea>
+                </div>
+            </div>
+
+            <div class="toggle-item migraine">
+                <input type="checkbox" name="migraine" id="tog-migraine"
+                    {% if existing and existing.migraine %}checked{% endif %}
+                    onchange="toggleNotes(this, 'notes-migraine')">
+                <label class="toggle-label" for="tog-migraine">
+                    <span>migraine</span>
+                </label>
+                <div class="notes-expand {% if existing and existing.migraine_notes %}visible{% endif %}"
+                     id="notes-migraine">
+                    <textarea name="migraine_notes" placeholder="severity, location, duration, triggers…"
+                        >{{ existing.migraine_notes if existing and existing.migraine_notes else '' }}</textarea>
+                </div>
+            </div>
+
+            <div class="toggle-item air">
+                <input type="checkbox" name="air_hunger" id="tog-air"
+                    {% if existing and existing.air_hunger %}checked{% endif %}
+                    onchange="toggleNotes(this, 'notes-air')">
+                <label class="toggle-label" for="tog-air">
+                    <span>air hunger</span>
+                </label>
+                <div class="notes-expand {% if existing and existing.air_hunger_notes %}visible{% endif %}"
+                     id="notes-air">
+                    <textarea name="air_hunger_notes" placeholder="severity, triggers, duration…"
+                        >{{ existing.air_hunger_notes if existing and existing.air_hunger_notes else '' }}</textarea>
+                </div>
+            </div>
+
+            <div class="toggle-item derm">
+                <input type="checkbox" name="dermatological" id="tog-derm"
+                    {% if existing and existing.dermatological %}checked{% endif %}
+                    onchange="toggleNotes(this, 'notes-derm')">
+                <label class="toggle-label" for="tog-derm">
+                    <span>dermatological</span>
+                </label>
+                <div class="notes-expand {% if existing and existing.derm_notes %}visible{% endif %}"
+                     id="notes-derm">
+                    <textarea name="derm_notes" placeholder="location, appearance, livedo, rash type…"
+                        >{{ existing.derm_notes if existing and existing.derm_notes else '' }}</textarea>
+                </div>
+            </div>
+
+            <div class="toggle-item emotional">
+                <input type="checkbox" name="word_loss" id="tog-wordloss"
+                    {% if existing and existing.word_loss %}checked{% endif %}>
+                <label class="toggle-label" for="tog-wordloss">
+                    <span>word loss</span>
+                </label>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Scales -->
+    <div class="card">
+        <div class="card-title">scales</div>
+
+        <div class="form-group">
+            <label>pain <span style="color:var(--text-muted)">(0 = none, 10 = passing out)</span></label>
+            <div class="range-row">
+                <input type="range" name="pain_scale" min="0" max="10" step="0.5"
+                    value="{{ existing.pain_scale if existing and existing.pain_scale is not none else 0 }}"
+                    oninput="this.nextElementSibling.textContent = this.value">
+                <span class="range-value">
+                    {{ existing.pain_scale if existing and existing.pain_scale is not none else 0 }}
+                </span>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>fatigue <span style="color:var(--text-muted)">(0 = wired, 10 = comatose)</span></label>
+            <div class="range-row">
+                <input type="range" name="fatigue_scale" min="0" max="10" step="0.5"
+                    value="{{ existing.fatigue_scale if existing and existing.fatigue_scale is not none else 0 }}"
+                    oninput="this.nextElementSibling.textContent = this.value">
+                <span class="range-value">
+                    {{ existing.fatigue_scale if existing and existing.fatigue_scale is not none else 0 }}
+                </span>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>emotional state <span style="color:var(--text-muted)">(0 = crisis, 10 = excellent)</span></label>
+            <div class="range-row">
+                <input type="range" name="emotional_state" min="0" max="10" step="0.5"
+                    value="{{ existing.emotional_state if existing and existing.emotional_state is not none else 5 }}"
+                    oninput="this.nextElementSibling.textContent = this.value">
+                <span class="range-value">
+                    {{ existing.emotional_state if existing and existing.emotional_state is not none else 5 }}
+                </span>
+            </div>
+            <div class="notes-expand visible" style="margin-top: var(--space-sm);">
+                <textarea name="emotional_notes" placeholder="context for the number…"
+                    >{{ existing.emotional_notes if existing and existing.emotional_notes else '' }}</textarea>
+            </div>
+        </div>
+    </div>
+
+    <!-- Flare flags -->
+    <div class="card">
+        <div class="card-title">flare flags</div>
+
+        <div class="toggle-group">
+            <div class="toggle-item muscle">
+                <input type="checkbox" name="strike_physical" id="tog-strike1"
+                    {% if existing and existing.strike_physical %}checked{% endif %}>
+                <label class="toggle-label" for="tog-strike1">
+                    strike 1: physical / cognitive load
+                </label>
+            </div>
+
+            <div class="toggle-item derm">
+                <input type="checkbox" name="strike_environmental" id="tog-strike2"
+                    {% if existing and existing.strike_environmental %}checked{% endif %}>
+                <label class="toggle-label" for="tog-strike2">
+                    strike 2: UV / heat / allergen
+                </label>
+            </div>
+
+            <div class="toggle-item migraine">
+                <input type="checkbox" name="flare_occurred" id="tog-flare"
+                    {% if existing and existing.flare_occurred %}checked{% endif %}>
+                <label class="toggle-label" for="tog-flare">
+                    flare occurred
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- General notes -->
+    <div class="card">
+        <div class="card-title">notes</div>
+        <textarea name="notes" placeholder="anything else worth recording…"
+            style="min-height: 120px;"
+            >{{ existing.notes if existing and existing.notes else '' }}</textarea>
+    </div>
+
+    <button type="submit" class="btn btn-primary btn-full">
+        save entry
+    </button>
+
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function toggleNotes(checkbox, notesId) {
+        const notes = document.getElementById(notesId);
+        if (checkbox.checked) {
+            notes.classList.add('visible');
+            const textarea = notes.querySelector('textarea');
+            if (textarea) textarea.focus();
+        } else {
+            notes.classList.remove('visible');
+        }
+    }
+
+    // Update all range display values on page load
+    document.querySelectorAll('input[type="range"]').forEach(function(input) {
+        const display = input.nextElementSibling;
+        if (display) display.textContent = input.value;
+    });
+</script>
+{% endblock %}

@@ -1,16 +1,83 @@
-# Node rules:
-## Grunt intermediate storage (http://gruntjs.com/creating-plugins#storing-task-files)
-.grunt
+# ============================================================
+# PRIVACY-CRITICAL: These files must NEVER be committed
+# ============================================================
 
-## Dependency directory
-## Commenting this out is preferred by some people, see
-## https://docs.npmjs.com/misc/faq#should-i-check-my-node_modules-folder-into-git
-node_modules
+# Patient config - contains location coordinates and baseline values
+config.json
 
-# Book build output
-_book
+# The database itself - contains all health data
+*.db
+*.sqlite
+*.sqlite3
 
-# eBook build output
-*.epub
-*.mobi
+# Apple Health exports - sensitive health data
+Export.xml
+apple_health_export/
+*.zip
+
+# ============================================================
+# Python
+# ============================================================
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Compiled Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# mypy
+.mypy_cache/
+
+# ============================================================
+# Environment and secrets
+# ============================================================
+
+.env
+.env.local
+.env.*.local
+
+# ============================================================
+# OS files
+# ============================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+
+# ============================================================
+# Editors
+# ============================================================
+
+# VSCode - keep launch.json and extensions out
+.vscode/settings.json
+.vscode/launch.json
+
+# ============================================================
+# Exports and generated outputs
+# ============================================================
+
+# Doctor-facing PDF exports should not be committed
+exports/
 *.pdf

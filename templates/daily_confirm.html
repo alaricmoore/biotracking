@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}saved — biotracking{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>entry saved</h1>
+    <p class="page-subtitle">{{ entry.date if entry else '' }}</p>
+</div>
+
+{% if entry %}
+<div class="card">
+    <div class="card-title">today's summary</div>
+    <table class="data-table">
+        <tr>
+            <td>pain</td>
+            <td class="mono">{{ entry.pain_scale if entry.pain_scale is not none else '—' }}</td>
+        </tr>
+        <tr>
+            <td>fatigue</td>
+            <td class="mono">{{ entry.fatigue_scale if entry.fatigue_scale is not none else '—' }}</td>
+        </tr>
+        <tr>
+            <td>hours slept</td>
+            <td class="mono">{{ entry.hours_slept if entry.hours_slept else '—' }}</td>
+        </tr>
+        <tr>
+            <td>hrv</td>
+            <td class="mono">{{ entry.hrv if entry.hrv else '—' }}</td>
+        </tr>
+    </table>
+</div>
+
+{% if uv %}
+<div class="uv-strip">
+    <div class="uv-value">
+        <span class="label">morning uv</span>
+        <span class="number">{{ uv.uv_morning }}</span>
+    </div>
+    <div class="uv-value">
+        <span class="label">noon uv</span>
+        <span class="number">{{ uv.uv_noon }}</span>
+    </div>
+    <div class="uv-value">
+        <span class="label">evening uv</span>
+        <span class="number">{{ uv.uv_evening }}</span>
+    </div>
+</div>
+{% endif %}
+{% endif %}
+
+<a href="{{ url_for('daily_entry') }}" class="btn btn-secondary" style="margin-right:1rem;">
+    edit entry
+</a>
+<a href="{{ url_for('timeline') }}" class="btn btn-secondary">
+    view timeline
+</a>
+{% endblock %}
