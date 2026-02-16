@@ -672,7 +672,14 @@
                         {% if request.endpoint == 'hrv_view' %}class="active"{% endif %}>
                         hrv
                     </a></li>
-                    <li><a href="{{ url_for('clinical_report') }}">report</a></li>
+                    <li><a href="{{ url_for('clinical_record') }}"
+                        {% if request.endpoint == 'clinical_record' %}class="active"{% endif %}>
+                         clinical
+                    </a></li>
+                    <li><a href="{{ url_for('clinical_report') }}"
+                        {% if request.endpoint == 'clinical_report' %}class="active"{% endif %}>
+                        report
+                    </a></li>
                     <li><a href="{{ url_for('search') }}"
                         {% if request.endpoint == 'search' %}class="active"{% endif %}>
                         search
