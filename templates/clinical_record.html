@@ -1,11 +1,739 @@
-{% extends "base.html" %}
-{% block title %}clinical — biotracking{% endblock %}
+ {% extends "base.html" %}
+
+{% block title %}clinical record — biotracking{% endblock %}
+
 {% block content %}
 <div class="page-header">
     <h1>clinical record</h1>
+    <p class="page-subtitle">labs · ana · medications · events</p>
 </div>
-<div class="empty-state">
-    <p>This view is under construction.</p>
-    <p style="margin-top:1rem;"><a href="{{ url_for('daily_entry') }}">← back to today</a></p>
+
+<!-- Tab navigation -->
+<div class="tab-nav" id="tabNav">
+    <button class="tab-btn active" onclick="switchTab('labs')">
+        labs
+        {% if labs %}<span class="tab-count">{{ labs|length }}</span>{% endif %}
+    </button>
+    <button class="tab-btn" onclick="switchTab('ana')">
+        ana
+        {% if ana %}<span class="tab-count">{{ ana|length }}</span>{% endif %}
+    </button>
+    <button class="tab-btn" onclick="switchTab('medications')">
+        medications
+        {% if meds %}<span class="tab-count">{{ meds|length }}</span>{% endif %}
+    </button>
+    <button class="tab-btn" onclick="switchTab('events')">
+        events
+        {% if events %}<span class="tab-count">{{ events|length }}</span>{% endif %}
+    </button>
 </div>
+
+<!-- ============================================================
+     LABS TAB
+     ============================================================ -->
+<div class="tab-panel active" id="tab-labs">
+
+    <!-- Add form -->
+    <div class="add-toggle-row">
+        <button class="btn btn-secondary" onclick="toggleForm('form-lab')">
+            + add lab result
+        </button>
+    </div>
+
+    <div class="add-form-panel" id="form-lab">
+        <form method="POST" action="{{ url_for('add_lab') }}">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>date *</label>
+                    <input type="date" name="date" required
+                           value="{{ today }}">
+                </div>
+                <div class="form-group">
+                    <label>test name *</label>
+                    <input type="text" name="test_name" required
+                           placeholder="e.g. anti-dsDNA, C4, CRP"
+                           list="test-names">
+                    <datalist id="test-names">
+                        {% for name in test_names %}
+                        <option value="{{ name }}">
+                        {% endfor %}
+                        <option value="ANA">
+                        <option value="anti-dsDNA">
+                        <option value="anti-Smith">
+                        <option value="anti-SSA/Ro">
+                        <option value="anti-SSB/La">
+                        <option value="C3">
+                        <option value="C4">
+                        <option value="CH50">
+                        <option value="CRP">
+                        <option value="ESR">
+                        <option value="CBC">
+                        <option value="CMP">
+                        <option value="RF">
+                        <option value="anti-CCP">
+                        <option value="TSH">
+                        <option value="ferritin">
+                        <option value="vitamin D">
+                        <option value="D-dimer">
+                    </datalist>
+                </div>
+                <div class="form-group">
+                    <label>numeric value</label>
+                    <input type="number" name="numeric_value"
+                           step="0.001" placeholder="e.g. 18.42">
+                </div>
+                <div class="form-group">
+                    <label>unit</label>
+                    <input type="text" name="unit"
+                           placeholder="IU/mL, mg/dL, etc.">
+                </div>
+                <div class="form-group">
+                    <label>qualitative result</label>
+                    <select name="qualitative_result">
+                        <option value="">—</option>
+                        <option value="positive">positive</option>
+                        <option value="negative">negative</option>
+                        <option value="equivocal">equivocal</option>
+                        <option value="indeterminate">indeterminate</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>flag</label>
+                    <select name="flag">
+                        <option value="">—</option>
+                        <option value="high">high</option>
+                        <option value="low">low</option>
+                        <option value="abnormal">abnormal</option>
+                        <option value="normal">normal</option>
+                        <option value="critical">critical</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>reference range</label>
+                    <input type="text" name="reference_range"
+                           placeholder="e.g. 0–200 IU/mL">
+                </div>
+                <div class="form-group">
+                    <label>provider</label>
+                    <input type="text" name="provider"
+                           placeholder="ordering provider">
+                </div>
+                <div class="form-group">
+                    <label>lab facility</label>
+                    <input type="text" name="lab_facility"
+                           placeholder="e.g. LabCorp, Quest">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>notes</label>
+                <textarea name="notes"
+                    placeholder="context, collection notes, steroid timing, etc."
+                    style="min-height:60px;"></textarea>
+            </div>
+            <div style="display:flex; gap:var(--space-md); margin-top:var(--space-md);">
+                <button type="submit" class="btn btn-primary">save</button>
+                <button type="button" class="btn btn-secondary"
+                        onclick="toggleForm('form-lab')">cancel</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Labs table -->
+    {% if labs %}
+    <div style="overflow-x:auto;">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>date</th>
+                    <th>test</th>
+                    <th>result</th>
+                    <th>range</th>
+                    <th>provider</th>
+                    <th>notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for lab in labs | sort(attribute='date', reverse=True) %}
+                <tr>
+                    <td class="mono">{{ lab.date }}</td>
+                    <td style="color:var(--text-primary);">{{ lab.test_name }}</td>
+                    <td>
+                        {% if lab.numeric_value is not none %}
+                            <span class="mono" style="color:
+                                {% if lab.flag == 'high' %}var(--color-danger)
+                                {% elif lab.flag == 'low' %}var(--color-accent)
+                                {% elif lab.flag == 'abnormal' %}var(--color-warning)
+                                {% elif lab.flag == 'critical' %}var(--color-danger)
+                                {% else %}var(--text-primary)
+                                {% endif %};">
+                                {{ lab.numeric_value }}
+                                {% if lab.unit %} {{ lab.unit }}{% endif %}
+                            </span>
+                        {% endif %}
+                        {% if lab.qualitative_result %}
+                            <span class="badge
+                                {% if lab.qualitative_result == 'positive' %}badge-migraine
+                                {% elif lab.qualitative_result == 'negative' %}badge-air
+                                {% else %}badge-emotional{% endif %}">
+                                {{ lab.qualitative_result }}
+                            </span>
+                        {% endif %}
+                    </td>
+                    <td style="color:var(--text-muted); font-size:0.8rem;">
+                        {{ lab.reference_range or '—' }}
+                    </td>
+                    <td style="color:var(--text-muted); font-size:0.8rem;">
+                        {{ lab.provider or '—' }}
+                    </td>
+                    <td style="color:var(--text-muted); font-size:0.8rem;
+                               max-width:200px; white-space:pre-wrap;">
+                        {{ lab.notes or '' }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>No lab results yet.</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- ============================================================
+     ANA TAB
+     ============================================================ -->
+<div class="tab-panel" id="tab-ana">
+
+    <div class="add-toggle-row">
+        <button class="btn btn-secondary" onclick="toggleForm('form-ana')">
+            + add ana result
+        </button>
+    </div>
+
+    <div class="add-form-panel" id="form-ana">
+        <form method="POST" action="{{ url_for('add_ana') }}">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>date *</label>
+                    <input type="date" name="date" required
+                           value="{{ today }}">
+                </div>
+                <div class="form-group">
+                    <label>screen result *</label>
+                    <select name="screen_result" required>
+                        <option value="positive">positive</option>
+                        <option value="negative">negative</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>titer (as integer)</label>
+                    <select name="titer">
+                        <option value="">—</option>
+                        <option value="40">1:40</option>
+                        <option value="80">1:80</option>
+                        <option value="160">1:160</option>
+                        <option value="320">1:320</option>
+                        <option value="640">1:640</option>
+                        <option value="1280">1:1280</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>provider</label>
+                    <input type="text" name="provider"
+                           placeholder="ordering provider">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>patterns <span style="color:var(--text-muted)">
+                    (comma separated, e.g. AC-4, AC-29)</span></label>
+                <input type="text" name="patterns"
+                       placeholder="AC-2, AC-4, AC-29">
+            </div>
+            <div class="form-group">
+                <label>notes</label>
+                <textarea name="notes"
+                    placeholder="lab, method, clinical context..."
+                    style="min-height:60px;"></textarea>
+            </div>
+            <div style="display:flex; gap:var(--space-md); margin-top:var(--space-md);">
+                <button type="submit" class="btn btn-primary">save</button>
+                <button type="button" class="btn btn-secondary"
+                        onclick="toggleForm('form-ana')">cancel</button>
+            </div>
+        </form>
+    </div>
+
+    {% if ana %}
+    <div style="overflow-x:auto;">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>date</th>
+                    <th>result</th>
+                    <th>titer</th>
+                    <th>patterns</th>
+                    <th>provider</th>
+                    <th>notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in ana | sort(attribute='date', reverse=True) %}
+                <tr>
+                    <td class="mono">{{ a.date }}</td>
+                    <td>
+                        <span class="badge
+                            {% if a.screen_result == 'positive' %}badge-migraine
+                            {% else %}badge-air{% endif %}">
+                            {{ a.screen_result }}
+                        </span>
+                    </td>
+                    <td class="mono" style="color:var(--text-primary);">
+                        {% if a.titer_integer %}1:{{ a.titer_integer }}{% else %}—{% endif %}
+                    </td>
+                    <td>
+                        {% if a.patterns %}
+                            {% for p in a.patterns %}
+                                <span class="badge badge-cognitive"
+                                      style="margin:1px;">{{ p }}</span>
+                            {% endfor %}
+                        {% else %}—{% endif %}
+                    </td>
+                    <td style="color:var(--text-muted); font-size:0.8rem;">
+                        {{ a.provider or '—' }}
+                    </td>
+                    <td style="color:var(--text-muted); font-size:0.8rem;
+                               max-width:200px; white-space:pre-wrap;">
+                        {{ a.notes or '' }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>No ANA results yet.</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- ============================================================
+     MEDICATIONS TAB
+     ============================================================ -->
+<div class="tab-panel" id="tab-medications">
+
+    <div class="add-toggle-row">
+        <button class="btn btn-secondary"
+                onclick="toggleForm('form-medication')">
+            + add medication
+        </button>
+    </div>
+
+    <div class="add-form-panel" id="form-medication">
+        <form method="POST" action="{{ url_for('add_medication') }}">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>drug name *</label>
+                    <input type="text" name="drug_name" required
+                           placeholder="e.g. hydroxychloroquine">
+                </div>
+                <div class="form-group">
+                    <label>dose</label>
+                    <input type="number" name="dose" step="0.1"
+                           placeholder="e.g. 200">
+                </div>
+                <div class="form-group">
+                    <label>unit</label>
+                    <input type="text" name="unit"
+                           placeholder="mg, mcg, IU">
+                </div>
+                <div class="form-group">
+                    <label>frequency</label>
+                    <select name="frequency">
+                        <option value="daily">daily</option>
+                        <option value="twice daily">twice daily</option>
+                        <option value="three times daily">three times daily</option>
+                        <option value="every other day">every other day</option>
+                        <option value="weekly">weekly</option>
+                        <option value="as needed">as needed</option>
+                        <option value="other">other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>route</label>
+                    <select name="route">
+                        <option value="oral">oral</option>
+                        <option value="topical">topical</option>
+                        <option value="nasal">nasal</option>
+                        <option value="IV">IV</option>
+                        <option value="IM">IM</option>
+                        <option value="subcutaneous">subcutaneous</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>category</label>
+                    <select name="category">
+                        <option value="prescription">prescription</option>
+                        <option value="supplement">supplement</option>
+                        <option value="OTC">OTC</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>start date *</label>
+                    <input type="date" name="start_date" required
+                           value="{{ today }}">
+                </div>
+                <div class="form-group">
+                    <label>end date
+                        <span style="color:var(--text-muted)">(leave blank if current)</span>
+                    </label>
+                    <input type="date" name="end_date">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>indication</label>
+                <input type="text" name="indication"
+                       placeholder="reason / purpose">
+            </div>
+            <div class="form-group">
+                <label>notes</label>
+                <textarea name="notes"
+                    placeholder="dose changes, side effects, prescriber..."
+                    style="min-height:60px;"></textarea>
+            </div>
+            <div style="display:flex; gap:var(--space-md); margin-top:var(--space-md);">
+                <button type="submit" class="btn btn-primary">save</button>
+                <button type="button" class="btn btn-secondary"
+                        onclick="toggleForm('form-medication')">cancel</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Active medications -->
+    {% set active = meds | selectattr('end_date', 'none') | list %}
+    {% set inactive = meds | rejectattr('end_date', 'none') | list %}
+
+    {% if active %}
+    <div class="section-header" style="margin-top:var(--space-lg);">
+        <h3 class="section-title">current</h3>
+    </div>
+    <div style="overflow-x:auto;">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>drug</th>
+                    <th>dose</th>
+                    <th>frequency</th>
+                    <th>category</th>
+                    <th>started</th>
+                    <th>indication</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for med in active | sort(attribute='start_date', reverse=True) %}
+                <tr>
+                    <td style="color:var(--text-primary);">{{ med.drug_name }}</td>
+                    <td class="mono">
+                        {% if med.dose %}{{ med.dose }}{% endif %}
+                        {% if med.unit %} {{ med.unit }}{% endif %}
+                    </td>
+                    <td style="color:var(--text-muted); font-size:0.85rem;">
+                        {{ med.frequency or '—' }}
+                    </td>
+                    <td>
+                        <span class="badge
+                            {% if med.category == 'prescription' %}badge-neuro
+                            {% elif med.category == 'supplement' %}badge-muscle
+                            {% else %}badge-emotional{% endif %}">
+                            {{ med.category or '—' }}
+                        </span>
+                    </td>
+                    <td class="mono">{{ med.start_date }}</td>
+                    <td style="color:var(--text-muted); font-size:0.85rem;">
+                        {{ med.indication or '—' }}
+                    </td>
+                    <td>
+                        <form method="POST"
+                              action="{{ url_for('end_medication', med_id=med.id) }}"
+                              style="display:inline;">
+                            <input type="hidden" name="end_date" value="{{ today }}">
+                            <button type="submit" class="btn btn-secondary"
+                                    style="padding:2px 8px; font-size:0.8rem;"
+                                    onclick="return confirm('Mark {{ med.drug_name }} as ended today?')">
+                                end
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    {% if inactive %}
+    <div class="section-header" style="margin-top:var(--space-xl);">
+        <h3 class="section-title" style="color:var(--text-muted);">history</h3>
+    </div>
+    <div style="overflow-x:auto;">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>drug</th>
+                    <th>dose</th>
+                    <th>started</th>
+                    <th>ended</th>
+                    <th>indication</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for med in inactive | sort(attribute='start_date', reverse=True) %}
+                <tr style="opacity:0.6;">
+                    <td>{{ med.drug_name }}</td>
+                    <td class="mono">
+                        {% if med.dose %}{{ med.dose }}{% endif %}
+                        {% if med.unit %} {{ med.unit }}{% endif %}
+                    </td>
+                    <td class="mono">{{ med.start_date }}</td>
+                    <td class="mono">{{ med.end_date }}</td>
+                    <td style="color:var(--text-muted); font-size:0.85rem;">
+                        {{ med.indication or '—' }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    {% if not meds %}
+    <div class="empty-state">
+        <p>No medications recorded yet.</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- ============================================================
+     EVENTS TAB
+     ============================================================ -->
+<div class="tab-panel" id="tab-events">
+
+    <div class="add-toggle-row">
+        <button class="btn btn-secondary" onclick="toggleForm('form-event')">
+            + add event
+        </button>
+    </div>
+
+    <div class="add-form-panel" id="form-event">
+        <form method="POST" action="{{ url_for('add_event') }}">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>date *</label>
+                    <input type="date" name="date" required
+                           value="{{ today }}">
+                </div>
+                <div class="form-group">
+                    <label>event type *</label>
+                    <select name="event_type" required>
+                        <option value="encounter">encounter</option>
+                        <option value="biopsy">biopsy</option>
+                        <option value="injection">injection</option>
+                        <option value="procedure">procedure</option>
+                        <option value="lab draw">lab draw</option>
+                        <option value="imaging">imaging</option>
+                        <option value="ER visit">ER visit</option>
+                        <option value="hospitalization">hospitalization</option>
+                        <option value="other">other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>provider</label>
+                    <input type="text" name="provider"
+                           placeholder="provider name">
+                </div>
+                <div class="form-group">
+                    <label>facility</label>
+                    <input type="text" name="facility"
+                           placeholder="clinic or hospital name">
+                </div>
+                <div class="form-group">
+                    <label>follow-up date</label>
+                    <input type="date" name="follow_up_date">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>notes</label>
+                <textarea name="notes"
+                    placeholder="diagnoses, findings, path reports, medications started..."
+                    style="min-height:100px;"></textarea>
+            </div>
+            <div style="display:flex; gap:var(--space-md); margin-top:var(--space-md);">
+                <button type="submit" class="btn btn-primary">save</button>
+                <button type="button" class="btn btn-secondary"
+                        onclick="toggleForm('form-event')">cancel</button>
+            </div>
+        </form>
+    </div>
+
+    {% if events %}
+    <div style="overflow-x:auto;">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>date</th>
+                    <th>type</th>
+                    <th>provider</th>
+                    <th>facility</th>
+                    <th>follow-up</th>
+                    <th>notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in events | sort(attribute='date', reverse=True) %}
+                <tr>
+                    <td class="mono">{{ e.date }}</td>
+                    <td>
+                        <span class="badge badge-cognitive">{{ e.event_type }}</span>
+                    </td>
+                    <td style="color:var(--text-muted); font-size:0.85rem;">
+                        {{ e.provider or '—' }}
+                    </td>
+                    <td style="color:var(--text-muted); font-size:0.85rem;">
+                        {{ e.facility or '—' }}
+                    </td>
+                    <td class="mono" style="color:var(--text-muted); font-size:0.85rem;">
+                        {{ e.follow_up_date or '—' }}
+                    </td>
+                    <td style="color:var(--text-muted); font-size:0.8rem;
+                               max-width:240px; white-space:pre-wrap;">
+                        {{ e.notes or '' }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>No clinical events recorded yet.</p>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ============================================================
+// Tab switching
+// ============================================================
+function switchTab(name) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+
+    document.querySelector(`[onclick="switchTab('${name}')"]`).classList.add('active');
+    document.getElementById(`tab-${name}`).classList.add('active');
+
+    // Update hash without scrolling
+    history.replaceState(null, '', `#${name}`);
+}
+
+// ============================================================
+// Collapsible add forms
+// ============================================================
+function toggleForm(id) {
+    const panel = document.getElementById(id);
+    panel.classList.toggle('open');
+    if (panel.classList.contains('open')) {
+        panel.querySelector('input, select, textarea')?.focus();
+    }
+}
+
+// ============================================================
+// Load tab from URL hash on page load
+// ============================================================
+window.addEventListener('DOMContentLoaded', () => {
+    const hash = window.location.hash.replace('#', '');
+    const valid = ['labs', 'ana', 'medications', 'events'];
+    if (valid.includes(hash)) {
+        switchTab(hash);
+    }
+});
+</script>
+
+<style>
+.tab-nav {
+    display: flex;
+    gap: 2px;
+    margin-bottom: var(--space-lg);
+    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: 0;
+}
+
+.tab-btn {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    padding: var(--space-sm) var(--space-md);
+    margin-bottom: -1px;
+    transition: color 0.15s, border-color 0.15s;
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+.tab-btn:hover { color: var(--text-secondary); }
+
+.tab-btn.active {
+    color: var(--text-primary);
+    border-bottom-color: var(--color-accent);
+}
+
+.tab-count {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    background: var(--bg-elevated);
+    color: var(--text-muted);
+    padding: 1px 5px;
+    border-radius: 10px;
+}
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+.add-toggle-row {
+    margin-bottom: var(--space-md);
+}
+
+.add-form-panel {
+    display: none;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-md);
+    padding: var(--space-lg);
+    margin-bottom: var(--space-lg);
+    animation: slideDown 0.15s ease;
+}
+
+.add-form-panel.open { display: block; }
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: var(--space-md);
+    margin-bottom: var(--space-md);
+}
+
+@media (max-width: 600px) {
+    .tab-btn { font-size: 0.8rem; padding: var(--space-xs) var(--space-sm); }
+    .form-grid { grid-template-columns: 1fr; }
+}
+</style>
 {% endblock %}

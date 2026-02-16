@@ -95,6 +95,7 @@ def run_import(csv_path: str, dry_run: bool = False,
     HRV_COLS   = ["Heart Rate Variability (ms)", "HRV (ms)", "HRV"]
     LIGHT_COLS = ["Time in Daylight (min)", "Daylight (min)",
                   "Sun Exposure (min)"]
+    SLEEP_COLS = ["Total Sleep (hr)", "Sleep (hr)", "Hours Slept"]
 
     def find_col(headers: list, candidates: list) -> Optional[str]:
         for c in candidates:
@@ -116,6 +117,7 @@ def run_import(csv_path: str, dry_run: bool = False,
         temp_col  = find_col(headers, TEMP_COLS)
         hrv_col   = find_col(headers, HRV_COLS)
         light_col = find_col(headers, LIGHT_COLS)
+        sleep_col = find_col(headers, SLEEP_COLS)
 
         if not date_col:
             print(f"ERROR: Could not find date column.")
@@ -127,6 +129,7 @@ def run_import(csv_path: str, dry_run: bool = False,
         print(f"  Wrist temp:  {temp_col or '— not found'}")
         print(f"  HRV:         {hrv_col or '— not found'}")
         print(f"  Daylight:    {light_col or '— not found'}")
+        print(f"  Sleep:       {sleep_col or '— not found'}")
         print()
 
         for row in reader:
@@ -141,6 +144,7 @@ def run_import(csv_path: str, dry_run: bool = False,
             hrv = parse_float(row.get(hrv_col, "")) if hrv_col else None
             sun_raw = parse_float(row.get(light_col, "")) if light_col else None
             sun = int(round(sun_raw * 10000)) if sun_raw is not None else None
+            sleep = parse_float(row.get(sleep_col, "")) if sleep_col else None
 
             # Wrist temp: raw °F → delta
             temp_delta = None
@@ -155,13 +159,13 @@ def run_import(csv_path: str, dry_run: bool = False,
                         temp_delta = raw_temp
 
             # Skip rows with no useful data
-            if hrv is None and temp_delta is None and sun is None:
+            if hrv is None and temp_delta is None and sun is None and sleep is None:
                 skipped += 1
                 continue
 
             if dry_run:
                 print(f"  {date_str}  hrv={hrv}  "
-                      f"temp_delta={temp_delta}  sun={sun}")
+                      f"temp_delta={temp_delta}  sun={sun}  sleep={sleep}")
                 updated += 1
                 continue
 
@@ -178,6 +182,8 @@ def run_import(csv_path: str, dry_run: bool = False,
                     updates["basal_temp_delta"] = temp_delta
                 if sun is not None and (overwrite or not existing.get("sun_exposure_min")):
                     updates["sun_exposure_min"] = int(sun)
+                if sleep is not None and (overwrite or not existing.get("hours_slept")):
+                    updates["hours_slept"] = sleep
 
                 if len(updates) > 1:  # more than just the date key
                     try:
@@ -198,6 +204,8 @@ def run_import(csv_path: str, dry_run: bool = False,
                     new_row["basal_temp_delta"] = temp_delta
                 if sun is not None:
                     new_row["sun_exposure_min"] = int(round(sun * 10000))
+                if sleep is not None:
+                    new_row["hours_slept"] = sleep
                 try:
                     db.upsert_daily_observation(new_row)
                     created += 1

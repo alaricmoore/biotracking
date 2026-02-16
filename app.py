@@ -360,15 +360,62 @@ def compute_hrv_data(observations: list) -> dict:
     }
 
 
+def compute_sleep_bbt_uv(observations: list) -> dict:
+    """Build sleep/BBT dataset paired with UV from the previous day (lag 1).
+
+    For each observation that has sleep or BBT data, look up UV noon
+    from the day before. Returns aligned arrays for charting.
+    """
+    import db as _db
+
+    obs_by_date = {o["date"]: o for o in observations}
+    all_dates = sorted(obs_by_date.keys())
+
+    dates      = []
+    sleep_vals = []
+    bbt_vals   = []
+    uv_lag1    = []
+
+    for date_str in all_dates:
+        obs = obs_by_date[date_str]
+        sleep = obs.get("hours_slept")
+        bbt   = obs.get("basal_temp_delta")
+
+        if sleep is None and bbt is None:
+            continue
+
+        # Get UV from the previous day
+        prev_date = (datetime.strptime(date_str, "%Y-%m-%d") -
+                     timedelta(days=1)).strftime("%Y-%m-%d")
+        uv_row = _db.get_uv_data(prev_date)
+        uv_noon = uv_row.get("uv_noon") if uv_row else None
+
+        dates.append(date_str)
+        sleep_vals.append(float(sleep) if sleep is not None else None)
+        bbt_vals.append(float(bbt) if bbt is not None else None)
+        uv_lag1.append(float(uv_noon) if uv_noon is not None else None)
+
+    return {
+        "dates":      dates,
+        "sleep":      sleep_vals,
+        "bbt":        bbt_vals,
+        "uv_lag1":    uv_lag1,
+        "hcq_start":  HCQ_START_DATE,
+    }
+
+
 @app.route("/hrv")
 def hrv_view():
-    """HRV trend with rolling average and HCQ before/after split."""
+    """HRV trend with rolling average, HCQ split, and sleep/BBT/UV."""
     observations = db.get_all_daily_observations()
     hrv_data = compute_hrv_data(observations)
+    sleep_bbt_uv = compute_sleep_bbt_uv(observations)
+
     return render_template(
         "hrv.html",
         has_data=bool(hrv_data),
         hrv_json=json.dumps(hrv_data, default=lambda x: int(x) if isinstance(x, bool) else str(x)),
+        sleep_json=json.dumps(sleep_bbt_uv, default=lambda x: int(x) if isinstance(x, bool) else str(x)),
         hcq_start=HCQ_START_DATE,
     )
 

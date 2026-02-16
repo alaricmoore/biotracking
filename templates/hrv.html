@@ -61,6 +61,12 @@
     <canvas id="chartPain" style="max-height:260px;"></canvas>
 </div>
 
+<!-- Sleep / BBT / UV lag-1 chart -->
+<div class="chart-container">
+    <div class="chart-title">sleep · basal temp delta · uv previous day</div>
+    <canvas id="chartSleep" style="max-height:280px;"></canvas>
+</div>
+
 {% endif %}
 {% endblock %}
 
@@ -296,13 +302,121 @@ function buildOverlayChart(canvasId, symptomData, symptomLabel, symptomColor) {
     });
 }
 
+function rollingAvg(arr, window) {
+    return arr.map((_, i) => {
+        const slice = arr.slice(Math.max(0, i - window + 1), i + 1)
+                         .filter(v => v !== null && v !== undefined);
+        return slice.length >= 2 ? round3(slice.reduce((a, b) => a + b, 0) / slice.length) : null;
+    });
+}
+
+function round3(v) { return Math.round(v * 1000) / 1000; }
+
+function buildSleepChart() {
+    const S = {{ sleep_json | safe }};
+    if (!S.dates || S.dates.length < 3) return;
+
+    const sleepSmooth = rollingAvg(S.sleep, 3);
+    const bbtSmooth   = rollingAvg(S.bbt, 3);
+    const uvSmooth    = rollingAvg(S.uv_lag1, 3);
+
+    new Chart(document.getElementById('chartSleep'), {
+        type: 'line',
+        plugins: [hcqLinePlugin],
+        data: {
+            labels: S.dates,
+            datasets: [
+                {
+                    label: 'hours slept (3d avg)',
+                    data: sleepSmooth,
+                    borderColor: '#9b72cf',
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    pointHoverRadius: 4,
+                    tension: 0.4,
+                    spanGaps: true,
+                    yAxisID: 'ySleep',
+                },
+                {
+                    label: 'temp delta (3d avg)',
+                    data: bbtSmooth,
+                    borderColor: '#d4784a',
+                    backgroundColor: 'transparent',
+                    borderWidth: 1.5,
+                    pointRadius: 0,
+                    pointHoverRadius: 4,
+                    borderDash: [4, 3],
+                    tension: 0.4,
+                    spanGaps: true,
+                    yAxisID: 'yTemp',
+                },
+                {
+                    label: 'uv prev day (3d avg)',
+                    data: uvSmooth,
+                    borderColor: '#d4b84a',
+                    backgroundColor: 'rgba(212,184,74,0.07)',
+                    borderWidth: 1,
+                    pointRadius: 0,
+                    tension: 0.4,
+                    fill: true,
+                    spanGaps: true,
+                    yAxisID: 'yUV',
+                },
+            ]
+        },
+        options: {
+            responsive: true,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { labels: { color: TEXT, boxWidth: 12, padding: 16 } },
+                tooltip: tooltipOpts(),
+            },
+            scales: {
+                x: {
+                    grid: gridOpts(),
+                    ticks: { maxTicksLimit: 12, maxRotation: 45 }
+                },
+                ySleep: {
+                    type: 'linear',
+                    position: 'left',
+                    min: 0, max: 14,
+                    grid: gridOpts(),
+                    title: { display: true, text: 'hours slept', color: '#9b72cf' },
+                    ticks: { color: '#9b72cf' },
+                },
+                yTemp: {
+                    type: 'linear',
+                    position: 'right',
+                    grid: { display: false },
+                    title: { display: true, text: 'temp delta (°F)', color: '#d4784a' },
+                    ticks: { color: '#d4784a' },
+                },
+                yUV: {
+                    type: 'linear',
+                    position: 'right',
+                    min: 0,
+                    grid: { display: false },
+                    display: false,
+                }
+            }
+        }
+    });
+}
+
 // ============================================================
 // Init
 // ============================================================
 renderStats();
+buildSleepChart();
 buildHRVChart();
 buildOverlayChart('chartFatigue', H.fatigue, 'fatigue', '#d4a054');
 buildOverlayChart('chartPain',    H.pain,    'pain',    '#c94040');
 </script>
+<!-- Sleep / BBT / UV lag-1 chart -->
+<div class="chart-container">
+    <div class="chart-title">sleep · basal temp delta · uv previous day</div>
+    <canvas id="chartSleep" style="max-height:280px;"></canvas>
+</div>
 {% endif %}
 {% endblock %}
