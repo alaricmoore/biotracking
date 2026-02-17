@@ -48,6 +48,23 @@ def create_config():
         prompt("Your baseline wrist temperature in °F (e.g. 97.4)")
     )
 
+    print("\nPrimary intervention tracking (optional):")
+    print("If you're on a disease-modifying medication (e.g., hydroxychloroquine,")
+    print("methotrexate, rituximab), you can track its start date to measure")
+    print("pre/post effects on HRV and symptoms. You can skip this and add it later.")
+    
+    track_intervention = prompt("Track a primary intervention? (y/n)", default="n").lower()
+    
+    if track_intervention == "y":
+        intervention_name = prompt("Medication name (e.g., hydroxychloroquine)")
+        intervention_date = prompt("Start date (YYYY-MM-DD)")
+        config["primary_intervention"] = {
+            "name": intervention_name,
+            "start_date": intervention_date
+        }
+    else:
+        config["primary_intervention"] = None
+
     config["app_version"] = "2.0.0"
 
     with open(CONFIG_FILE, "w") as f:

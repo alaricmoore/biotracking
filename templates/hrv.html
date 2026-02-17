@@ -9,7 +9,7 @@
 {% block content %}
 <div class="page-header">
     <h1>hrv & autonomic</h1>
-    <p class="page-subtitle">heart rate variability trend · hydroxychloroquine response</p>
+    <p class="page-subtitle">heart rate variability trend{% if primary_intervention_name %} · {{ primary_intervention_name }} response{% endif %}</p>
 </div>
 
 {% if not has_data %}
@@ -21,14 +21,15 @@
 
 {% else %}
 
-<!-- Pre/post HCQ summary cards -->
+{% if primary_intervention_date %}
+<!-- Pre/post intervention summary cards -->
 <div style="display:grid; grid-template-columns: 1fr 1fr;
             gap:var(--space-md); margin-bottom:var(--space-lg);">
 
     <div class="card" style="border-color: rgba(74,144,217,0.3);">
         <div class="card-title" style="color:var(--text-muted); font-size:0.8rem;
              text-transform:uppercase; letter-spacing:0.08em;">
-            before hcq
+            before {{ primary_intervention_name }}
         </div>
         <div id="preStats" style="margin-top:var(--space-sm);"></div>
     </div>
@@ -36,12 +37,13 @@
     <div class="card" style="border-color: rgba(74,184,184,0.4);">
         <div class="card-title" style="color:#4ab8b8; font-size:0.8rem;
              text-transform:uppercase; letter-spacing:0.08em;">
-            after hcq · {{ hcq_start }}
+            after {{ primary_intervention_name }} · {{ primary_intervention_date }}
         </div>
         <div id="postStats" style="margin-top:var(--space-sm);"></div>
     </div>
 
 </div>
+{% endif %}
 
 <!-- HRV trend chart -->
 <div class="chart-container">
@@ -74,128 +76,116 @@
 {% if has_data %}
 <script>
 const H = {{ hrv_json | safe }};
-const HCQ_START = "{{ hcq_start }}";
+const S = {{ sleep_json | safe }};
+const PRIMARY_INTERVENTION_DATE = "{{ primary_intervention_date or '' }}";
+const PRIMARY_INTERVENTION_NAME = "{{ primary_intervention_name or 'intervention' }}";
+const OTHER_INTERVENTIONS = {{ other_interventions_json | safe }};
 
 Chart.defaults.font.family = "'Source Serif 4', 'Times New Roman', serif";
 Chart.defaults.font.size = 12;
 Chart.defaults.color = '#9994a8';
 
-const GRID  = 'rgba(255,255,255,0.06)';
-const TEXT  = '#9994a8';
-const HCQ_LINE_COLOR = 'rgba(74,184,184,0.6)';
+const GRID = 'rgba(255,255,255,0.06)';
+const TEXT = '#9994a8';
 
-function gridOpts() { return { color: GRID, drawBorder: false }; }
+// ============================================================
+// Medication intervention line plugin
+// ============================================================
+const interventionLinePlugin = {
+    id: 'interventionLines',
+    afterDraw(chart) {
+        const { ctx, chartArea, scales } = chart;
+        if (!chartArea || !scales.x) return;
+
+        // Primary intervention (prominent teal line)
+        if (PRIMARY_INTERVENTION_DATE) {
+            const x = scales.x.getPixelForValue(PRIMARY_INTERVENTION_DATE);
+            if (x && x >= chartArea.left && x <= chartArea.right) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(x, chartArea.top);
+                ctx.lineTo(x, chartArea.bottom);
+                ctx.strokeStyle = 'rgba(74,184,184,0.6)';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([4, 3]);
+                ctx.stroke();
+
+                ctx.fillStyle = 'rgba(74,184,184,0.8)';
+                ctx.font = "11px 'Source Serif 4', serif";
+                ctx.textAlign = 'left';
+                ctx.fillText(PRIMARY_INTERVENTION_NAME + ' start', x + 5, chartArea.top + 14);
+                ctx.restore();
+            }
+        }
+
+        // Other interventions (lighter purple reference lines)
+        OTHER_INTERVENTIONS.forEach((med, i) => {
+            const x = scales.x.getPixelForValue(med.start_date);
+            if (x && x >= chartArea.left && x <= chartArea.right) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(x, chartArea.top);
+                ctx.lineTo(x, chartArea.bottom);
+                ctx.strokeStyle = 'rgba(157,114,207,0.3)';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([2, 2]);
+                ctx.stroke();
+
+                ctx.fillStyle = 'rgba(157,114,207,0.5)';
+                ctx.font = "9px 'Source Serif 4', serif";
+                ctx.textAlign = 'left';
+                ctx.fillText(med.drug_name, x + 3, chartArea.top + 28 + (i * 11));
+                ctx.restore();
+            }
+        });
+    }
+};
+
+function gridOpts() {
+    return { color: GRID };
+}
 
 function tooltipOpts() {
     return {
         backgroundColor: '#1e1e28',
         borderColor: '#2a2a38',
         borderWidth: 1,
-        titleColor: '#e8e6e0',
-        bodyColor: '#9994a8',
         padding: 10,
         cornerRadius: 6,
     };
 }
 
 // ============================================================
-// HCQ vertical line plugin
-// ============================================================
-const hcqLinePlugin = {
-    id: 'hcqLine',
-    afterDraw(chart) {
-        const { ctx, chartArea, scales } = chart;
-        if (!chartArea || !scales.x) return;
-
-        const x = scales.x.getPixelForValue(HCQ_START);
-        if (!x || x < chartArea.left || x > chartArea.right) return;
-
-        ctx.save();
-        ctx.beginPath();
-        ctx.moveTo(x, chartArea.top);
-        ctx.lineTo(x, chartArea.bottom);
-        ctx.strokeStyle = HCQ_LINE_COLOR;
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([4, 3]);
-        ctx.stroke();
-
-        ctx.fillStyle = HCQ_LINE_COLOR;
-        ctx.font = "11px 'Source Serif 4', serif";
-        ctx.textAlign = 'left';
-        ctx.fillText('HCQ start', x + 5, chartArea.top + 14);
-        ctx.restore();
-    }
-};
-
-// ============================================================
-// Pre/post stats cards
-// ============================================================
-function renderStats() {
-    function statHTML(s) {
-        if (!s || s.n === 0) {
-            return `<p style="color:var(--text-muted); font-style:italic;">no data</p>`;
-        }
-        return `
-            <div style="font-family:var(--font-mono); font-size:1.4rem;
-                        color:var(--text-primary); margin-bottom:4px;">
-                ${s.mean}
-                <span style="font-size:0.9rem; color:var(--text-muted);">ms</span>
-            </div>
-            <div style="font-size:0.8rem; color:var(--text-muted);">
-                ± ${s.std} sd &nbsp;·&nbsp; n = ${s.n} days
-            </div>`;
-    }
-
-    document.getElementById('preStats').innerHTML  = statHTML(H.pre_hcq);
-    document.getElementById('postStats').innerHTML = statHTML(H.post_hcq);
-
-    // Add delta annotation if both periods have data
-    if (H.pre_hcq?.mean && H.post_hcq?.mean) {
-        const delta = (H.post_hcq.mean - H.pre_hcq.mean).toFixed(2);
-        const sign  = delta > 0 ? '+' : '';
-        const color = delta > 0 ? '#4a9e6e' : '#c94040';
-        const post  = document.getElementById('postStats');
-        post.innerHTML += `
-            <div style="margin-top:var(--space-sm); font-family:var(--font-mono);
-                        font-size:0.9rem; color:${color};">
-                ${sign}${delta} ms vs pre-HCQ
-            </div>`;
-    }
-}
-
-// ============================================================
-// Chart 1: HRV raw + rolling average with HCQ line
+// Build HRV trend chart
 // ============================================================
 function buildHRVChart() {
     new Chart(document.getElementById('chartHRV'), {
         type: 'line',
-        plugins: [hcqLinePlugin],
+        plugins: [interventionLinePlugin],
         data: {
             labels: H.dates,
             datasets: [
                 {
-                    label: 'hrv (raw)',
+                    label: 'HRV raw',
                     data: H.hrv_raw,
-                    borderColor: 'rgba(74,144,217,0.35)',
+                    borderColor: 'rgba(74,144,217,0.3)',
                     backgroundColor: 'transparent',
                     borderWidth: 1,
-                    pointRadius: 2,
-                    pointHoverRadius: 4,
-                    tension: 0.2,
-                    spanGaps: true,
+                    pointRadius: 0,
+                    pointHoverRadius: 3,
+                    tension: 0.3,
                 },
                 {
-                    label: '7-day avg',
+                    label: 'HRV 7d avg',
                     data: H.hrv_rolling,
                     borderColor: '#4a90d9',
-                    backgroundColor: 'rgba(74,144,217,0.08)',
-                    borderWidth: 2.5,
+                    backgroundColor: 'rgba(74,144,217,0.1)',
+                    borderWidth: 2,
                     pointRadius: 0,
                     pointHoverRadius: 4,
                     tension: 0.4,
-                    spanGaps: true,
                     fill: true,
-                },
+                }
             ]
         },
         options: {
@@ -212,7 +202,7 @@ function buildHRVChart() {
                 },
                 y: {
                     grid: gridOpts(),
-                    title: { display: true, text: 'hrv (ms)', color: TEXT },
+                    title: { display: true, text: 'HRV (ms)', color: TEXT }
                 }
             }
         }
@@ -220,54 +210,36 @@ function buildHRVChart() {
 }
 
 // ============================================================
-// Chart 2 & 3: HRV vs fatigue / HRV vs pain
+// Build HRV vs fatigue chart
 // ============================================================
-function buildOverlayChart(canvasId, symptomData, symptomLabel, symptomColor) {
-    // Filter to rows where both HRV and symptom are present
-    const paired = H.dates
-        .map((d, i) => ({
-            date: d,
-            hrv: H.hrv_raw[i],
-            sym: symptomData[i],
-        }))
-        .filter(r => r.hrv !== null && r.hrv !== undefined &&
-                     r.sym !== null && r.sym !== undefined);
-
-    if (paired.length < 3) return;
-
-    const labels = paired.map(r => r.date);
-    const hrvVals = paired.map(r => r.hrv);
-    const symVals = paired.map(r => r.sym);
-
-    new Chart(document.getElementById(canvasId), {
+function buildFatigueChart() {
+    new Chart(document.getElementById('chartFatigue'), {
         type: 'line',
-        plugins: [hcqLinePlugin],
+        plugins: [interventionLinePlugin],
         data: {
-            labels,
+            labels: H.dates,
             datasets: [
                 {
-                    label: 'hrv',
-                    data: hrvVals,
+                    label: 'HRV (ms)',
+                    data: H.hrv_rolling,
                     borderColor: '#4a90d9',
                     backgroundColor: 'transparent',
                     borderWidth: 2,
-                    pointRadius: 1,
-                    tension: 0.3,
-                    spanGaps: true,
+                    pointRadius: 0,
+                    tension: 0.4,
                     yAxisID: 'yHRV',
                 },
                 {
-                    label: symptomLabel,
-                    data: symVals,
-                    borderColor: symptomColor,
+                    label: 'Fatigue (0-10)',
+                    data: H.fatigue,
+                    borderColor: '#d4a054',
                     backgroundColor: 'transparent',
-                    borderWidth: 1.5,
-                    pointRadius: 1,
-                    borderDash: [4, 3],
+                    borderWidth: 2,
+                    pointRadius: 2,
                     tension: 0.3,
                     spanGaps: true,
-                    yAxisID: 'ySymptom',
-                },
+                    yAxisID: 'yFatigue',
+                }
             ]
         },
         options: {
@@ -286,34 +258,104 @@ function buildOverlayChart(canvasId, symptomData, symptomLabel, symptomColor) {
                     type: 'linear',
                     position: 'left',
                     grid: gridOpts(),
-                    title: { display: true, text: 'hrv (ms)', color: '#4a90d9' },
+                    title: { display: true, text: 'HRV (ms)', color: '#4a90d9' },
                     ticks: { color: '#4a90d9' },
                 },
-                ySymptom: {
+                yFatigue: {
                     type: 'linear',
                     position: 'right',
                     min: 0, max: 10,
                     grid: { display: false },
-                    title: { display: true, text: `${symptomLabel} (0–10)`, color: symptomColor },
-                    ticks: { color: symptomColor },
+                    title: { display: true, text: 'Fatigue', color: '#d4a054' },
+                    ticks: { color: '#d4a054' },
                 }
             }
         }
     });
 }
 
+// ============================================================
+// Build HRV vs pain chart
+// ============================================================
+function buildPainChart() {
+    new Chart(document.getElementById('chartPain'), {
+        type: 'line',
+        plugins: [interventionLinePlugin],
+        data: {
+            labels: H.dates,
+            datasets: [
+                {
+                    label: 'HRV (ms)',
+                    data: H.hrv_rolling,
+                    borderColor: '#4a90d9',
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0.4,
+                    yAxisID: 'yHRV',
+                },
+                {
+                    label: 'Pain (0-10)',
+                    data: H.pain,
+                    borderColor: '#c94040',
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    pointRadius: 2,
+                    tension: 0.3,
+                    spanGaps: true,
+                    yAxisID: 'yPain',
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { labels: { color: TEXT, boxWidth: 12, padding: 16 } },
+                tooltip: tooltipOpts(),
+            },
+            scales: {
+                x: {
+                    grid: gridOpts(),
+                    ticks: { maxTicksLimit: 12, maxRotation: 45 }
+                },
+                yHRV: {
+                    type: 'linear',
+                    position: 'left',
+                    grid: gridOpts(),
+                    title: { display: true, text: 'HRV (ms)', color: '#4a90d9' },
+                    ticks: { color: '#4a90d9' },
+                },
+                yPain: {
+                    type: 'linear',
+                    position: 'right',
+                    min: 0, max: 10,
+                    grid: { display: false },
+                    title: { display: true, text: 'Pain', color: '#c94040' },
+                    ticks: { color: '#c94040' },
+                }
+            }
+        }
+    });
+}
+
+// ============================================================
+// Rolling average helper
+// ============================================================
 function rollingAvg(arr, window) {
     return arr.map((_, i) => {
         const slice = arr.slice(Math.max(0, i - window + 1), i + 1)
                          .filter(v => v !== null && v !== undefined);
-        return slice.length >= 2 ? round3(slice.reduce((a, b) => a + b, 0) / slice.length) : null;
+        return slice.length >= 2 
+            ? Math.round((slice.reduce((a, b) => a + b, 0) / slice.length) * 1000) / 1000
+            : null;
     });
 }
 
-function round3(v) { return Math.round(v * 1000) / 1000; }
-
+// ============================================================
+// Build sleep/BBT/UV chart
+// ============================================================
 function buildSleepChart() {
-    const S = {{ sleep_json | safe }};
     if (!S.dates || S.dates.length < 3) return;
 
     const sleepSmooth = rollingAvg(S.sleep, 3);
@@ -322,7 +364,7 @@ function buildSleepChart() {
 
     new Chart(document.getElementById('chartSleep'), {
         type: 'line',
-        plugins: [hcqLinePlugin],
+        plugins: [interventionLinePlugin],
         data: {
             labels: S.dates,
             datasets: [
@@ -405,18 +447,61 @@ function buildSleepChart() {
 }
 
 // ============================================================
+// Populate pre/post stats cards
+// ============================================================
+function populateStats() {
+    const pre  = H.pre_intervention;
+    const post = H.post_intervention;
+
+    if (pre && pre.n > 0) {
+        document.getElementById('preStats').innerHTML = `
+            <div style="font-size:1.6rem; font-weight:600; color:#4a90d9;">
+                ${pre.mean} <span style="font-size:0.9rem; color:var(--text-muted);">ms</span>
+            </div>
+            <div style="font-size:0.85rem; color:var(--text-muted); margin-top:4px;">
+                σ ${pre.std} · n=${pre.n}
+            </div>
+        `;
+    } else {
+        document.getElementById('preStats').innerHTML = `
+            <div style="color:var(--text-muted); font-size:0.9rem;">no data</div>
+        `;
+    }
+
+    if (post && post.n > 0) {
+        const delta = pre.mean && post.mean ? post.mean - pre.mean : null;
+        const deltaStr = delta !== null
+            ? `<div style="font-size:0.85rem; margin-top:4px; color:${delta > 0 ? '#4ab8b8' : '#c94040'};">
+                 ${delta > 0 ? '↑' : '↓'} ${Math.abs(delta).toFixed(1)} ms
+               </div>`
+            : '';
+        
+        document.getElementById('postStats').innerHTML = `
+            <div style="font-size:1.6rem; font-weight:600; color:#4ab8b8;">
+                ${post.mean} <span style="font-size:0.9rem; color:var(--text-muted);">ms</span>
+            </div>
+            <div style="font-size:0.85rem; color:var(--text-muted); margin-top:4px;">
+                σ ${post.std} · n=${post.n}
+            </div>
+            ${deltaStr}
+        `;
+    } else {
+        document.getElementById('postStats').innerHTML = `
+            <div style="color:var(--text-muted); font-size:0.9rem;">no data yet</div>
+        `;
+    }
+}
+
+// ============================================================
 // Init
 // ============================================================
-renderStats();
-buildSleepChart();
 buildHRVChart();
-buildOverlayChart('chartFatigue', H.fatigue, 'fatigue', '#d4a054');
-buildOverlayChart('chartPain',    H.pain,    'pain',    '#c94040');
+buildFatigueChart();
+buildPainChart();
+buildSleepChart();
+if (PRIMARY_INTERVENTION_DATE) {
+    populateStats();
+}
 </script>
-<!-- Sleep / BBT / UV lag-1 chart -->
-<div class="chart-container">
-    <div class="chart-title">sleep · basal temp delta · uv previous day</div>
-    <canvas id="chartSleep" style="max-height:280px;"></canvas>
-</div>
 {% endif %}
 {% endblock %}

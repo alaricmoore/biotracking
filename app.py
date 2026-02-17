@@ -316,11 +316,9 @@ def uv_lag():
 # HRV and autonomic
 # ============================================================
 
-HCQ_START_DATE = "2025-12-09"  # Oblander prescription, actual start date
 
-
-def compute_hrv_data(observations: list) -> dict:
-    """Compute HRV trend with 7-day rolling average and HCQ split."""
+def compute_hrv_data(observations: list, intervention_date: str = None) -> dict:
+    """Compute HRV trend with 7-day rolling average and intervention split."""
     import numpy as np
 
     hrv_obs = [o for o in observations if o.get("hrv") is not None]
@@ -337,8 +335,12 @@ def compute_hrv_data(observations: list) -> dict:
         window = hrv_vals[max(0, i - 6): i + 1]
         rolling.append(round(sum(window) / len(window), 2) if len(window) >= 3 else None)
 
-    pre_vals  = [v for d, v in zip(dates, hrv_vals) if d < HCQ_START_DATE]
-    post_vals = [v for d, v in zip(dates, hrv_vals) if d >= HCQ_START_DATE]
+    # Split stats only if intervention date is provided
+    pre_vals  = []
+    post_vals = []
+    if intervention_date:
+        pre_vals  = [v for d, v in zip(dates, hrv_vals) if d < intervention_date]
+        post_vals = [v for d, v in zip(dates, hrv_vals) if d >= intervention_date]
 
     def stats_dict(vals):
         if not vals:
@@ -354,9 +356,8 @@ def compute_hrv_data(observations: list) -> dict:
         "hrv_rolling": rolling,
         "fatigue":     fatigue,
         "pain":        pain,
-        "pre_hcq":     stats_dict(pre_vals),
-        "post_hcq":    stats_dict(post_vals),
-        "hcq_start":   HCQ_START_DATE,
+        "pre_intervention":  stats_dict(pre_vals),
+        "post_intervention": stats_dict(post_vals),
     }
 
 
@@ -400,23 +401,40 @@ def compute_sleep_bbt_uv(observations: list) -> dict:
         "sleep":      sleep_vals,
         "bbt":        bbt_vals,
         "uv_lag1":    uv_lag1,
-        "hcq_start":  HCQ_START_DATE,
     }
 
 
 @app.route("/hrv")
 def hrv_view():
-    """HRV trend with rolling average, HCQ split, and sleep/BBT/UV."""
+    """HRV trend with rolling average, intervention split, and sleep/BBT/UV."""
     observations = db.get_all_daily_observations()
-    hrv_data = compute_hrv_data(observations)
+    
+    # Read primary intervention from config
+    primary_intervention = CONFIG.get("primary_intervention") or {}
+    intervention_name = primary_intervention.get("name", "intervention")
+    intervention_date = primary_intervention.get("start_date")
+    
+    hrv_data = compute_hrv_data(observations, intervention_date)
     sleep_bbt_uv = compute_sleep_bbt_uv(observations)
-
+    
+    # Get other notable medication starts for reference lines
+    all_meds = db.get_all_medications()
+    other_interventions = [
+        {"drug_name": m["drug_name"], "start_date": m["start_date"]}
+        for m in all_meds
+        if m.get("start_date") and
+           m.get("start_date") != intervention_date and
+           m.get("category") in ("prescription", "injection")
+    ]
+    
     return render_template(
         "hrv.html",
         has_data=bool(hrv_data),
         hrv_json=json.dumps(hrv_data, default=lambda x: int(x) if isinstance(x, bool) else str(x)),
         sleep_json=json.dumps(sleep_bbt_uv, default=lambda x: int(x) if isinstance(x, bool) else str(x)),
-        hcq_start=HCQ_START_DATE,
+        primary_intervention_name=intervention_name,
+        primary_intervention_date=intervention_date,
+        other_interventions_json=json.dumps(other_interventions),
     )
 
 
@@ -685,6 +703,7 @@ def search():
         patient_name=CONFIG.get("patient_name", ""),
         hcq_start=HCQ_START_DATE,
     )
+
 # ============================================================
 # Clinical Report
 # ============================================================
@@ -725,9 +744,6 @@ def generate_findings(observations, uv_data, start_date, end_date):
     
     return findings
 
-#========================
-# Report generation
-#========================
 
 @app.route("/report")
 def clinical_report():
@@ -789,15 +805,20 @@ def clinical_report():
     tracking_start = all_obs[0]["date"] if all_obs else None
     tracking_end   = all_obs[-1]["date"] if all_obs else None
     
+    # Primary intervention for report context
+    primary_intervention = CONFIG.get("primary_intervention") or {}
+    intervention_name = primary_intervention.get("name")
+    intervention_date = primary_intervention.get("start_date")
+    
     return render_template(
         "report.html",
         start_date=start_date,
         end_date=end_date,
-        today=date.today().strftime("%B %d, %Y"),
         tracking_start=tracking_start,
         tracking_end=tracking_end,
         patient_name=CONFIG.get("patient_name", ""),
-        hcq_start=HCQ_START_DATE,
+        primary_intervention_name=intervention_name,
+        primary_intervention_date=intervention_date,
         observations=observations,
         active_meds=active_meds,
         flagged_labs=flagged_labs,
@@ -806,8 +827,8 @@ def clinical_report():
         mean_fatigue=mean_fatigue,
         findings=findings,
         chart_dataset_json=json.dumps(chart_dataset),
+        today=date.today().strftime("%B %d, %Y"),
     )
-
 # ============================================================
 # API endpoints for Chart.js (JSON only)
 # ============================================================
