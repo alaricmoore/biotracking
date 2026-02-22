@@ -422,7 +422,7 @@ def search_notes(query: str) -> list[dict]:
     Returns matching rows with date, source field, and matching text.
     Uses SQLite LIKE for broad compatibility.
     """
-    pattern = f"%{query}%"
+    patterns = f"%{query}%"
     results = []
 
     note_fields = [
@@ -443,7 +443,7 @@ def search_notes(query: str) -> list[dict]:
                     FROM daily_observations
                     WHERE {field} LIKE ?
                     ORDER BY date ASC""",
-                (pattern,)
+                (patterns,)
             ).fetchall()
             results.extend([dict(row) for row in rows])
 
@@ -453,7 +453,7 @@ def search_notes(query: str) -> list[dict]:
                FROM clinical_events
                WHERE notes LIKE ?
                ORDER BY date ASC""",
-            (pattern,)
+            (patterns,)
         ).fetchall()
         results.extend([dict(row) for row in rows])
 
@@ -485,3 +485,86 @@ def get_timeline_data(start_date: str, end_date: str) -> dict:
         "events": get_clinical_events(start_date=start_date, end_date=end_date),
         "medications": get_all_medications(),  # filtered in frontend by date
     }
+    
+    # Add these functions to db.py
+
+def update_lab_result(lab_id: int, date: str, test_name: str,
+                      numeric_value: Optional[float] = None,
+                      unit: Optional[str] = None,
+                      qualitative_result: Optional[str] = None,
+                      reference_range: Optional[str] = None,
+                      flag: Optional[str] = None,
+                      provider: Optional[str] = None,
+                      lab_facility: Optional[str] = None,
+                      notes: Optional[str] = None) -> bool:
+    """Update an existing lab result."""
+    with get_db() as conn:
+        conn.execute("""
+            UPDATE lab_results
+            SET date = ?,
+                test_name = ?,
+                numeric_value = ?,
+                unit = ?,
+                qualitative_result = ?,
+                reference_range = ?,
+                flag = ?,
+                provider = ?,
+                lab_facility = ?,
+                notes = ?
+            WHERE id = ?
+        """, (date, test_name, numeric_value, unit, qualitative_result,
+              reference_range, flag, provider, lab_facility, notes, lab_id))
+    return True
+
+
+def update_ana_result(ana_id: int, date: str,
+                      titer: Optional[str] = None,
+                      patterns: Optional[str] = None,
+                      screen_result: Optional[str] = None,
+                      provider: Optional[str] = None,
+                      notes: Optional[str] = None) -> bool:
+    """Update an existing ANA result."""
+    with get_db() as conn:
+        conn.execute("""
+            UPDATE ana_results
+            SET date = ?,
+                titer_integer = ?,
+                patterns = ?,
+                screen_result = ?,
+                provider = ?,
+                notes = ?
+            WHERE id = ?
+        """, (date, titer, patterns, screen_result, provider, notes, ana_id))
+    return True
+
+
+def delete_ana_result(ana_id: int) -> bool:
+    """Delete an ANA result."""
+    with get_db() as conn:
+        conn.execute("DELETE FROM ana_results WHERE id = ?", (ana_id,))
+    return True
+
+
+def update_clinical_event(event_id: int, date: str, event_type: str,
+                          provider: Optional[str] = None,
+                          facility: Optional[str] = None,
+                          notes: Optional[str] = None) -> bool:
+    """Update an existing clinical event."""
+    with get_db() as conn:
+        conn.execute("""
+            UPDATE clinical_events
+            SET date = ?,
+                event_type = ?,
+                provider = ?,
+                facility = ?,
+                notes = ?
+            WHERE id = ?
+        """, (date, event_type, provider, facility, notes, event_id))
+    return True
+
+
+def delete_clinical_event(event_id: int) -> bool:
+    """Delete a clinical event."""
+    with get_db() as conn:
+        conn.execute("DELETE FROM clinical_events WHERE id = ?", (event_id,))
+    return True

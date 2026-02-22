@@ -8,356 +8,668 @@
 
 {% block content %}
 <div class="page-header">
-    <h1>timeline</h1>
-    <p class="page-subtitle">{{ start_date }} — {{ end_date }}</p>
+    <h1>symptom comparison</h1>
+    <p class="page-subtitle">compare symptoms against biometrics & environmental factors</p>
 </div>
 
-<!-- Date range selector -->
-<div class="card" style="margin-bottom: var(--space-lg);">
-    <form method="GET" action="{{ url_for('timeline') }}"
-          style="display:flex; gap:var(--space-md); align-items:flex-end; flex-wrap:wrap;">
-        <div class="form-group" style="margin:0; flex:1; min-width:140px;">
+<!-- Date range controls -->
+<div class="range-controls">
+    <div class="range-presets">
+        <button class="preset-btn" onclick="setRange(30, this)">30 days</button>
+        <button class="preset-btn" onclick="setRange(90, this)">90 days</button>
+        <button class="preset-btn" onclick="setRange(180, this)">180 days</button>
+        <button class="preset-btn" onclick="setRange(0, this)">all</button>
+    </div>
+    
+    <div class="date-inputs">
+        <div class="form-group">
             <label>from</label>
-            <input type="date" name="start" value="{{ start_date }}">
+            <input type="date" id="start-date" value="{{ start_date }}">
         </div>
-        <div class="form-group" style="margin:0; flex:1; min-width:140px;">
+        <div class="form-group">
             <label>to</label>
-            <input type="date" name="end" value="{{ end_date }}">
+            <input type="date" id="end-date" value="{{ end_date }}">
         </div>
-        <button type="submit" class="btn btn-secondary">update</button>
-        <a href="{{ url_for('timeline') }}" class="btn btn-secondary">reset</a>
-    </form>
+        <button class="btn btn-secondary" onclick="loadData()">update</button>
+    </div>
 </div>
 
-<!-- Legend -->
-<div style="display:flex; flex-wrap:wrap; gap:var(--space-sm);
-            margin-bottom:var(--space-lg);">
-    <span class="badge badge-neuro">neurological</span>
-    <span class="badge badge-muscle">musculature</span>
-    <span class="badge badge-migraine">migraine</span>
-    <span class="badge badge-cognitive">cognitive</span>
-    <span class="badge badge-derm">dermatological</span>
-    <span class="badge badge-air">air hunger</span>
-    <span class="badge badge-uv">uv index</span>
-    <span class="badge" style="background:rgba(255,255,255,0.1);
-                                color:var(--color-flare);">flare day</span>
-</div>
-
-<!-- Main symptom + UV chart -->
-<div class="chart-container">
-    <div class="chart-title">pain · fatigue · uv noon</div>
-    <canvas id="chartMain" style="max-height:320px;"></canvas>
-</div>
-
-<!-- Symptom flags chart -->
-<div class="chart-container">
-    <div class="chart-title">symptom categories (daily flags)</div>
-    <canvas id="chartFlags" style="max-height:220px;"></canvas>
-</div>
-
-<!-- HRV + temp delta chart -->
-<div class="chart-container">
-    <div class="chart-title">hrv · basal temp delta</div>
-    <canvas id="chartHRV" style="max-height:220px;"></canvas>
-</div>
-
-<!-- No data state -->
-<div id="noData" style="display:none;">
-    <div class="empty-state">
-        <p>No data for this date range.</p>
-        <p style="margin-top:1rem;">
-            <a href="{{ url_for('daily_entry') }}">add today's entry</a>
+<!-- Comparison tool -->
+<div class="card" style="margin-bottom:var(--space-xl);">
+    <div class="card-title">select symptoms & comparison metric</div>
+    
+    <div class="comparison-instructions">
+        <p style="margin:0; color:var(--text-muted); font-size:0.9rem;">
+            Check symptom categories below, choose a metric to compare them against,
+            then generate the chart. Dots show individual symptom occurrences,
+            the line shows total count of selected symptoms per day.
         </p>
     </div>
+    
+    <!-- Symptom checkboxes -->
+    <div class="symptom-selectors">
+        <label class="symptom-checkbox">
+            <input type="checkbox" value="neurological" data-color="#4a90d9">
+            <span class="checkbox-label neuro">neurological</span>
+        </label>
+        <label class="symptom-checkbox">
+            <input type="checkbox" value="cognitive" data-color="#9b72cf">
+            <span class="checkbox-label cognitive">cognitive</span>
+        </label>
+        <label class="symptom-checkbox">
+            <input type="checkbox" value="musculature" data-color="#d4a054">
+            <span class="checkbox-label muscle">musculature</span>
+        </label>
+        <label class="symptom-checkbox">
+            <input type="checkbox" value="migraine" data-color="#c94040">
+            <span class="checkbox-label migraine">migraine</span>
+        </label>
+        <label class="symptom-checkbox">
+            <input type="checkbox" value="air_hunger" data-color="#4ab8b8">
+            <span class="checkbox-label air">air hunger</span>
+        </label>
+        <label class="symptom-checkbox">
+            <input type="checkbox" value="dermatological" data-color="#d4784a">
+            <span class="checkbox-label derm">dermatological</span>
+        </label>
+        <label class="symptom-checkbox">
+            <input type="checkbox" value="word_loss" data-color="#b8aee8">
+            <span class="checkbox-label emotional">word loss</span>
+        </label>
+    </div>
+    
+    <!-- Comparison controls -->
+    <div class="comparison-controls">
+        <div class="form-group" style="flex:1; min-width:200px;">
+            <label>compare with</label>
+            <select id="metric-select">
+                <option value="uv_noon">UV index (noon)</option>
+                <option value="basal_temp_delta">basal temp delta</option>
+                <option value="hrv">HRV</option>
+                <option value="hours_slept">hours slept</option>
+                <option value="steps">steps walked</option>
+                <option value="emotional_state">emotional state</option>
+                <option value="pain_scale">pain (0-10)</option>
+                <option value="fatigue_scale">fatigue (0-10)</option>
+            </select>
+        </div>
+        
+        <button class="btn btn-primary" onclick="generateComparison()" id="generate-btn">
+            generate chart →
+        </button>
+    </div>
+</div>
+
+<!-- Comparison chart (appears after generation) -->
+<div id="chart-container" class="chart-container" style="display:none;">
+    <div class="chart-title" id="chart-title">comparison</div>
+    <canvas id="comparison-chart" style="max-height:400px;"></canvas>
+</div>
+
+<!-- Flare day analysis -->
+<div class="card" style="margin-top:var(--space-xl);">
+    <div class="card-title">flare day analysis</div>
+    
+    <p style="margin:0 0 var(--space-md) 0; color:var(--text-muted); font-size:0.9rem;">
+        Showing all days marked as flares in the current date range, with symptom profile and environmental context.
+    </p>
+    
+    <div id="flare-analysis">
+        <!-- Populated by JavaScript -->
+    </div>
+</div>
+
+<!-- Empty state -->
+<div id="empty-state" class="empty-state">
+    <p>Select symptoms and a comparison metric above, then generate a chart.</p>
 </div>
 
 {% endblock %}
 
 {% block scripts %}
 <script>
-const rawData = {{ timeline_json | safe }};
-const daily = rawData.daily || [];
-const uvData = rawData.uv || [];
+const TIMELINE_DATA = {{ timeline_json | safe }};
+let comparisonChart = null;
 
-if (daily.length === 0) {
-    document.getElementById('noData').style.display = 'block';
-    document.querySelectorAll('.chart-container').forEach(el => {
-        el.style.display = 'none';
-    });
+// Date range management
+function setRange(days, button) {
+    const end = new Date();
+    const start = days === 0 
+        ? new Date('2000-01-01')
+        : new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
+    
+    document.getElementById('start-date').value = start.toISOString().split('T')[0];
+    document.getElementById('end-date').value = end.toISOString().split('T')[0];
+    
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    button.classList.add('active');
+    
+    loadData();
 }
 
-const C = {
-    neuro:     '#4a90d9',
-    muscle:    '#d4a054',
-    migraine:  '#c94040',
-    cognitive: '#9b72cf',
-    derm:      '#d4784a',
-    air:       '#4ab8b8',
-    emotional: '#7a8499',
-    uv:        '#d4b84a',
-    pain:      '#c94040',
-    fatigue:   '#d4a054',
-    hrv:       '#4ab8b8',
-    temp:      '#9b72cf',
-    grid:      'rgba(255,255,255,0.06)',
-    text:      '#9994a8',
-};
-
-const uvByDate = {};
-uvData.forEach(u => { uvByDate[u.date] = u; });
-
-Chart.defaults.font.family = "'Source Serif 4', 'Times New Roman', serif";
-Chart.defaults.font.size = 12;
-Chart.defaults.color = C.text;
-
-function gridOpts() {
-    return { color: C.grid, drawBorder: false };
+function loadData() {
+    const start = document.getElementById('start-date').value;
+    const end = document.getElementById('end-date').value;
+    window.location.href = `/timeline?start=${start}&end=${end}`;
 }
 
-function tooltipOpts() {
-    return {
-        backgroundColor: '#1e1e28',
-        borderColor: '#2a2a38',
-        borderWidth: 1,
-        titleColor: '#e8e6e0',
-        bodyColor: '#9994a8',
-        padding: 10,
-        cornerRadius: 6,
-    };
-}
-
-const flareBandPlugin = {
-    id: 'flareBands',
-    beforeDraw(chart) {
-        const { ctx, chartArea, scales } = chart;
-        if (!chartArea) return;
-        daily.forEach(d => {
-            if (!d.flare_occurred) return;
-            const x = scales.x.getPixelForValue(d.date);
-            if (!x) return;
-            ctx.save();
-            ctx.fillStyle = 'rgba(255,255,255,0.04)';
-            ctx.fillRect(x - 2, chartArea.top, 4, chartArea.bottom - chartArea.top);
-            ctx.restore();
-        });
+// Flare day analysis builder
+function buildFlareAnalysis() {
+    const container = document.getElementById('flare-analysis');
+    const daily = TIMELINE_DATA.daily;
+    const uvData = TIMELINE_DATA.uv;
+    
+    const uvByDate = {};
+    uvData.forEach(u => { uvByDate[u.date] = u.uv_noon || 0; });
+    
+    const flareDays = daily.filter(d => d.flare_occurred === 1).reverse(); // newest first
+    
+    if (flareDays.length === 0) {
+        container.innerHTML = `
+            <div style="color:var(--text-muted); font-style:italic; text-align:center; padding:var(--space-lg);">
+                No flare days in this date range.
+            </div>
+        `;
+        return;
     }
-};
-
-function buildMainChart() {
-    const labels  = daily.map(d => d.date);
-    const pain    = daily.map(d => d.pain_scale);
-    const fatigue = daily.map(d => d.fatigue_scale);
-    const uvNoon  = daily.map(d => {
-        const uv = uvByDate[d.date];
-        return uv ? uv.uv_noon : null;
-    });
-
-    new Chart(document.getElementById('chartMain'), {
-        type: 'line',
-        plugins: [flareBandPlugin],
-        data: {
-            labels,
-            datasets: [
-                {
-                    label: 'pain',
-                    data: pain,
-                    borderColor: C.pain,
-                    backgroundColor: 'transparent',
-                    borderWidth: 2,
-                    pointRadius: 2,
-                    pointHoverRadius: 5,
-                    tension: 0.3,
-                    spanGaps: true,
-                    yAxisID: 'ySymptom',
-                },
-                {
-                    label: 'fatigue',
-                    data: fatigue,
-                    borderColor: C.fatigue,
-                    backgroundColor: 'transparent',
-                    borderWidth: 2,
-                    pointRadius: 2,
-                    pointHoverRadius: 5,
-                    tension: 0.3,
-                    spanGaps: true,
-                    yAxisID: 'ySymptom',
-                },
-                {
-                    label: 'uv noon',
-                    data: uvNoon,
-                    borderColor: C.uv,
-                    backgroundColor: 'rgba(212,184,74,0.08)',
-                    borderWidth: 1.5,
-                    pointRadius: 0,
-                    tension: 0.4,
-                    fill: true,
-                    spanGaps: true,
-                    yAxisID: 'yUV',
-                },
-            ]
-        },
-        options: {
-            responsive: true,
-            interaction: { mode: 'index', intersect: false },
-            plugins: {
-                legend: { labels: { color: C.text, boxWidth: 12, padding: 16 } },
-                tooltip: tooltipOpts(),
-            },
-            scales: {
-                x: {
-                    grid: gridOpts(),
-                    ticks: { maxTicksLimit: 12, maxRotation: 45 }
-                },
-                ySymptom: {
-                    type: 'linear',
-                    position: 'left',
-                    min: 0, max: 10,
-                    grid: gridOpts(),
-                    title: { display: true, text: 'score (0–10)', color: C.text }
-                },
-                yUV: {
-                    type: 'linear',
-                    position: 'right',
-                    min: 0,
-                    grid: { display: false },
-                    title: { display: true, text: 'uv index', color: C.uv },
-                    ticks: { color: C.uv }
-                }
-            }
-        }
+    
+    container.innerHTML = '';
+    
+    flareDays.forEach(day => {
+        const card = document.createElement('div');
+        card.className = 'flare-card';
+        
+        const symptoms = [];
+        if (day.neurological) symptoms.push({ name: 'neurological', color: '#4a90d9', notes: day.neuro_notes });
+        if (day.cognitive) symptoms.push({ name: 'cognitive', color: '#9b72cf', notes: day.cognitive_notes });
+        if (day.musculature) symptoms.push({ name: 'musculature', color: '#d4a054', notes: day.musculature_notes });
+        if (day.migraine) symptoms.push({ name: 'migraine', color: '#c94040', notes: day.migraine_notes });
+        if (day.air_hunger) symptoms.push({ name: 'air hunger', color: '#4ab8b8', notes: day.air_hunger_notes });
+        if (day.dermatological) symptoms.push({ name: 'dermatological', color: '#d4784a', notes: day.derm_notes });
+        if (day.word_loss) symptoms.push({ name: 'word loss', color: '#b8aee8', notes: day.emotional_notes });
+        
+        const symptomBadges = symptoms.map(s => 
+            `<span class="symptom-badge" style="background:${s.color}22; color:${s.color}; border:1px solid ${s.color}44;">
+                ${s.name}
+            </span>`
+        ).join('');
+        
+        const triggers = [];
+        if (day.strike_physical) triggers.push('physical/cognitive load');
+        if (day.strike_environmental) triggers.push('UV/heat/allergen');
+        
+        const triggerStr = triggers.length 
+            ? `<div style="margin-top:var(--space-xs); font-size:0.85rem; color:var(--text-muted);">
+                Triggers: ${triggers.join(', ')}
+               </div>`
+            : '';
+        
+        const uv = uvByDate[day.date];
+        const uvStr = uv !== undefined ? `${uv.toFixed(1)}` : '—';
+        const tempStr = day.basal_temp_delta !== null ? `${day.basal_temp_delta > 0 ? '+' : ''}${day.basal_temp_delta.toFixed(2)}°F` : '—';
+        const sleepStr = day.hours_slept !== null ? `${day.hours_slept.toFixed(1)}h` : '—';
+        const painStr = day.pain_scale !== null ? day.pain_scale : '—';
+        const fatigueStr = day.fatigue_scale !== null ? day.fatigue_scale : '—';
+        
+        card.innerHTML = `
+            <div class="flare-card-header">
+                <div class="flare-date">
+                    ★ ${new Date(day.date + 'T12:00:00').toLocaleDateString('en-US', 
+                        { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
+                </div>
+                <div class="flare-metrics">
+                    <span title="UV noon">☀️ ${uvStr}</span>
+                    <span title="Basal temp delta">🌡️ ${tempStr}</span>
+                    <span title="Hours slept">😴 ${sleepStr}</span>
+                    <span title="Pain">💢 ${painStr}</span>
+                    <span title="Fatigue">⚡ ${fatigueStr}</span>
+                </div>
+            </div>
+            <div class="flare-symptoms">
+                ${symptomBadges || '<span style="color:var(--text-muted); font-size:0.85rem;">no symptoms recorded</span>'}
+            </div>
+            ${triggerStr}
+            ${day.notes ? `
+                <div class="flare-notes">
+                    ${day.notes}
+                </div>
+            ` : ''}
+        `;
+        
+        container.appendChild(card);
     });
 }
 
-function buildFlagsChart() {
-    const labels = daily.map(d => d.date);
-    const flagDefs = [
-        { key: 'neurological',   label: 'neuro',   color: C.neuro,    offset: 6 },
-        { key: 'musculature',    label: 'muscle',  color: C.muscle,   offset: 5 },
-        { key: 'migraine',       label: 'migraine',color: C.migraine, offset: 4 },
-        { key: 'cognitive',      label: 'cog',     color: C.cognitive,offset: 3 },
-        { key: 'dermatological', label: 'derm',    color: C.derm,     offset: 2 },
-        { key: 'air_hunger',     label: 'air',     color: C.air,      offset: 1 },
-        { key: 'word_loss',      label: 'words',   color: C.emotional,offset: 0 },
-    ];
+window.addEventListener('DOMContentLoaded', buildFlareAnalysis);
 
-    const datasets = flagDefs.map(def => ({
-        label: def.label,
-        data: daily.map((d, i) => d[def.key] ? { x: labels[i], y: def.offset + 0.7 } : null),
-        borderColor: def.color,
-        backgroundColor: def.color + '55',
-        borderWidth: 1,
-        pointRadius: 3,
-        pointStyle: 'rect',
-        showLine: false,
+
+function generateComparison() {
+    const selectedSymptoms = Array.from(
+        document.querySelectorAll('.symptom-checkbox input:checked')
+    ).map(cb => ({
+        key: cb.value,
+        color: cb.dataset.color
     }));
-
-    new Chart(document.getElementById('chartFlags'), {
-        type: 'scatter',
-        plugins: [flareBandPlugin],
-        data: { datasets },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: { labels: { color: C.text, boxWidth: 10, padding: 12 } },
-                tooltip: {
-                    ...tooltipOpts(),
-                    callbacks: { label: ctx => ctx.dataset.label }
-                },
+    
+    if (selectedSymptoms.length === 0) {
+        alert('Please select at least one symptom category');
+        return;
+    }
+    
+    const metric = document.getElementById('metric-select').value;
+    const daily = TIMELINE_DATA.daily;
+    const uvData = TIMELINE_DATA.uv;
+    
+    // Build datasets
+    const dates = daily.map(d => d.date);
+    const dateLabels = dates.map(d => {
+        const dt = new Date(d + 'T12:00:00');
+        return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    });
+    
+    // UV mapping
+    const uvByDate = {};
+    uvData.forEach(u => { uvByDate[u.date] = u.uv_noon || 0; });
+    
+    // Metric data
+    let metricData, metricLabel, metricColor, metricAxis;
+    
+    if (metric === 'uv_noon') {
+        metricData = dates.map(d => uvByDate[d] !== undefined ? uvByDate[d] : null);
+        metricLabel = 'UV index';
+        metricColor = '#d4b84a';
+        metricAxis = { min: 0, position: 'right', title: 'UV index' };
+    } else if (metric === 'basal_temp_delta') {
+        metricData = daily.map(d => d.basal_temp_delta);
+        metricLabel = 'temp delta (°F)';
+        metricColor = '#d4784a';
+        metricAxis = { position: 'right', title: 'temp delta' };
+    } else if (metric === 'hrv') {
+        metricData = daily.map(d => d.hrv);
+        metricLabel = 'HRV (ms)';
+        metricColor = '#4a90d9';
+        metricAxis = { position: 'right', title: 'HRV (ms)' };
+    } else if (metric === 'hours_slept') {
+        metricData = daily.map(d => d.hours_slept);
+        metricLabel = 'hours slept';
+        metricColor = '#9b72cf';
+        metricAxis = { min: 0, max: 14, position: 'right', title: 'hours' };
+    } else if (metric === 'steps') {
+        metricData = daily.map(d => d.steps);
+        metricLabel = 'steps';
+        metricColor = '#4ab8b8';
+        metricAxis = { min: 0, position: 'right', title: 'steps' };
+    } else if (metric === 'emotional_state') {
+        metricData = daily.map(d => d.emotional_state);
+        metricLabel = 'emotional (0-10)';
+        metricColor = '#b8aee8';
+        metricAxis = { min: 0, max: 10, position: 'right', title: 'emotional' };
+    } else if (metric === 'pain_scale') {
+        metricData = daily.map(d => d.pain_scale);
+        metricLabel = 'pain (0-10)';
+        metricColor = '#c94040';
+        metricAxis = { min: 0, max: 10, position: 'right', title: 'pain' };
+    } else {  // fatigue_scale
+        metricData = daily.map(d => d.fatigue_scale);
+        metricLabel = 'fatigue (0-10)';
+        metricColor = '#d4a054';
+        metricAxis = { min: 0, max: 10, position: 'right', title: 'fatigue' };
+    }
+    
+    // Total symptom count
+    const totalCount = daily.map(d => {
+        return selectedSymptoms.reduce((sum, s) => sum + (d[s.key] ? 1 : 0), 0);
+    });
+    
+    const datasets = [];
+    
+    // Individual symptom dots (offset vertically)
+    selectedSymptoms.forEach((symptom, idx) => {
+        const yOffset = idx * 0.3;
+        datasets.push({
+            label: symptom.key.replace('_', ' '),
+            data: daily.map(d => d[symptom.key] ? yOffset : null),
+            borderColor: symptom.color,
+            backgroundColor: symptom.color,
+            pointRadius: 4,
+            pointStyle: 'circle',
+            showLine: false,
+            yAxisID: 'ySymptoms',
+        });
+    });
+    
+    // Total count line
+    datasets.push({
+        label: 'total symptom count',
+        data: totalCount,
+        borderColor: '#ffffff',
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        borderWidth: 2,
+        pointRadius: 0,
+        tension: 0.3,
+        fill: false,
+        yAxisID: 'ySymptoms',
+    });
+    
+    // Comparison metric
+    datasets.push({
+        label: metricLabel,
+        data: metricData,
+        borderColor: metricColor,
+        backgroundColor: metric === 'uv_noon' 
+            ? `${metricColor}33`
+            : 'transparent',
+        borderWidth: 1.5,
+        pointRadius: 0,
+        tension: 0.4,
+        fill: metric === 'uv_noon',
+        spanGaps: true,
+        yAxisID: 'yMetric',
+    });
+    
+    // Destroy previous chart
+    if (comparisonChart) {
+        comparisonChart.destroy();
+    }
+    
+    // Build chart
+    comparisonChart = new Chart(
+        document.getElementById('comparison-chart'),
+        {
+            type: 'line',
+            data: {
+                labels: dateLabels,
+                datasets: datasets
             },
-            scales: {
-                x: {
-                    type: 'category',
-                    labels: labels,
-                    grid: gridOpts(),
-                    ticks: { maxTicksLimit: 12, maxRotation: 45 }
+            options: {
+                responsive: true,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: {
+                        labels: { color: '#9994a8', boxWidth: 12, padding: 12, font: { size: 11 } }
+                    },
+                    tooltip: {
+                        backgroundColor: '#1e1e28',
+                        borderColor: '#2a2a38',
+                        borderWidth: 1,
+                        padding: 10,
+                    },
                 },
-                y: {
-                    min: -0.5, max: 7.5,
-                    grid: gridOpts(),
-                    ticks: {
-                        stepSize: 1,
-                        callback: val => {
-                            const names = ['words','air','derm','cog','migraine','muscle','neuro'];
-                            return names[Math.round(val)] || '';
-                        }
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(255,255,255,0.06)' },
+                        ticks: { maxTicksLimit: 16, maxRotation: 45, color: '#9994a8' }
+                    },
+                    ySymptoms: {
+                        type: 'linear',
+                        position: 'left',
+                        min: 0,
+                        max: Math.max(selectedSymptoms.length * 0.3 + 0.5, Math.max(...totalCount) + 1),
+                        grid: { color: 'rgba(255,255,255,0.06)' },
+                        title: { display: true, text: 'symptom count', color: '#ffffff' },
+                        ticks: { color: '#ffffff', stepSize: 1 },
+                    },
+                    yMetric: {
+                        ...metricAxis,
+                        type: 'linear',
+                        grid: { display: false },
+                        title: { display: true, text: metricAxis.title, color: metricColor },
+                        ticks: { color: metricColor },
                     }
                 }
             }
         }
-    });
+    );
+    
+    // Update title
+    const symptomNames = selectedSymptoms.map(s => s.key.replace('_', ' ')).join(', ');
+    document.getElementById('chart-title').textContent = 
+        `${symptomNames} vs ${metricLabel}`;
+    
+    // Show chart, hide empty state
+    document.getElementById('chart-container').style.display = 'block';
+    document.getElementById('empty-state').style.display = 'none';
 }
 
-function buildHRVChart() {
-    const labels = daily.map(d => d.date);
-    const hrv    = daily.map(d => d.hrv);
-    const temp   = daily.map(d => d.basal_temp_delta);
-
-    new Chart(document.getElementById('chartHRV'), {
-        type: 'line',
-        plugins: [flareBandPlugin],
-        data: {
-            labels,
-            datasets: [
-                {
-                    label: 'hrv',
-                    data: hrv,
-                    borderColor: C.hrv,
-                    backgroundColor: 'transparent',
-                    borderWidth: 2,
-                    pointRadius: 2,
-                    tension: 0.3,
-                    spanGaps: true,
-                    yAxisID: 'yHRV',
-                },
-                {
-                    label: 'temp delta',
-                    data: temp,
-                    borderColor: C.temp,
-                    backgroundColor: 'transparent',
-                    borderWidth: 1.5,
-                    pointRadius: 2,
-                    borderDash: [4, 3],
-                    tension: 0.3,
-                    spanGaps: true,
-                    yAxisID: 'yTemp',
-                },
-            ]
-        },
-        options: {
-            responsive: true,
-            interaction: { mode: 'index', intersect: false },
-            plugins: {
-                legend: { labels: { color: C.text, boxWidth: 12, padding: 16 } },
-                tooltip: tooltipOpts(),
-            },
-            scales: {
-                x: {
-                    grid: gridOpts(),
-                    ticks: { maxTicksLimit: 12, maxRotation: 45 }
-                },
-                yHRV: {
-                    type: 'linear',
-                    position: 'left',
-                    grid: gridOpts(),
-                    title: { display: true, text: 'hrv (ms)', color: C.hrv },
-                    ticks: { color: C.hrv }
-                },
-                yTemp: {
-                    type: 'linear',
-                    position: 'right',
-                    grid: { display: false },
-                    title: { display: true, text: 'temp delta (°F)', color: C.temp },
-                    ticks: { color: C.temp }
-                }
-            }
+// Restore previous selection from sessionStorage
+window.addEventListener('DOMContentLoaded', () => {
+    try {
+        const saved = sessionStorage.getItem('symptomComparison');
+        if (saved) {
+            const { symptoms, metric, showFlares } = JSON.parse(saved);
+            symptoms.forEach(s => {
+                const cb = document.querySelector(`input[value="${s}"]`);
+                if (cb) cb.checked = true;
+            });
+            document.getElementById('metric-select').value = metric;
+            document.getElementById('show-flares').checked = showFlares;
         }
-    });
+    } catch(e) {}
+});
+
+// Save selection on generate
+document.getElementById('generate-btn')?.addEventListener('click', () => {
+    const symptoms = Array.from(
+        document.querySelectorAll('.symptom-checkbox input:checked')
+    ).map(cb => cb.value);
+    const metric = document.getElementById('metric-select').value;
+    const showFlares = document.getElementById('show-flares').checked;
+    
+    sessionStorage.setItem('symptomComparison', JSON.stringify({
+        symptoms, metric, showFlares
+    }));
+});
+
+// Restore active button state based on current date range
+window.addEventListener('DOMContentLoaded', () => {
+    const start = document.getElementById('start-date').value;
+    const end = document.getElementById('end-date').value;
+    
+    const endDate = new Date(end);
+    const startDate = new Date(start);
+    const daysDiff = Math.round((endDate - startDate) / (1000 * 60 * 60 * 24));
+    
+    // Remove all active states first
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    
+    // Highlight the matching button
+    const buttons = document.querySelectorAll('.preset-btn');
+    if (daysDiff <= 35) {
+        buttons[0].classList.add('active'); // 30 days
+    } else if (daysDiff <= 95) {
+        buttons[1].classList.add('active'); // 90 days
+    } else if (daysDiff <= 185) {
+        buttons[2].classList.add('active'); // 180 days
+    } else {
+        buttons[3].classList.add('active'); // all
+    }
+    
+    buildFlareAnalysis();
+});
+
+</script>
+
+<style>
+.range-controls {
+    margin-bottom: var(--space-lg);
 }
 
-if (daily.length > 0) {
-    buildMainChart();
-    buildFlagsChart();
-    buildHRVChart();
+.range-presets {
+    display: flex;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-md);
 }
-</script>
+
+.preset-btn {
+    padding: var(--space-xs) var(--space-md);
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: var(--font-body);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.preset-btn:hover,
+.preset-btn.active {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    border-color: var(--color-accent);
+}
+
+.date-inputs {
+    display: flex;
+    gap: var(--space-md);
+    align-items: flex-end;
+}
+
+.date-inputs .form-group {
+    margin: 0;
+    flex: 1;
+    min-width: 140px;
+}
+
+.comparison-instructions {
+    margin-bottom: var(--space-md);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-elevated);
+    border-left: 2px solid var(--color-accent);
+    border-radius: var(--radius-sm);
+}
+
+.symptom-selectors {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-lg);
+}
+
+.symptom-checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-xs) var(--space-md);
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.symptom-checkbox:hover {
+    background: var(--bg-elevated);
+}
+
+.symptom-checkbox input {
+    margin: 0;
+    accent-color: var(--color-accent);
+}
+
+.symptom-checkbox input:checked + .checkbox-label {
+    font-weight: 600;
+}
+
+.checkbox-label.neuro       { color: #4a90d9; }
+.checkbox-label.cognitive   { color: #9b72cf; }
+.checkbox-label.muscle      { color: #d4a054; }
+.checkbox-label.migraine    { color: #c94040; }
+.checkbox-label.air         { color: #4ab8b8; }
+.checkbox-label.derm        { color: #d4784a; }
+.checkbox-label.emotional   { color: #b8aee8; }
+
+.comparison-controls {
+    display: flex;
+    gap: var(--space-md);
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+
+.checkbox-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.checkbox-toggle input {
+    margin: 0;
+    accent-color: var(--color-accent);
+}
+
+@media (max-width: 600px) {
+    .date-inputs {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .comparison-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .symptom-selectors {
+        flex-direction: column;
+    }
+}
+
+.flare-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-medium);
+    border-left: 3px solid rgba(255,255,255,0.3);
+    border-radius: var(--radius-sm);
+    padding: var(--space-md);
+    margin-bottom: var(--space-md);
+}
+
+.flare-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-sm);
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+}
+
+.flare-date {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 1rem;
+}
+
+.flare-metrics {
+    display: flex;
+    gap: var(--space-md);
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+}
+
+.flare-symptoms {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+    margin-bottom: var(--space-xs);
+}
+
+.symptom-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.flare-notes {
+    margin-top: var(--space-sm);
+    padding: var(--space-sm);
+    background: var(--bg-card);
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+}
+</style>
 {% endblock %}

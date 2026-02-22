@@ -138,67 +138,251 @@
         </form>
     </div>
 
-    <!-- Labs table -->
-    {% if labs %}
-    <div style="overflow-x:auto;">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>date</th>
-                    <th>test</th>
-                    <th>result</th>
-                    <th>range</th>
-                    <th>provider</th>
-                    <th>notes</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for lab in labs | sort(attribute='date', reverse=True) %}
-                <tr>
-                    <td class="mono">{{ lab.date }}</td>
-                    <td style="color:var(--text-primary);">{{ lab.test_name }}</td>
-                    <td>
-                        {% if lab.numeric_value is not none %}
-                            <span class="mono" style="color:
-                                {% if lab.flag == 'high' %}var(--color-danger)
-                                {% elif lab.flag == 'low' %}var(--color-accent)
-                                {% elif lab.flag == 'abnormal' %}var(--color-warning)
-                                {% elif lab.flag == 'critical' %}var(--color-danger)
-                                {% else %}var(--text-primary)
-                                {% endif %};">
-                                {{ lab.numeric_value }}
-                                {% if lab.unit %} {{ lab.unit }}{% endif %}
-                            </span>
-                        {% endif %}
-                        {% if lab.qualitative_result %}
-                            <span class="badge
-                                {% if lab.qualitative_result == 'positive' %}badge-migraine
-                                {% elif lab.qualitative_result == 'negative' %}badge-air
-                                {% else %}badge-emotional{% endif %}">
-                                {{ lab.qualitative_result }}
-                            </span>
-                        {% endif %}
-                    </td>
-                    <td style="color:var(--text-muted); font-size:0.8rem;">
-                        {{ lab.reference_range or '—' }}
-                    </td>
-                    <td style="color:var(--text-muted); font-size:0.8rem;">
-                        {{ lab.provider or '—' }}
-                    </td>
-                    <td style="color:var(--text-muted); font-size:0.8rem;
-                               max-width:200px; white-space:pre-wrap;">
-                        {{ lab.notes or '' }}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% else %}
-    <div class="empty-state">
-        <p>No lab results yet.</p>
-    </div>
-    {% endif %}
+<!-- Labs table with inline editing -->
+{% if labs %}
+<div style="overflow-x:auto;">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>date</th>
+                <th>test</th>
+                <th>result</th>
+                <th>range</th>
+                <th>provider</th>
+                <th>notes</th>
+                <th style="width:40px;"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for lab in labs | sort(attribute='date', reverse=True) %}
+            <!-- Read-only row -->
+            <tr id="lab-row-{{ lab.id }}" class="data-row">
+                <td class="mono">{{ lab.date }}</td>
+                <td style="color:var(--text-primary);">{{ lab.test_name }}</td>
+                <td>
+                    {% if lab.numeric_value is not none %}
+                        <span class="mono" style="color:
+                            {% if lab.flag == 'high' %}var(--color-danger)
+                            {% elif lab.flag == 'low' %}var(--color-accent)
+                            {% elif lab.flag == 'abnormal' %}var(--color-warning)
+                            {% elif lab.flag == 'critical' %}var(--color-danger)
+                            {% else %}var(--text-primary)
+                            {% endif %};">
+                            {{ lab.numeric_value }}
+                            {% if lab.unit %} {{ lab.unit }}{% endif %}
+                        </span>
+                    {% endif %}
+                    {% if lab.qualitative_result %}
+                        <span class="badge
+                            {% if lab.qualitative_result == 'positive' %}badge-migraine
+                            {% elif lab.qualitative_result == 'negative' %}badge-air
+                            {% else %}badge-emotional{% endif %}">
+                            {{ lab.qualitative_result }}
+                        </span>
+                    {% endif %}
+                </td>
+                <td style="color:var(--text-muted); font-size:0.8rem;">
+                    {{ lab.reference_range or '—' }}
+                </td>
+                <td style="color:var(--text-muted); font-size:0.8rem;">
+                    {{ lab.provider or '—' }}
+                </td>
+                <td style="color:var(--text-muted); font-size:0.8rem;
+                           max-width:200px; white-space:pre-wrap;">
+                    {{ lab.notes or '' }}
+                </td>
+                <td>
+                    <button class="edit-btn" onclick="editLab({{ lab.id }})" 
+                            title="edit">✎</button>
+                </td>
+            </tr>
+            
+            <!-- Edit row (hidden by default) -->
+            <tr id="lab-edit-{{ lab.id }}" class="edit-row" style="display:none;">
+                <td colspan="7">
+                    <form method="POST" action="{{ url_for('update_lab', lab_id=lab.id) }}" 
+                          id="form-edit-lab-{{ lab.id }}">
+                        <div class="inline-edit-grid">
+                            <div class="form-group">
+                                <label>date *</label>
+                                <input type="date" name="date" required 
+                                       value="{{ lab.date }}">
+                            </div>
+                            <div class="form-group">
+                                <label>test name *</label>
+                                <input type="text" name="test_name" required 
+                                       value="{{ lab.test_name }}" list="test-names">
+                            </div>
+                            <div class="form-group">
+                                <label>numeric value</label>
+                                <input type="number" name="numeric_value" step="0.001"
+                                       value="{{ lab.numeric_value if lab.numeric_value is not none else '' }}">
+                            </div>
+                            <div class="form-group">
+                                <label>unit</label>
+                                <input type="text" name="unit" 
+                                       value="{{ lab.unit or '' }}">
+                            </div>
+                            <div class="form-group">
+                                <label>qualitative</label>
+                                <select name="qualitative_result">
+                                    <option value="">—</option>
+                                    <option value="positive" {% if lab.qualitative_result == 'positive' %}selected{% endif %}>positive</option>
+                                    <option value="negative" {% if lab.qualitative_result == 'negative' %}selected{% endif %}>negative</option>
+                                    <option value="equivocal" {% if lab.qualitative_result == 'equivocal' %}selected{% endif %}>equivocal</option>
+                                    <option value="indeterminate" {% if lab.qualitative_result == 'indeterminate' %}selected{% endif %}>indeterminate</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>reference range</label>
+                                <input type="text" name="reference_range" 
+                                       value="{{ lab.reference_range or '' }}">
+                            </div>
+                            <div class="form-group">
+                                <label>flag</label>
+                                <select name="flag">
+                                    <option value="">—</option>
+                                    <option value="high" {% if lab.flag == 'high' %}selected{% endif %}>high</option>
+                                    <option value="low" {% if lab.flag == 'low' %}selected{% endif %}>low</option>
+                                    <option value="abnormal" {% if lab.flag == 'abnormal' %}selected{% endif %}>abnormal</option>
+                                    <option value="critical" {% if lab.flag == 'critical' %}selected{% endif %}>critical</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>provider</label>
+                                <input type="text" name="provider" 
+                                       value="{{ lab.provider or '' }}">
+                            </div>
+                            <div class="form-group">
+                                <label>lab facility</label>
+                                <input type="text" name="lab_facility" 
+                                       value="{{ lab.lab_facility or '' }}">
+                            </div>
+                            <div class="form-group" style="grid-column: 1 / -1;">
+                                <label>notes</label>
+                                <textarea name="notes" style="min-height:60px;">{{ lab.notes or '' }}</textarea>
+                            </div>
+                        </div>
+                        <div class="inline-edit-actions">
+                            <button type="submit" class="btn btn-primary btn-sm">save</button>
+                            <button type="button" class="btn btn-secondary btn-sm" 
+                                    onclick="cancelEdit({{ lab.id }}, 'lab')">cancel</button>
+                            <button type="button" class="btn btn-danger btn-sm" 
+                                    id="delete-lab-{{ lab.id }}"
+                                    onclick="confirmDelete({{ lab.id }}, 'lab')">delete</button>
+                        </div>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state">
+    <p>No lab results yet.</p>
+</div>
+{% endif %}
+
+<script>
+function editLab(id) {
+    // Hide read row, show edit row
+    document.getElementById(`lab-row-${id}`).style.display = 'none';
+    document.getElementById(`lab-edit-${id}`).style.display = 'table-row';
+}
+
+function cancelEdit(id, type) {
+    // Show read row, hide edit row
+    document.getElementById(`${type}-row-${id}`).style.display = 'table-row';
+    document.getElementById(`${type}-edit-${id}`).style.display = 'none';
+    
+    // Reset delete button if it was in confirmation state
+    const deleteBtn = document.getElementById(`delete-${type}-${id}`);
+    if (deleteBtn) {
+        deleteBtn.textContent = 'delete';
+        deleteBtn.style.color = '';
+        deleteBtn.onclick = () => confirmDelete(id, type);
+    }
+}
+
+function confirmDelete(id, type) {
+    const deleteBtn = document.getElementById(`delete-${type}-${id}`);
+    
+    if (deleteBtn.textContent === 'delete') {
+        // First click - show warning
+        deleteBtn.textContent = 'are you sure? click again';
+        deleteBtn.style.color = '#d4784a';  // Orange warning
+        deleteBtn.onclick = () => executeDelete(id, type);
+    }
+}
+
+function executeDelete(id, type) {
+    // Second click - actually delete
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = `/lab/delete/${id}`;  // Update this based on type
+    
+    if (type === 'ana') form.action = `/ana/delete/${id}`;
+    if (type === 'event') form.action = `/event/delete/${id}`;
+    
+    document.body.appendChild(form);
+    form.submit();
+}
+</script>
+
+<style>
+.edit-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    transition: color 0.15s;
+}
+
+.edit-btn:hover {
+    color: var(--text-primary);
+}
+
+.edit-row {
+    background: var(--bg-elevated);
+}
+
+.edit-row td {
+    padding: var(--space-lg) var(--space-md);
+}
+
+.inline-edit-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--space-md);
+    margin-bottom: var(--space-md);
+}
+
+.inline-edit-actions {
+    display: flex;
+    gap: var(--space-sm);
+    padding-top: var(--space-sm);
+    border-top: 1px solid var(--border-subtle);
+}
+
+.btn-sm {
+    padding: 4px 12px;
+    font-size: 0.85rem;
+}
+
+.btn-danger {
+    background: transparent;
+    border: 1px solid var(--border-medium);
+    color: var(--text-secondary);
+}
+
+.btn-danger:hover {
+    border-color: #c94040;
+    color: #c94040;
+}
+</style>
 </div>
 
 <!-- ============================================================
@@ -265,58 +449,133 @@
         </form>
     </div>
 
-    {% if ana %}
-    <div style="overflow-x:auto;">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>date</th>
-                    <th>result</th>
-                    <th>titer</th>
-                    <th>patterns</th>
-                    <th>provider</th>
-                    <th>notes</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for a in ana | sort(attribute='date', reverse=True) %}
-                <tr>
-                    <td class="mono">{{ a.date }}</td>
-                    <td>
-                        <span class="badge
-                            {% if a.screen_result == 'positive' %}badge-migraine
-                            {% else %}badge-air{% endif %}">
-                            {{ a.screen_result }}
-                        </span>
-                    </td>
-                    <td class="mono" style="color:var(--text-primary);">
-                        {% if a.titer_integer %}1:{{ a.titer_integer }}{% else %}—{% endif %}
-                    </td>
-                    <td>
-                        {% if a.patterns %}
-                            {% for p in a.patterns %}
-                                <span class="badge badge-cognitive"
-                                      style="margin:1px;">{{ p }}</span>
-                            {% endfor %}
-                        {% else %}—{% endif %}
-                    </td>
-                    <td style="color:var(--text-muted); font-size:0.8rem;">
-                        {{ a.provider or '—' }}
-                    </td>
-                    <td style="color:var(--text-muted); font-size:0.8rem;
-                               max-width:200px; white-space:pre-wrap;">
-                        {{ a.notes or '' }}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% else %}
-    <div class="empty-state">
-        <p>No ANA results yet.</p>
-    </div>
-    {% endif %}
+    <!-- ANA table with inline editing -->
+{% if ana %}
+<div style="overflow-x:auto;">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>date</th>
+                <th>result</th>
+                <th>titer</th>
+                <th>patterns</th>
+                <th>provider</th>
+                <th>notes</th>
+                <th style="width:40px;"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in ana | sort(attribute='date', reverse=True) %}
+            <!-- Read-only row -->
+            <tr id="ana-row-{{ a.id }}" class="data-row">
+                <td class="mono">{{ a.date }}</td>
+                <td>
+                    <span class="badge
+                        {% if a.screen_result == 'positive' %}badge-migraine
+                        {% else %}badge-air{% endif %}">
+                        {{ a.screen_result }}
+                    </span>
+                </td>
+                <td class="mono" style="color:var(--text-primary);">
+                    {% if a.titer_integer %}1:{{ a.titer_integer }}{% else %}—{% endif %}
+                </td>
+                <td>
+                    {% if a.patterns %}
+                        {% for p in a.patterns %}
+                            <span class="badge badge-cognitive" style="margin:1px;">{{ p }}</span>
+                        {% endfor %}
+                    {% else %}—{% endif %}
+                </td>
+                <td style="color:var(--text-muted); font-size:0.8rem;">
+                    {{ a.provider or '—' }}
+                </td>
+                <td style="color:var(--text-muted); font-size:0.8rem;
+                           max-width:200px; white-space:pre-wrap;">
+                    {{ a.notes or '' }}
+                </td>
+                <td>
+                    <button class="edit-btn" onclick="editAna({{ a.id }})" 
+                            title="edit">✎</button>
+                </td>
+            </tr>
+            
+            <!-- Edit row (hidden by default) -->
+            <tr id="ana-edit-{{ a.id }}" class="edit-row" style="display:none;">
+                <td colspan="7">
+                    <form method="POST" action="{{ url_for('update_ana', ana_id=a.id) }}">
+                        <div class="inline-edit-grid">
+                            <div class="form-group">
+                                <label>date *</label>
+                                <input type="date" name="date" required 
+                                       value="{{ a.date }}">
+                            </div>
+                            <div class="form-group">
+                                <label>screen result *</label>
+                                <select name="screen_result" required>
+                                    <option value="positive" {% if a.screen_result == 'positive' %}selected{% endif %}>positive</option>
+                                    <option value="negative" {% if a.screen_result == 'negative' %}selected{% endif %}>negative</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>titer</label>
+                                <select name="titer">
+                                    <option value="">—</option>
+                                    <option value="40" {% if a.titer_integer == 40 %}selected{% endif %}>1:40</option>
+                                    <option value="80" {% if a.titer_integer == 80 %}selected{% endif %}>1:80</option>
+                                    <option value="160" {% if a.titer_integer == 160 %}selected{% endif %}>1:160</option>
+                                    <option value="320" {% if a.titer_integer == 320 %}selected{% endif %}>1:320</option>
+                                    <option value="640" {% if a.titer_integer == 640 %}selected{% endif %}>1:640</option>
+                                    <option value="1280" {% if a.titer_integer == 1280 %}selected{% endif %}>1:1280</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>provider</label>
+                                <input type="text" name="provider" 
+                                       value="{{ a.provider or '' }}">
+                            </div>
+                            <div class="form-group">
+                                <label>lab facility</label>
+                                <input type="text" name="lab_facility" 
+                                       value="{{ a.lab_facility or '' }}">
+                            </div>
+                            <div class="form-group" style="grid-column: 1 / -1;">
+                                <label>patterns <span style="color:var(--text-muted);">(comma separated)</span></label>
+                                <input type="text" name="pattern" 
+                                       value="{% if a.patterns %}{{ a.patterns | join(', ') }}{% endif %}"
+                                       placeholder="AC-2, AC-4, AC-29">
+                            </div>
+                            <div class="form-group" style="grid-column: 1 / -1;">
+                                <label>notes</label>
+                                <textarea name="notes" style="min-height:60px;">{{ a.notes or '' }}</textarea>
+                            </div>
+                        </div>
+                        <div class="inline-edit-actions">
+                            <button type="submit" class="btn btn-primary btn-sm">save</button>
+                            <button type="button" class="btn btn-secondary btn-sm" 
+                                    onclick="cancelEdit({{ a.id }}, 'ana')">cancel</button>
+                            <button type="button" class="btn btn-danger btn-sm" 
+                                    id="delete-ana-{{ a.id }}"
+                                    onclick="confirmDelete({{ a.id }}, 'ana')">delete</button>
+                        </div>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state">
+    <p>No ANA results yet.</p>
+</div>
+{% endif %}
+
+<script>
+function editAna(id) {
+    document.getElementById(`ana-row-${id}`).style.display = 'none';
+    document.getElementById(`ana-edit-${id}`).style.display = 'table-row';
+}
+</script>
 </div>
 
 <!-- ============================================================
@@ -578,49 +837,119 @@
         </form>
     </div>
 
-    {% if events %}
-    <div style="overflow-x:auto;">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>date</th>
-                    <th>type</th>
-                    <th>provider</th>
-                    <th>facility</th>
-                    <th>follow-up</th>
-                    <th>notes</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for e in events | sort(attribute='date', reverse=True) %}
-                <tr>
-                    <td class="mono">{{ e.date }}</td>
-                    <td>
-                        <span class="badge badge-cognitive">{{ e.event_type }}</span>
-                    </td>
-                    <td style="color:var(--text-muted); font-size:0.85rem;">
-                        {{ e.provider or '—' }}
-                    </td>
-                    <td style="color:var(--text-muted); font-size:0.85rem;">
-                        {{ e.facility or '—' }}
-                    </td>
-                    <td class="mono" style="color:var(--text-muted); font-size:0.85rem;">
-                        {{ e.follow_up_date or '—' }}
-                    </td>
-                    <td style="color:var(--text-muted); font-size:0.8rem;
-                               max-width:240px; white-space:pre-wrap;">
-                        {{ e.notes or '' }}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% else %}
-    <div class="empty-state">
-        <p>No clinical events recorded yet.</p>
-    </div>
-    {% endif %}
+   <!-- Events table with inline editing -->
+{% if events %}
+<div style="overflow-x:auto;">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>date</th>
+                <th>type</th>
+                <th>provider</th>
+                <th>facility</th>
+                <th>follow-up</th>
+                <th>notes</th>
+                <th style="width:40px;"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for e in events | sort(attribute='date', reverse=True) %}
+            <!-- Read-only row -->
+            <tr id="event-row-{{ e.id }}" class="data-row">
+                <td class="mono">{{ e.date }}</td>
+                <td>
+                    <span class="badge badge-cognitive">{{ e.event_type }}</span>
+                </td>
+                <td style="color:var(--text-muted); font-size:0.85rem;">
+                    {{ e.provider or '—' }}
+                </td>
+                <td style="color:var(--text-muted); font-size:0.85rem;">
+                    {{ e.facility or '—' }}
+                </td>
+                <td class="mono" style="color:var(--text-muted); font-size:0.85rem;">
+                    {{ e.follow_up_date or '—' }}
+                </td>
+                <td style="color:var(--text-muted); font-size:0.8rem;
+                           max-width:240px; white-space:pre-wrap;">
+                    {{ e.notes or '' }}
+                </td>
+                <td>
+                    <button class="edit-btn" onclick="editEvent({{ e.id }})" 
+                            title="edit">✎</button>
+                </td>
+            </tr>
+            
+            <!-- Edit row (hidden by default) -->
+            <tr id="event-edit-{{ e.id }}" class="edit-row" style="display:none;">
+                <td colspan="7">
+                    <form method="POST" action="{{ url_for('update_event', event_id=e.id) }}">
+                        <div class="inline-edit-grid">
+                            <div class="form-group">
+                                <label>date *</label>
+                                <input type="date" name="date" required 
+                                       value="{{ e.date }}">
+                            </div>
+                            <div class="form-group">
+                                <label>event type *</label>
+                                <select name="event_type" required>
+                                    <option value="encounter" {% if e.event_type == 'encounter' %}selected{% endif %}>encounter</option>
+                                    <option value="biopsy" {% if e.event_type == 'biopsy' %}selected{% endif %}>biopsy</option>
+                                    <option value="injection" {% if e.event_type == 'injection' %}selected{% endif %}>injection</option>
+                                    <option value="procedure" {% if e.event_type == 'procedure' %}selected{% endif %}>procedure</option>
+                                    <option value="lab draw" {% if e.event_type == 'lab draw' %}selected{% endif %}>lab draw</option>
+                                    <option value="imaging" {% if e.event_type == 'imaging' %}selected{% endif %}>imaging</option>
+                                    <option value="ER visit" {% if e.event_type == 'ER visit' %}selected{% endif %}>ER visit</option>
+                                    <option value="hospitalization" {% if e.event_type == 'hospitalization' %}selected{% endif %}>hospitalization</option>
+                                    <option value="other" {% if e.event_type == 'other' %}selected{% endif %}>other</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>provider</label>
+                                <input type="text" name="provider" 
+                                       value="{{ e.provider or '' }}">
+                            </div>
+                            <div class="form-group">
+                                <label>facility</label>
+                                <input type="text" name="facility" 
+                                       value="{{ e.facility or '' }}">
+                            </div>
+                            <div class="form-group">
+                                <label>follow-up date</label>
+                                <input type="date" name="follow_up_date" 
+                                       value="{{ e.follow_up_date or '' }}">
+                            </div>
+                            <div class="form-group" style="grid-column: 1 / -1;">
+                                <label>notes</label>
+                                <textarea name="notes" style="min-height:80px;">{{ e.notes or '' }}</textarea>
+                            </div>
+                        </div>
+                        <div class="inline-edit-actions">
+                            <button type="submit" class="btn btn-primary btn-sm">save</button>
+                            <button type="button" class="btn btn-secondary btn-sm" 
+                                    onclick="cancelEdit({{ e.id }}, 'event')">cancel</button>
+                            <button type="button" class="btn btn-danger btn-sm" 
+                                    id="delete-event-{{ e.id }}"
+                                    onclick="confirmDelete({{ e.id }}, 'event')">delete</button>
+                        </div>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state">
+    <p>No clinical events recorded yet.</p>
+</div>
+{% endif %}
+
+<script>
+function editEvent(id) {
+    document.getElementById(`event-row-${id}`).style.display = 'none';
+    document.getElementById(`event-edit-${id}`).style.display = 'table-row';
+}
+</script>
 </div>
 
 {% endblock %}

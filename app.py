@@ -72,24 +72,42 @@ def index():
 
 @app.route("/daily", methods=["GET"])
 def daily_entry():
-    """Daily entry form. Auto-fetches UV for today on load."""
-    today_str = date.today().isoformat()
-
-    # Auto-fetch and store today's UV index
-    uv = uv_fetcher.fetch_and_store_uv_for_date(today_str)
-
-    # Load any existing entry for today (for pre-population on re-entry)
-    existing = db.get_daily_observation(today_str)
-
+    """Daily entry form with date navigation. Defaults to today."""
+    # Get date from query param or use today
+    date_param = request.args.get("date")
+    if date_param:
+        try:
+            entry_date = datetime.strptime(date_param, "%Y-%m-%d").date()
+        except ValueError:
+            entry_date = date.today()
+    else:
+        entry_date = date.today()
+    
+    entry_date_str = entry_date.isoformat()
+    
+    # Calculate prev/next dates
+    prev_date = (entry_date - timedelta(days=1)).isoformat()
+    next_date = (entry_date + timedelta(days=1)).isoformat()
+    is_today = (entry_date == date.today())
+    
+    # Auto-fetch and store UV for this date if not already present
+    uv = uv_fetcher.fetch_and_store_uv_for_date(entry_date_str)
+    
+    # Load any existing entry for this date
+    existing = db.get_daily_observation(entry_date_str)
+    
     # Load active medications for the sidebar
     active_meds = db.get_active_medications()
-
+    
     return render_template(
         "daily_entry.html",
-        entry_date=today_str,
+        entry_date=entry_date_str,
         existing=existing,
         uv=uv,
         active_meds=active_meds,
+        prev_date=prev_date,
+        next_date=next_date,
+        is_today=is_today,
     )
 
 
@@ -547,6 +565,91 @@ def end_medication(med_id):
     db.end_medication(med_id, end_date)
     return redirect(url_for("clinical_record") + "#medications")
 
+# Add these routes to app.py in the clinical record section
+
+@app.route("/lab/update/<int:lab_id>", methods=["POST"])
+def update_lab(lab_id):
+    """Update an existing lab result."""
+    form = request.form
+    
+    def get_float(key):
+        val = form.get(key, "").strip()
+        try:
+            return float(val) if val else None
+        except ValueError:
+            return None
+    
+    db.update_lab_result(
+        lab_id=lab_id,
+        date=form.get("date"),
+        test_name=form.get("test_name"),
+        numeric_value=get_float("numeric_value"),
+        unit=form.get("unit") or None,
+        qualitative_result=form.get("qualitative_result") or None,
+        reference_range=form.get("reference_range") or None,
+        flag=form.get("flag") or None,
+        provider=form.get("provider") or None,
+        lab_facility=form.get("lab_facility") or None,
+        notes=form.get("notes") or None,
+    )
+    
+    return redirect(url_for("clinical_record") + "#labs")
+
+
+@app.route("/lab/delete/<int:lab_id>", methods=["POST"])
+def delete_lab(lab_id):
+    """Delete a lab result."""
+    db.delete_lab_result(lab_id)
+    return redirect(url_for("clinical_record") + "#labs")
+
+
+@app.route("/ana/update/<int:ana_id>", methods=["POST"])
+def update_ana(ana_id):
+    """Update an existing ANA result."""
+    form = request.form
+    
+    db.update_ana_result(
+        ana_id=ana_id,
+        date=form.get("date"),
+        titer=form.get("titer") or None,
+        patterns=form.get("patterns") or None,
+        screen_result=form.get("screen_result") or None,
+        provider=form.get("provider") or None,
+        notes=form.get("notes") or None,
+    )
+    
+    return redirect(url_for("clinical_record") + "#ana")
+
+
+@app.route("/ana/delete/<int:ana_id>", methods=["POST"])
+def delete_ana(ana_id):
+    """Delete an ANA result."""
+    db.delete_ana_result(ana_id)
+    return redirect(url_for("clinical_record") + "#ana")
+
+
+@app.route("/event/update/<int:event_id>", methods=["POST"])
+def update_event(event_id):
+    """Update an existing clinical event."""
+    form = request.form
+    
+    db.update_clinical_event(
+        event_id=event_id,
+        date=form.get("date"),
+        event_type=form.get("event_type"),
+        provider=form.get("provider") or None,
+        facility=form.get("facility") or None,
+        notes=form.get("notes") or None,
+    )
+    
+    return redirect(url_for("clinical_record") + "#events")
+
+
+@app.route("/event/delete/<int:event_id>", methods=["POST"])
+def delete_event(event_id):
+    """Delete a clinical event."""
+    db.delete_clinical_event(event_id)
+    return redirect(url_for("clinical_record") + "#events")
 
 # ============================================================
 # Search
@@ -701,7 +804,6 @@ def search():
         active_meds=active_meds,
         chart_dataset_json=json.dumps(chart_dataset),
         patient_name=CONFIG.get("patient_name", ""),
-        hcq_start=HCQ_START_DATE,
     )
 
 # ============================================================

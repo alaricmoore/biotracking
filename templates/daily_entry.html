@@ -1,11 +1,39 @@
 {% extends "base.html" %}
 
-{% block title %}today — biotracking{% endblock %}
+{% block title %}{{ entry_date }} — biotracking{% endblock %}
 
 {% block content %}
 <div class="page-header">
     <h1>{{ entry_date }}</h1>
     <p class="page-subtitle">daily entry</p>
+</div>
+
+<!-- Date navigation -->
+<div class="date-nav">
+    <a href="{{ url_for('daily_entry', date=prev_date) }}" class="date-nav-btn">
+        ← previous day
+    </a>
+    
+    <div class="date-nav-center">
+        {% if not is_today %}
+        <a href="{{ url_for('daily_entry') }}" class="btn btn-secondary btn-sm">
+            jump to today
+        </a>
+        <span style="color:var(--text-muted); font-size:0.85rem; margin-left:var(--space-sm);">
+            (viewing past entry)
+        </span>
+        {% else %}
+        <span style="color:var(--color-accent); font-size:0.85rem;">
+            viewing today
+        </span>
+        {% endif %}
+    </div>
+    
+    <a href="{{ url_for('daily_entry', date=next_date) }}" 
+       class="date-nav-btn {{ 'disabled' if is_today else '' }}"
+       {% if is_today %}onclick="return false;"{% endif %}>
+        next day →
+    </a>
 </div>
 
 <!-- UV strip - auto-fetched on page load -->
@@ -301,4 +329,65 @@
         if (display) display.textContent = input.value;
     });
 </script>
+
+<style>
+.date-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+    margin-bottom: var(--space-lg);
+    padding: var(--space-md);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+}
+
+.date-nav-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--space-xs) var(--space-md);
+    background: transparent;
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.date-nav-btn:hover {
+    background: var(--bg-card);
+    border-color: var(--color-accent);
+}
+
+.date-nav-btn.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.date-nav-center {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.btn-sm {
+    padding: 4px 12px;
+    font-size: 0.85rem;
+}
+
+@media (max-width: 600px) {
+    .date-nav {
+        flex-direction: column;
+        gap: var(--space-sm);
+    }
+    .date-nav-center {
+        order: -1;
+        width: 100%;
+        justify-content: center;
+    }
+}
+</style>
 {% endblock %}
