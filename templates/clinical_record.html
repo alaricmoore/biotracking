@@ -608,14 +608,23 @@ function editAna(id) {
                     <input type="text" name="unit"
                            placeholder="mg, mcg, IU">
                 </div>
+                <!-- frequency  -->
                 <div class="form-group">
                     <label>frequency</label>
                     <select name="frequency">
+                        <option value="">—</option>
+                        <option value="one-time">one-time (injection)</option>
                         <option value="daily">daily</option>
                         <option value="twice daily">twice daily</option>
                         <option value="three times daily">three times daily</option>
                         <option value="every other day">every other day</option>
                         <option value="weekly">weekly</option>
+                        <option value="every 2 weeks">every 2 weeks</option>
+                        <option value="every 4 weeks">every 4 weeks (monthly)</option>
+                        <option value="every 6 weeks">every 6 weeks</option>
+                        <option value="every 8 weeks">every 8 weeks</option>
+                        <option value="every 12 weeks">every 12 weeks (quarterly)</option>
+                        <option value="every 6 months">every 6 months</option>
                         <option value="as needed">as needed</option>
                         <option value="other">other</option>
                     </select>
@@ -671,6 +680,8 @@ function editAna(id) {
     </div>
 
     <!-- Active medications -->
+
+    
     {% set active = meds | selectattr('end_date', 'none') | list %}
     {% set inactive = meds | rejectattr('end_date', 'none') | list %}
 
@@ -702,18 +713,18 @@ function editAna(id) {
                     <td style="color:var(--text-muted); font-size:0.85rem;">
                         {{ med.frequency or '—' }}
                     </td>
-                    <td>
-                        <span class="badge
-                            {% if med.category == 'prescription' %}badge-neuro
+                   <td <td>
+                        <span class="badge 
+                            {% if med.category == 'prescription' %}badge-cognitive
+                            {% elif med.category == 'injection' %}badge-migraine
+                            {% elif med.category == 'infusion' %}badge-air
                             {% elif med.category == 'supplement' %}badge-muscle
+                            {% elif med.category == 'OTC' %}badge-derm
                             {% else %}badge-emotional{% endif %}">
                             {{ med.category or '—' }}
                         </span>
                     </td>
                     <td class="mono">{{ med.start_date }}</td>
-                    <td style="color:var(--text-muted); font-size:0.85rem;">
-                        {{ med.indication or '—' }}
-                    </td>
                     <td>
                         <form method="POST"
                               action="{{ url_for('end_medication', med_id=med.id) }}"
