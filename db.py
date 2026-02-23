@@ -568,3 +568,74 @@ def delete_clinical_event(event_id: int) -> bool:
     with get_db() as conn:
         conn.execute("DELETE FROM clinical_events WHERE id = ?", (event_id,))
     return True
+
+
+# ============================================================
+# clinicians
+# ============================================================
+
+def add_clinician(data: dict) -> int:
+    """Add a new clinician/provider."""
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute("""
+            INSERT INTO clinicians (
+                name, specialty, clinic_name, address, 
+                phone, email, network, notes
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            data.get("name"),
+            data.get("specialty"),
+            data.get("clinic_name"),
+            data.get("address"),
+            data.get("phone"),
+            data.get("email"),
+            data.get("network"),
+            data.get("notes"),
+        ))
+        return c.lastrowid
+
+
+def get_all_clinicians() -> list[dict]:
+    """Get all clinicians ordered by name."""
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute("""
+            SELECT * FROM clinicians 
+            ORDER BY name ASC
+        """)
+        return [dict(row) for row in c.fetchall()]
+
+
+def update_clinician(clinician_id: int, name: str, specialty: str,
+                     clinic_name: Optional[str] = None,
+                     address: Optional[str] = None,
+                     phone: Optional[str] = None,
+                     email: Optional[str] = None,
+                     network: Optional[str] = None,
+                     notes: Optional[str] = None) -> bool:
+    """Update an existing clinician."""
+    with get_db() as conn:
+        conn.execute("""
+            UPDATE clinicians
+            SET name = ?,
+                specialty = ?,
+                clinic_name = ?,
+                address = ?,
+                phone = ?,
+                email = ?,
+                network = ?,
+                notes = ?
+            WHERE id = ?
+        """, (name, specialty, clinic_name, address, phone, email, network, notes, clinician_id))
+    return True
+
+
+def delete_clinician(clinician_id: int) -> bool:
+    """Delete a clinician."""
+    with get_db() as conn:
+        conn.execute("DELETE FROM clinicians WHERE id = ?", (clinician_id,))
+    return True
+
+

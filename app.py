@@ -200,21 +200,22 @@ def timeline():
 # ============================================================
 
 def compute_lag_correlations(observations: list, uv_data: list) -> dict:
-    """Compute Pearson correlation between UV noon and each symptom
+    """Compute Pearson correlation between UV dose and each symptom
     at lag windows of 0, 1, 2, and 3 days.
 
-    UV on day D is correlated against symptom on day D+lag.
+    UV dose = UV index × sun exposure minutes.
+    UV dose on day D is correlated against symptom on day D+lag.
+    
     A high correlation at lag=2 means UV exposure predicts
     that symptom two days later.
 
     Args:
-        observations: list of daily_observation dicts
-        uv_data: list of uv_data dicts
+        observations: list of daily_observation dicts (must include sun_exposure_min)
+        uv_data: list of uv_data dicts (includes uv_noon)
 
     Returns:
-        dict of {symptom_name: {lag_0: r, lag_1: r, lag_2: r, lag_3: r}}
-        r values are Pearson correlation coefficients (-1 to 1)
-        None means insufficient data for that lag/symptom combination
+        dict of {symptom_name: {lag_0: {...}, lag_1: {...}, ...}}
+        Each lag contains: r, p, n, significant
     """
     import numpy as np
     from scipy import stats
@@ -223,13 +224,15 @@ def compute_lag_correlations(observations: list, uv_data: list) -> dict:
     obs_by_date = {o["date"]: o for o in observations}
     uv_by_date  = {u["date"]: u for u in uv_data}
 
-    # Sorted date list that has both UV and observation data
-    dates_with_both = sorted([
+    # Sorted date list that has UV, observation, AND sun exposure data
+    dates_with_all = sorted([
         d for d in obs_by_date
-        if d in uv_by_date and uv_by_date[d].get("uv_noon") is not None
+        if d in uv_by_date 
+        and uv_by_date[d].get("uv_noon") is not None
+        and obs_by_date[d].get("sun_exposure_min") is not None
     ])
 
-    if len(dates_with_both) < 10:
+    if len(dates_with_all) < 10:
         return {}
 
     # Symptom targets - continuous scales and boolean flags
@@ -252,14 +255,18 @@ def compute_lag_correlations(observations: list, uv_data: list) -> dict:
         results[symptom_name] = {}
 
         for lag in lag_days:
-            uv_vals = []
+            uv_doses = []
             sym_vals = []
 
-            for i, date_str in enumerate(dates_with_both):
-                # UV on this date
+            for i, date_str in enumerate(dates_with_all):
+                # UV dose on this date = UV index × minutes exposed
                 uv_noon = uv_by_date[date_str].get("uv_noon")
-                if uv_noon is None:
+                sun_min = obs_by_date[date_str].get("sun_exposure_min")
+                
+                if uv_noon is None or sun_min is None:
                     continue
+                
+                uv_dose = float(uv_noon) * float(sun_min)
 
                 # Find the date lag days later
                 lag_date = (
@@ -275,31 +282,36 @@ def compute_lag_correlations(observations: list, uv_data: list) -> dict:
                 if sym_val is None:
                     continue
 
-                uv_vals.append(float(uv_noon))
+                uv_doses.append(uv_dose)
                 sym_vals.append(float(sym_val))
 
             # Need at least 8 paired observations for meaningful correlation
-            if len(uv_vals) < 8:
+            if len(uv_doses) < 8:
                 results[symptom_name][f"lag_{lag}"] = None
                 continue
 
-            uv_arr  = np.array(uv_vals)
+            uv_arr  = np.array(uv_doses)
             sym_arr = np.array(sym_vals)
 
-            # Skip if no variance (all zeros e.g. rare symptom)
+            # Skip if no variance (all zeros e.g. rare symptom or always indoors)
             if uv_arr.std() == 0 or sym_arr.std() == 0:
                 results[symptom_name][f"lag_{lag}"] = None
                 continue
 
             r, p_value = stats.pearsonr(uv_arr, sym_arr)
+            
+            # Very strict significance for multiple comparisons (9 symptoms × 4 lags = 36 tests)
+            # p < 0.0005 and |r| >= 0.35 (medium-to-large effect size)
             results[symptom_name][f"lag_{lag}"] = {
                 "r":       round(float(r), 3),
                 "p":       round(float(p_value), 4),
-                "n":       len(uv_vals),
-                "significant": float(p_value) < 0.01 and abs(float(r)) >= 0.15,
+                "n":       len(uv_doses),
+                "significant": float(p_value) < 0.0005 and abs(float(r)) >= 0.35,
             }
 
     return results
+
+    
 
 
 @app.route("/uv-lag")
@@ -462,21 +474,80 @@ def hrv_view():
 
 @app.route("/clinical")
 def clinical_record():
-    """Clinical record - labs, ANA, meds, events."""
+    """Record - labs, ANA, meds, events, clinicians."""
     labs = db.get_lab_results()
     ana = db.get_ana_results()
     meds = db.get_all_medications()
     events = db.get_clinical_events()
+    clinicians = db.get_all_clinicians()  
     test_names = db.get_lab_test_names()
-
+    
+    # Split active/inactive meds
+    today_str = date.today().isoformat()
+    active = [m for m in meds 
+              if m["start_date"] <= today_str and
+                 (m.get("end_date") is None or m["end_date"] >= today_str)]
+    inactive = [m for m in meds 
+                if m.get("end_date") and m["end_date"] < today_str]
+    
     return render_template(
         "clinical_record.html",
         labs=labs,
         ana=ana,
         meds=meds,
+        active=active,
+        inactive=inactive,
         events=events,
+        clinicians=clinicians,  
         test_names=test_names,
+        today=date.today().isoformat(),
     )
+
+#============================================================
+# Clinician management
+#============================================================
+
+@app.route("/clinician/add", methods=["POST"])
+def add_clinician():
+    """Add a new clinician."""
+    db.add_clinician({
+        "name": request.form.get("name"),
+        "specialty": request.form.get("specialty"),
+        "clinic_name": request.form.get("clinic_name") or None,
+        "address": request.form.get("address") or None,
+        "phone": request.form.get("phone") or None,
+        "email": request.form.get("email") or None,
+        "network": request.form.get("network") or None,
+        "notes": request.form.get("notes") or None,
+    })
+    return redirect(url_for("clinical_record") + "#clinicians")
+
+
+@app.route("/clinician/update/<int:clinician_id>", methods=["POST"])
+def update_clinician(clinician_id):
+    """Update an existing clinician."""
+    form = request.form
+    
+    db.update_clinician(
+        clinician_id=clinician_id,
+        name=form.get("name"),
+        specialty=form.get("specialty"),
+        clinic_name=form.get("clinic_name") or None,
+        address=form.get("address") or None,
+        phone=form.get("phone") or None,
+        email=form.get("email") or None,
+        network=form.get("network") or None,
+        notes=form.get("notes") or None,
+    )
+    
+    return redirect(url_for("clinical_record") + "#clinicians")
+
+
+@app.route("/clinician/delete/<int:clinician_id>", methods=["POST"])
+def delete_clinician(clinician_id):
+    """Delete a clinician."""
+    db.delete_clinician(clinician_id)
+    return redirect(url_for("clinical_record") + "#clinicians")
 
 
 # ============================================================
@@ -565,7 +636,7 @@ def end_medication(med_id):
     db.end_medication(med_id, end_date)
     return redirect(url_for("clinical_record") + "#medications")
 
-# Add these routes to app.py in the clinical record section
+# lab results update/delete
 
 @app.route("/lab/update/<int:lab_id>", methods=["POST"])
 def update_lab(lab_id):
@@ -846,6 +917,9 @@ def generate_findings(observations, uv_data, start_date, end_date):
     
     return findings
 
+# ============================================================
+# UV correlated report generation
+# ============================================================
 
 @app.route("/report")
 def clinical_report():
@@ -894,13 +968,8 @@ def clinical_report():
     # Auto-generated findings
     findings = generate_findings(observations, uv_data, start_date, end_date)
     
-    # Chart data for period
-    chart_dataset = {
-        "dates": [o["date"] for o in observations],
-        "sleep": [o.get("hours_slept") for o in observations],
-        "bbt":   [o.get("basal_temp_delta") for o in observations],
-        "uv":    {u["date"]: u.get("uv_noon") for u in uv_data},
-    }
+    # UV lag correlations for this period
+    correlations = compute_lag_correlations(observations, uv_data) if observations and uv_data else {}
     
     # Full tracking period
     all_obs = db.get_all_daily_observations()
@@ -928,7 +997,7 @@ def clinical_report():
         mean_pain=mean_pain,
         mean_fatigue=mean_fatigue,
         findings=findings,
-        chart_dataset_json=json.dumps(chart_dataset),
+        correlations_json=json.dumps(correlations),  # Added for UV lag chart
         today=date.today().strftime("%B %d, %Y"),
     )
 # ============================================================

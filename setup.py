@@ -234,6 +234,24 @@ def create_database():
             content=''
         )
     """)
+    
+    # --------------------------------------------------------
+    # Clinician information
+    # --------------------------------------------------------
+    
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS clinicians (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            name            TEXT NOT NULL,
+            specialty       TEXT NOT NULL,
+            clinic_name     TEXT,
+            address         TEXT,
+            phone           TEXT,
+            email           TEXT,
+            network         TEXT,
+            notes           TEXT
+        )
+    """)
 
     conn.commit()
     conn.close()

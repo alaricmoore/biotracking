@@ -45,10 +45,10 @@
             </span>
             <button class="btn btn-secondary" onclick="selectAll()">select all</button>
             <button class="btn btn-secondary" onclick="clearAll()">clear</button>
-            <button class="btn btn-primary" id="reportBtn"
-                    onclick="generateReport()" disabled>
-                generate report →
-            </button>
+            <a href="#" id="reportLink" class="btn btn-primary" 
+               style="pointer-events:none; opacity:0.5;">
+                full report →
+            </a>    
         </div>
     </div>
 
@@ -115,51 +115,6 @@
 
     {% endif %}
 {% endif %}
-
-<!-- Report modal -->
-<div id="reportModal"
-     style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55);
-            z-index:100; overflow-y:auto; padding:var(--space-xl);">
-    <div style="max-width:720px; margin:0 auto; background:var(--bg-card);
-                border:1px solid var(--border-medium); border-radius:var(--radius-lg);
-                padding:var(--space-xl);">
-
-        <div style="display:flex; justify-content:space-between; align-items:center;
-                    margin-bottom:var(--space-lg);">
-            <h2 style="margin:0;">report preview</h2>
-            <button onclick="closeReport()" class="btn btn-secondary">✕ close</button>
-        </div>
-
-        <!-- Auto-summary -->
-        <div id="reportSummary"
-             style="background:var(--bg-elevated); border:1px solid var(--border-subtle);
-                    border-radius:var(--radius-md); padding:var(--space-lg);
-                    margin-bottom:var(--space-lg); font-size:0.9rem;
-                    color:var(--text-secondary); line-height:1.7;">
-        </div>
-
-        <!-- Mini chart -->
-        <div id="reportChartContainer" style="display:none; margin-bottom:var(--space-lg);">
-            <div style="font-size:0.75rem; color:var(--text-muted);
-                        margin-bottom:var(--space-xs); text-transform:uppercase;
-                        letter-spacing:0.06em;">
-                uv previous day · sleep · basal temp — 3-day rolling average
-            </div>
-            <canvas id="reportChart" style="max-height:160px;"></canvas>
-        </div>
-
-        <!-- Entry list -->
-        <div id="reportContent"></div>
-
-        <div style="margin-top:var(--space-xl); display:flex; gap:var(--space-md);">
-            <button onclick="window.print()" class="btn btn-primary">
-                print / save pdf
-            </button>
-            <button onclick="closeReport()" class="btn btn-secondary">close</button>
-        </div>
-    </div>
-</div>
-
 {% endblock %}
 
 {% block scripts %}
@@ -174,6 +129,7 @@ const HCQ_START      = "{{ hcq_start or '' }}";
 const PATIENT_NAME   = "{{ patient_name or '' }}";
 const QUERY          = {{ query | tojson }};
 const ACTIVE_MEDS = {{ (active_meds or []) | tojson }};
+const results = {{ grouped | tojson }};
 
 // ============================================================
 // Selection state — persists across searches via sessionStorage
@@ -223,8 +179,19 @@ function toggleResult(id) {
 
 function selectAll() {
     document.querySelectorAll('[data-id]').forEach(chk => {
-        chk.checked = true; handleCheck(chk);
+        chk.checked = true;
+        const id = chk.dataset.id;
+        selected.set(id, {
+            type:    chk.dataset.type,
+            date:    chk.dataset.date,
+            title:   chk.dataset.title,
+            snippet: chk.dataset.snippet,
+            pain:    chk.dataset.pain || null,
+            fatigue: chk.dataset.fatigue || null,
+        });
     });
+    saveSelected();
+    updateUI();
 }
 
 function clearAll() {
@@ -237,7 +204,7 @@ function clearAll() {
 function updateUI() {
     const count = selected.size;
     document.getElementById('selectedCount').textContent = `${count} selected`;
-    document.getElementById('reportBtn').disabled = count === 0;
+    updateReportLink();
     document.querySelectorAll('.result-card').forEach(card => {
         const id = card.id.replace('card_', '');
         card.classList.toggle('selected', selected.has(id));
@@ -405,141 +372,38 @@ function generateReport() {
     document.body.style.overflow = 'hidden';
 }
 
-// ============================================================
-// Mini chart — UV/sleep/temp for selected date range
-// ============================================================
-function buildReportChart(minDate, maxDate) {
-    const container = document.getElementById('reportChartContainer');
-    const canvas    = document.getElementById('reportChart');
-
-    // Destroy previous instance if exists
-    if (reportChartInstance) {
-        reportChartInstance.destroy();
-        reportChartInstance = null;
-    }
-
-    // Filter to date range
-    const allDates = CHART_DATA.dates;
-    const indices  = allDates
-        .map((d, i) => ({ d, i }))
-        .filter(({ d }) => d >= minDate && d <= maxDate);
-
-    if (indices.length < 3) {
-        container.style.display = 'none';
+function updateReportLink() {
+    const count = selected.size;
+    const link = document.getElementById('reportLink');
+    
+    if (count === 0) {
+        link.style.pointerEvents = 'none';
+        link.style.opacity = '0.5';
+        link.href = '#';
         return;
     }
-
-    const labels   = indices.map(({ d }) => d);
-    const sleepRaw = indices.map(({ i }) => CHART_DATA.sleep[i]);
-    const bbtRaw   = indices.map(({ i }) => CHART_DATA.bbt[i]);
-    const uvRaw    = indices.map(({ d }) => {
-        // UV from previous day (lag 1)
-        const allIdx = allDates.indexOf(d);
-        if (allIdx <= 0) return null;
-        const prevDate = allDates[allIdx - 1];
-        return CHART_DATA.uv[prevDate] ?? null;
-    });
-
-    const sleep3 = rollingAvg(sleepRaw, 3);
-    const bbt3   = rollingAvg(bbtRaw, 3);
-    const uv3    = rollingAvg(uvRaw, 3);
-
-    const hasData = sleep3.some(v => v !== null) ||
-                    bbt3.some(v => v !== null) ||
-                    uv3.some(v => v !== null);
-
-    if (!hasData) {
-        container.style.display = 'none';
-        return;
-    }
-
-    container.style.display = 'block';
-
-    reportChartInstance = new Chart(canvas, {
-        type: 'line',
-        data: {
-            labels,
-            datasets: [
-                {
-                    label: 'sleep (hr)',
-                    data: sleep3,
-                    borderColor: '#9b72cf',
-                    backgroundColor: 'transparent',
-                    borderWidth: 2,
-                    pointRadius: 0,
-                    tension: 0.4,
-                    spanGaps: true,
-                    yAxisID: 'ySleep',
-                },
-                {
-                    label: 'temp delta',
-                    data: bbt3,
-                    borderColor: '#d4784a',
-                    backgroundColor: 'transparent',
-                    borderWidth: 1.5,
-                    borderDash: [4, 3],
-                    pointRadius: 0,
-                    tension: 0.4,
-                    spanGaps: true,
-                    yAxisID: 'yTemp',
-                },
-                {
-                    label: 'uv prev day',
-                    data: uv3,
-                    borderColor: '#d4b84a',
-                    backgroundColor: 'rgba(212,184,74,0.08)',
-                    borderWidth: 1,
-                    pointRadius: 0,
-                    tension: 0.4,
-                    fill: true,
-                    spanGaps: true,
-                    yAxisID: 'yUV',
-                },
-            ]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: {
-                    labels: { color: '#9994a8', boxWidth: 10, padding: 12,
-                              font: { size: 11 } }
-                },
-                tooltip: { enabled: false },
-            },
-            scales: {
-                x: {
-                    grid: { color: 'rgba(255,255,255,0.06)' },
-                    ticks: { maxTicksLimit: 8, maxRotation: 45,
-                             color: '#9994a8', font: { size: 10 } }
-                },
-                ySleep: {
-                    type: 'linear', position: 'left',
-                    min: 0, max: 14,
-                    grid: { color: 'rgba(255,255,255,0.06)' },
-                    ticks: { color: '#9b72cf', font: { size: 10 } },
-                },
-                yTemp: {
-                    type: 'linear', position: 'right',
-                    grid: { display: false },
-                    ticks: { color: '#d4784a', font: { size: 10 } },
-                },
-                yUV: {
-                    type: 'linear', position: 'right',
-                    min: 0, display: false,
-                },
-            }
+    
+    // Get dates directly from selected Map values
+    let dates = [];
+    selected.forEach((value, key) => {
+        if (value.date) {
+            dates.push(value.date);
         }
     });
+    
+    if (dates.length > 0) {
+        dates.sort();
+        const start = dates[0];
+        const end = dates[dates.length - 1];
+        link.href = `/report?start=${start}&end=${end}`;
+        link.style.pointerEvents = 'auto';
+        link.style.opacity = '1';
+    } else {
+        link.style.pointerEvents = 'none';
+        link.style.opacity = '0.5';
+        link.href = '#';
+    }
 }
-
-function closeReport() {
-    document.getElementById('reportModal').style.display = 'none';
-    document.body.style.overflow = '';
-}
-
-document.getElementById('reportModal')?.addEventListener('click', e => {
-    if (e.target === document.getElementById('reportModal')) closeReport();
-});
 </script>
 
 <style>

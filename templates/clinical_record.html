@@ -26,6 +26,10 @@
         events
         {% if events %}<span class="tab-count">{{ events|length }}</span>{% endif %}
     </button>
+    <button class="tab-btn" onclick="switchTab('clinicians')">
+        clinicians
+        {% if clinicians %}<span class="tab-count">{{ clinicians|length }}</span>{% endif %}
+    </button>
 </div>
 
 <!-- ============================================================
@@ -963,10 +967,189 @@ function editEvent(id) {
 </script>
 </div>
 
+<!--============================================================
+CLINICIANS TAB
+============================================================ -->
+<div class="tab-panel" id="tab-clinicians">
+
+    <div class="add-toggle-row">
+        <button class="btn btn-secondary" onclick="toggleForm('form-clinician')">
+            + add clinician
+        </button>
+    </div>
+
+    <div class="add-form-panel" id="form-clinician">
+        <form method="POST" action="{{ url_for('add_clinician') }}">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>name *</label>
+                    <input type="text" name="name" required
+                           placeholder="Dr. Jane Smith">
+                </div>
+                <div class="form-group">
+                    <label>specialty *</label>
+                    <input type="text" name="specialty" required
+                           placeholder="rheumatology, dermatology, etc.">
+                </div>
+                <div class="form-group">
+                    <label>clinic name</label>
+                    <input type="text" name="clinic_name"
+                           placeholder="OU Health, Integris, etc.">
+                </div>
+                <div class="form-group">
+                    <label>phone</label>
+                    <input type="tel" name="phone"
+                           placeholder="(405) 555-1234">
+                </div>
+                <div class="form-group">
+                    <label>email / portal</label>
+                    <input type="text" name="email"
+                           placeholder="portal URL or email">
+                </div>
+                <div class="form-group">
+                    <label>network</label>
+                    <input type="text" name="network"
+                           placeholder="OU Physicians, Integris, etc.">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>address</label>
+                <input type="text" name="address"
+                       placeholder="full clinic address">
+            </div>
+            <div class="form-group">
+                <label>notes</label>
+                <textarea name="notes"
+                    placeholder="what you see them for, referral source, appointment frequency..."
+                    style="min-height:60px;"></textarea>
+            </div>
+            <div style="display:flex; gap:var(--space-md); margin-top:var(--space-md);">
+                <button type="submit" class="btn btn-primary">save</button>
+                <button type="button" class="btn btn-secondary"
+                        onclick="toggleForm('form-clinician')">cancel</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Clinicians table with inline editing -->
+    {% if clinicians %}
+    <div style="overflow-x:auto;">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>name</th>
+                    <th>specialty</th>
+                    <th>clinic</th>
+                    <th>phone</th>
+                    <th>email/portal</th>
+                    <th>network</th>
+                    <th style="width:40px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in clinicians | sort(attribute='name') %}
+                <!-- Read-only row -->
+                <tr id="clinician-row-{{ c.id }}" class="data-row">
+                    <td style="color:var(--text-primary);">{{ c.name }}</td>
+                    <td>
+                        <span class="badge badge-cognitive">{{ c.specialty }}</span>
+                    </td>
+                    <td style="color:var(--text-muted); font-size:0.85rem;">
+                        {{ c.clinic_name or '—' }}
+                    </td>
+                    <td style="color:var(--text-muted); font-size:0.85rem; font-family:var(--font-mono);">
+                        {{ c.phone or '—' }}
+                    </td>
+                    <td style="color:var(--text-muted); font-size:0.85rem; max-width:200px; overflow:hidden; text-overflow:ellipsis;">
+                        {{ c.email or '—' }}
+                    </td>
+                    <td style="color:var(--text-muted); font-size:0.85rem;">
+                        {{ c.network or '—' }}
+                    </td>
+                    <td>
+                        <button class="edit-btn" onclick="editClinician({{ c.id }})" 
+                                title="edit">✎</button>
+                    </td>
+                </tr>
+                <!--Edit row, hidden by default-->
+                <tr id="clinician-edit-{{ c.id }}" class="edit-row" style="display:none;">
+                    <td colspan="7">
+                        <form method="POST" action="{{ url_for('update_clinician', clinician_id=c.id) }}">
+                            <div class="inline-edit-grid">
+                                <div class="form-group">
+                                    <label>name *</label>
+                                    <input type="text" name="name" required 
+                                           value="{{ c.name }}">
+                                </div>
+                                <div class="form-group">
+                                    <label>specialty *</label>
+                                    <input type="text" name="specialty" required 
+                                           value="{{ c.specialty }}">
+                                </div>
+                                <div class="form-group">
+                                    <label>clinic name</label>
+                                    <input type="text" name="clinic_name" 
+                                           value="{{ c.clinic_name or '' }}">
+                                </div>
+                                <div class="form-group">
+                                    <label>phone</label>
+                                    <input type="tel" name="phone" 
+                                           value="{{ c.phone or '' }}">
+                                </div>
+                                <div class="form-group">
+                                    <label>email/portal</label>
+                                    <input type="text" name="email" 
+                                           value="{{ c.email or '' }}">
+                                </div>
+                                <div class="form-group">
+                                    <label>network</label>
+                                    <input type="text" name="network" 
+                                           value="{{ c.network or '' }}">
+                                </div>
+                                <div class="form-group" style="grid-column: 1 / -1;">
+                                    <label>address</label>
+                                    <input type="text" name="address" 
+                                           value="{{ c.address or '' }}">
+                                </div>
+                                <div class="form-group" style="grid-column: 1 / -1;">
+                                    <label>notes</label>
+                                    <textarea name="notes" style="min-height:60px;">{{ c.notes or '' }}</textarea>
+                                </div>
+                            </div>
+                            <div class="inline-edit-actions">
+                                <button type="submit" class="btn btn-primary btn-sm">save</button>
+                                <button type="button" class="btn btn-secondary btn-sm" 
+                                        onclick="cancelEdit({{ c.id }}, 'clinician')">cancel</button>
+                                <button type="button" class="btn btn-danger btn-sm" 
+                                        id="delete-clinician-{{ c.id }}"
+                                        onclick="confirmDelete({{ c.id }}, 'clinician')">delete</button>
+                            </div>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>No clinicians recorded yet.</p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function editClinician(id) {
+    document.getElementById(`clinician-row-${id}`).style.display = 'none';
+    document.getElementById(`clinician-edit-${id}`).style.display = 'table-row';
+}
+</script>
+
 {% endblock %}
 
 {% block scripts %}
 <script>
+
 // ============================================================
 // Tab switching
 // ============================================================
@@ -997,7 +1180,7 @@ function toggleForm(id) {
 // ============================================================
 window.addEventListener('DOMContentLoaded', () => {
     const hash = window.location.hash.replace('#', '');
-    const valid = ['labs', 'ana', 'medications', 'events'];
+    const valid = ['labs', 'ana', 'medications', 'events', 'clinicians'];
     if (valid.includes(hash)) {
         switchTab(hash);
     }

@@ -264,136 +264,133 @@
 {% endif %}
 
 <!-- ============================================================
-     UV / SLEEP / TEMP CHART
+     UV LAG CORRELATION ANALYSIS
      ============================================================ -->
+{% if correlations_json %}
 <div class="report-section page-break">
     <h2 style="margin:0 0 var(--space-md) 0; font-size:1.3rem; color:var(--text-primary);">
-        UV Exposure, Sleep, and Basal Temperature
+        UV Dose Impact Analysis
     </h2>
-    <div style="font-size:0.85rem; color:var(--text-muted); margin-bottom:var(--space-sm);">
-        3-day rolling average for report period
+    <div style="font-size:0.85rem; color:var(--text-muted); margin-bottom:var(--space-sm); line-height:1.7;">
+        Correlation between UV dose (index × sun exposure minutes) and symptom categories.
+        Bars marked with <strong style="color:var(--color-flare);">*</strong> are statistically significant
+        (p &lt; 0.0005, |r| ≥ 0.35). Higher correlations indicate stronger relationships between UV exposure
+        and symptoms at that time lag.
     </div>
-    <canvas id="reportChart" style="max-height:280px;"></canvas>
+    <canvas id="lagChart" style="max-height:380px;"></canvas>
 </div>
+
+
+<!--UV lag correlation chart -->
+<script>
+const correlations = {{ correlations_json | safe }};
+
+if (Object.keys(correlations).length > 0) {
+    const LAG_COLORS = {
+        lag_0: '#b8aee8',
+        lag_1: '#9b8dd4',
+        lag_2: '#7c6fd4',
+        lag_3: '#5c4fb8',
+    };
+
+    const LAG_LABELS = {
+        lag_0: 'same day',
+        lag_1: '24h lag',
+        lag_2: '48h lag',
+        lag_3: '72h lag',
+    };
+
+    const SYMPTOM_LABELS = {
+        pain: 'pain',
+        fatigue: 'fatigue',
+        neurological: 'neurological',
+        musculature: 'musculature',
+        migraine: 'migraine',
+        cognitive: 'cognitive',
+        dermatological: 'dermatological',
+        air_hunger: 'air hunger',
+        flare: 'flare'
+    };
+
+    const symptoms = Object.keys(correlations);
+    const lags = ['lag_0', 'lag_1', 'lag_2', 'lag_3'];
+
+    const datasets = lags.map(lag => ({
+        label: LAG_LABELS[lag],
+        data: symptoms.map(sym => {
+            const d = correlations[sym]?.[lag];
+            return d ? d.r : 0;
+        }),
+        backgroundColor: LAG_COLORS[lag],
+        borderColor: LAG_COLORS[lag],
+        borderWidth: 1,
+        borderRadius: 3,
+    }));
+
+    const labels = symptoms.map(s => SYMPTOM_LABELS[s] || s);
+
+    new Chart(document.getElementById('lagChart'), {
+        type: 'bar',
+        data: { labels, datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: {
+                    labels: { color: '#9994a8', boxWidth: 12, padding: 12, font: { size: 11 } }
+                },
+                tooltip: {
+                    backgroundColor: '#1e1e28',
+                    borderColor: '#2a2a38',
+                    borderWidth: 1,
+                    titleColor: '#e8e6e0',
+                    bodyColor: '#9994a8',
+                    padding: 8,
+                    cornerRadius: 6,
+                    callbacks: {
+                        label: ctx => {
+                            const sym = symptoms[ctx.dataIndex];
+                            const lag = lags[ctx.datasetIndex];
+                            const d = correlations[sym]?.[lag];
+                            if (!d) return `${ctx.dataset.label}: no data`;
+                            const sig = d.significant ? ' *' : '';
+                            return `${ctx.dataset.label}: r=${d.r}${sig}  (n=${d.n}, p=${d.p})`;
+                        }
+                    }
+                },
+            },
+            scales: {
+                x: {
+                    grid: { color: 'rgba(255,255,255,0.04)', display: false },
+                    ticks: { color: '#9994a8', font: { size: 10 } },
+                },
+                y: {
+                    min: -0.1,
+                    max: 0.7,
+                    grid: { color: 'rgba(255,255,255,0.06)' },
+                    title: {
+                        display: true,
+                        text: 'Correlation (r)',
+                        color: '#9994a8',
+                        font: { size: 11 }
+                    },
+                    ticks: {
+                        color: '#9994a8',
+                        font: { size: 10 },
+                        callback: v => v.toFixed(1),
+                    }
+                }
+            }
+        }
+    });
+}
+</script>
+{% endif %}
 
 {% endif %}
 {% endblock %}
 
 {% block scripts %}
-{% if observations|length > 0 %}
-<script>
-const CHART_DATA = {{ chart_dataset_json | safe }};
-
-Chart.defaults.font.family = "'Source Serif 4', 'Times New Roman', serif";
-Chart.defaults.font.size = 12;
-Chart.defaults.color = '#9994a8';
-
-function rollingAvg(arr, window) {
-    return arr.map((_, i) => {
-        const slice = arr.slice(Math.max(0, i - window + 1), i + 1)
-                         .filter(v => v !== null && v !== undefined);
-        if (slice.length < 2) return null;
-        return Math.round((slice.reduce((a, b) => a + b, 0) / slice.length) * 100) / 100;
-    });
-}
-
-const dates = CHART_DATA.dates;
-const uvLag1 = dates.map((d, i) => {
-    if (i === 0) return null;
-    const prevDate = dates[i - 1];
-    return CHART_DATA.uv[prevDate] ?? null;
-});
-
-const sleep3 = rollingAvg(CHART_DATA.sleep, 3);
-const bbt3   = rollingAvg(CHART_DATA.bbt, 3);
-const uv3    = rollingAvg(uvLag1, 3);
-
-new Chart(document.getElementById('reportChart'), {
-    type: 'line',
-    data: {
-        labels: dates,
-        datasets: [
-            {
-                label: 'sleep (hr)',
-                data: sleep3,
-                borderColor: '#9b72cf',
-                backgroundColor: 'transparent',
-                borderWidth: 2,
-                pointRadius: 0,
-                tension: 0.4,
-                spanGaps: true,
-                yAxisID: 'ySleep',
-            },
-            {
-                label: 'temp delta (°F)',
-                data: bbt3,
-                borderColor: '#d4784a',
-                backgroundColor: 'transparent',
-                borderWidth: 1.5,
-                borderDash: [4, 3],
-                pointRadius: 0,
-                tension: 0.4,
-                spanGaps: true,
-                yAxisID: 'yTemp',
-            },
-            {
-                label: 'uv prev day',
-                data: uv3,
-                borderColor: '#d4b84a',
-                backgroundColor: 'rgba(212,184,74,0.08)',
-                borderWidth: 1,
-                pointRadius: 0,
-                tension: 0.4,
-                fill: true,
-                spanGaps: true,
-                yAxisID: 'yUV',
-            },
-        ]
-    },
-    options: {
-        responsive: true,
-        interaction: { mode: 'index', intersect: false },
-        plugins: {
-            legend: {
-                labels: { color: '#9994a8', boxWidth: 12, padding: 16 }
-            },
-            tooltip: {
-                backgroundColor: '#1e1e28',
-                borderColor: '#2a2a38',
-                borderWidth: 1,
-                padding: 10,
-                cornerRadius: 6,
-            },
-        },
-        scales: {
-            x: {
-                grid: { color: 'rgba(255,255,255,0.06)' },
-                ticks: { maxTicksLimit: 12, maxRotation: 45 }
-            },
-            ySleep: {
-                type: 'linear',
-                position: 'left',
-                min: 0, max: 14,
-                grid: { color: 'rgba(255,255,255,0.06)' },
-                title: { display: true, text: 'hours slept', color: '#9b72cf' },
-                ticks: { color: '#9b72cf' },
-            },
-            yTemp: {
-                type: 'linear',
-                position: 'right',
-                grid: { display: false },
-                title: { display: true, text: 'temp delta (°F)', color: '#d4784a' },
-                ticks: { color: '#d4784a' },
-            },
-            yUV: {
-                type: 'linear',
-                position: 'right',
-                min: 0,
-                display: false,
-            }
-        }
-    }
-});
-</script>
-{% endif %}
 {% endblock %}
+

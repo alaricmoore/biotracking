@@ -34,18 +34,19 @@
 <!-- Explanation -->
 <div class="card" style="margin-bottom:var(--space-lg);">
     <p style="color:var(--text-secondary); font-size:0.9rem; line-height:1.7;">
-        Each bar shows the Pearson correlation (r) between UV noon index and a symptom
-        at a given lag. <strong style="color:var(--text-primary);">Lag 0</strong> = same day.
+        Each bar shows the Pearson correlation (r) between <strong style="color:var(--text-primary);">UV dose</strong>
+        (UV index × sun exposure minutes) and a symptom at a given lag.
+        <strong style="color:var(--text-primary);">Lag 0</strong> = same day.
         <strong style="color:var(--text-primary);">Lag 2</strong> = UV today predicts symptom
         in two days. A bar marked <strong style="color:var(--color-flare);">*</strong>
-        is statistically significant (p &lt; 0.05).
-        Negative r means UV correlates with fewer symptoms that day.
+        is statistically significant (p < 0.0005, |r| ≥ 0.35).
+        Negative r means UV dose correlates with fewer symptoms that day.
     </p>
 </div>
 
 <!-- Main correlation chart -->
 <div class="chart-container">
-    <div class="chart-title">uv noon → symptom correlation by lag window</div>
+    <div class="chart-title">uv dose (index × minutes) → symptom correlation by lag window</div>
     <canvas id="chartLag" style="max-height: 420px;"></canvas>
 </div>
 
