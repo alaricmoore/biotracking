@@ -38,8 +38,9 @@
             --color-cognitive:    #9b72cf;   /* soft purple  - cognitive     */
             --color-derm:         #d4784a;   /* muted orange - dermatological*/
             --color-air:          #4ab8b8;   /* teal         - air hunger    */
-            --color-emotional:    #7a8499;   /* slate grey   - emotional     */
+            --color-word:         #7a8499;   /* slate grey   - emotional     */
             --color-uv:           #d4b84a;   /* yellow-gold  - UV index      */
+            --color-rheum:        #e85d9e;   /* pink         - rheumatic     */
             --color-flare:        #ffffff;   /* white        - flare days    */
 
             /* Semantic colors */
@@ -323,6 +324,7 @@
             padding: var(--space-sm) var(--space-md);
             border: 1px solid var(--border-medium);
             border-radius: var(--radius-md);
+            border-color: var(--border-medium);
             cursor: pointer;
             font-size: 0.875rem;
             color: var(--text-secondary);
@@ -367,10 +369,15 @@
             border-color: var(--color-air);
             color: var(--color-air);
         }
-        .toggle-item.emotional input:checked ~ .toggle-label {
-            background: color-mix(in srgb, var(--color-emotional) 15%, var(--bg-surface));
-            border-color: var(--color-emotional);
-            color: var(--color-emotional);
+        .toggle-item.rheum input:checked ~ .toggle-label {
+            background: color-mix(in srgb, var(--color-rheum) 15%, var(--bg-surface));
+            border-color: var(--color-rheum);
+            color: var(--color-rheum);
+        }
+        .toggle-item.word input:checked ~ .toggle-label {
+            background: color-mix(in srgb, var(--color-word) 15%, var(--bg-surface));
+            border-color: var(--color-word);
+            color: var(--color-word);
         }
 
         /* Expandable note fields */
@@ -463,10 +470,13 @@
                            color: var(--color-derm); }
         .badge-air       { background: color-mix(in srgb, var(--color-air) 20%, transparent);
                            color: var(--color-air); }
-        .badge-emotional { background: color-mix(in srgb, var(--color-emotional) 20%, transparent);
-                           color: var(--color-emotional); }
+        .badge-word      { background: color-mix(in srgb, var(--color-word) 20%, transparent);
+                           color: var(--color-word); }
+        .badge-rheum     { background: color-mix(in srgb, var(--color-rheum) 20%, transparent);
+                           color: var(--color-rheum); }
         .badge-uv        { background: color-mix(in srgb, var(--color-uv) 20%, transparent);
                            color: var(--color-uv); }
+        
 
         /* ================================================
            UV display strip

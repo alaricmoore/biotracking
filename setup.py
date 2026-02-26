@@ -135,6 +135,21 @@ def create_database():
             notes               TEXT
         )
     """)
+    
+    try:
+        c.execute("ALTER TABLE daily_observations ADD COLUMN rheumatic INTEGER DEFAULT 0")
+    except:
+        pass  # Column already exists
+    
+    try:
+        c.execute("ALTER TABLE daily_observations ADD COLUMN rheumatic_notes TEXT")
+    except:
+        pass  # Column already exists
+    
+    try:
+        c.execute("ALTER TABLE daily_observations ADD COLUMN word_loss_notes TEXT")
+    except:
+        pass  # Column already exists
 
     # --------------------------------------------------------
     # uv_data
@@ -221,6 +236,17 @@ def create_database():
             notes       TEXT
         )
     """)
+    
+        # Add intervention tracking columns (migration)
+    try:
+        c.execute("ALTER TABLE medications ADD COLUMN is_primary_intervention INTEGER DEFAULT 0")
+    except:
+        pass  # Column already exists
+    
+    try:
+        c.execute("ALTER TABLE medications ADD COLUMN is_secondary_intervention INTEGER DEFAULT 0")
+    except:
+        pass  # Column already exists
 
     # --------------------------------------------------------
     # FTS5 virtual table for keyword search across note fields

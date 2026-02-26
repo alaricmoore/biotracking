@@ -194,6 +194,20 @@
                 </div>
             </div>
 
+            <div class="toggle-item rheum">
+                <input type="checkbox" name="rheumatic" id="tog-rheum"
+                    {% if existing and existing.rheumatic %}checked{% endif %}
+                    onchange="toggleNotes(this, 'notes-rheum')">
+                <label class="toggle-label" for="tog-rheum">
+                    <span>rheumatic</span>
+                </label>
+                <div class="notes-expand {% if existing and existing.rheumatic_notes %}visible{% endif %}"
+                     id="notes-rheum">
+                    <textarea name="rheumatic_notes" placeholder="joint pain, stiffness, swelling..."
+                        >{{ existing.rheumatic_notes if existing and existing.rheumatic_notes else '' }}</textarea>
+                </div>
+            </div>
+
             <div class="toggle-item derm">
                 <input type="checkbox" name="dermatological" id="tog-derm"
                     {% if existing and existing.dermatological %}checked{% endif %}
@@ -208,14 +222,19 @@
                 </div>
             </div>
 
-            <div class="toggle-item emotional">
-                <input type="checkbox" name="word_loss" id="tog-wordloss"
-                    {% if existing and existing.word_loss %}checked{% endif %}>
-                <label class="toggle-label" for="tog-wordloss">
+            <div class="toggle-item word">
+                <input type="checkbox" name="word_loss" id="tog-word"
+                    {% if existing and existing.word_loss %}checked{% endif %}
+                    onchange="toggleNotes(this, 'notes-word')">
+                <label class="toggle-label" for="tog-word">
                     <span>word loss</span>
                 </label>
+                <div class="notes-expand {% if existing and existing.word_notes %}visible{% endif %}"
+                     id="notes-word">
+                    <textarea name="word_loss_notes" placeholder="specific incidents, severity..."
+                        >{{ existing.word_loss_notes if existing and existing.word_loss_notes else '' }}</textarea>
+                </div>
             </div>
-
         </div>
     </div>
 
@@ -348,7 +367,8 @@
     align-items: center;
     padding: var(--space-xs) var(--space-md);
     background: transparent;
-    border: 1px solid var(--border-medium);
+    border: 1px solid var(--border-md);
+    border-color: var(--border-md);
     border-radius: var(--radius-sm);
     color: var(--text-primary);
     text-decoration: none;

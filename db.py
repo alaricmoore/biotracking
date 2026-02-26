@@ -74,8 +74,9 @@ def upsert_daily_observation(data: dict) -> bool:
         "musculature", "musculature_notes",
         "migraine", "migraine_notes",
         "air_hunger", "air_hunger_notes",
+        "rheumatic", "rheumatic_notes",
         "dermatological", "derm_notes",
-        "word_loss",
+        "word_loss", "word_loss_notes",
         "strike_physical", "strike_environmental", "flare_occurred",
         "notes"
     ]
@@ -358,26 +359,31 @@ def get_clinical_events(event_type: Optional[str] = None,
 # ============================================================
 
 def add_medication(data: dict) -> int:
-    """Insert a medication course. Returns new row id."""
-    required = {"drug_name", "start_date"}
-    missing = required - set(data.keys())
-    if missing:
-        raise ValueError(f"medication missing required fields: {missing}")
-
-    fields = [
-        "drug_name", "dose", "unit", "frequency", "route",
-        "category", "indication", "start_date", "end_date", "notes"
-    ]
-    present = {k: data[k] for k in fields if k in data}
-    columns = ", ".join(present.keys())
-    placeholders = ", ".join(["?" for _ in present])
-
+    """Add a new medication."""
     with get_db() as conn:
-        cursor = conn.execute(
-            f"INSERT INTO medications ({columns}) VALUES ({placeholders})",
-            list(present.values())
-        )
-        return cursor.lastrowid
+        c = conn.cursor()
+        c.execute("""
+            INSERT INTO medications (
+                drug_name, dose, unit, frequency, route, category,
+                indication, start_date, end_date, notes,
+                is_primary_intervention, is_secondary_intervention
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            data.get("drug_name"),
+            data.get("dose"),
+            data.get("unit"),
+            data.get("frequency"),
+            data.get("route"),
+            data.get("category"),
+            data.get("indication"),
+            data.get("start_date"),
+            data.get("end_date"),
+            data.get("notes"),
+            1 if data.get("is_primary_intervention") else 0,
+            1 if data.get("is_secondary_intervention") else 0,
+        ))
+        return c.lastrowid
 
 
 def end_medication(med_id: int, end_date: str) -> bool:
@@ -431,8 +437,9 @@ def search_notes(query: str) -> list[dict]:
         ("musculature_notes", "musculature"),
         ("migraine_notes", "migraine"),
         ("air_hunger_notes", "air hunger"),
+        ("rheumatic_notes", "rheumatic"),
+        ("word_loss_notes", "word loss"),
         ("derm_notes", "dermatological"),
-        ("emotional_notes", "emotional"),
         ("notes", "general"),
     ]
 
@@ -639,3 +646,42 @@ def delete_clinician(clinician_id: int) -> bool:
     return True
 
 
+def update_medication(med_id: int, drug_name: str, start_date: str,
+                     dose: Optional[float] = None,
+                     unit: Optional[str] = None,
+                     frequency: Optional[str] = None,
+                     category: Optional[str] = None,
+                     indication: Optional[str] = None,
+                     end_date: Optional[str] = None,
+                     notes: Optional[str] = None,
+                     is_primary_intervention: bool = False,
+                     is_secondary_intervention: bool = False) -> bool:
+    """Update an existing medication."""
+    with get_db() as conn:
+        conn.execute("""
+            UPDATE medications
+            SET drug_name = ?,
+                dose = ?,
+                unit = ?,
+                frequency = ?,
+                category = ?,
+                indication = ?,
+                start_date = ?,
+                end_date = ?,
+                notes = ?,
+                is_primary_intervention = ?,
+                is_secondary_intervention = ?
+            WHERE id = ?
+        """, (drug_name, dose, unit, frequency, category, indication,
+              start_date, end_date, notes,
+              1 if is_primary_intervention else 0,
+              1 if is_secondary_intervention else 0,
+              med_id))
+    return True
+
+
+def delete_medication(med_id: int) -> bool:
+    """Delete a medication."""
+    with get_db() as conn:
+        conn.execute("DELETE FROM medications WHERE id = ?", (med_id,))
+    return True

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}clinical report — biotracking{% endblock %}
+{% block title %}report — biotracking{% endblock %}
 
 {% block head %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -28,7 +28,7 @@
 
 {% block content %}
 <div class="page-header no-print">
-    <h1>clinical report</h1>
+    <h1>Generated report</h1>
     <p class="page-subtitle">{{ start_date }} — {{ end_date }}</p>
 </div>
 
@@ -226,12 +226,12 @@
 {% endif %}
 
 <!-- ============================================================
-     CLINICAL EVENTS
+     ENCOUNTER'S & EVENTS
      ============================================================ -->
 {% if events %}
 <div class="report-section">
     <h2 style="margin:0 0 var(--space-md) 0; font-size:1.3rem; color:var(--text-primary);">
-        Clinical Events
+        Encounter's & Events
     </h2>
     {% for event in events %}
     <div style="margin-bottom:var(--space-md); padding-left:var(--space-md);
@@ -309,6 +309,8 @@ if (Object.keys(correlations).length > 0) {
         cognitive: 'cognitive',
         dermatological: 'dermatological',
         air_hunger: 'air hunger',
+        rheumatic: 'rheumatic', 
+        word_loss: 'word loss',
         flare: 'flare'
     };
 

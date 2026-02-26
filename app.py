@@ -150,6 +150,9 @@ def daily_entry_submit():
         "dermatological": get_bool("dermatological"),
         "derm_notes": form.get("derm_notes", "").strip() or None,
         "word_loss": get_bool("word_loss"),
+        "word_loss_notes": form.get("word_loss_notes", "").strip() or None,
+        "rheumatic": get_bool("rheumatic"),
+        "rheumatic_notes": form.get("rheumatic_notes", "").strip() or None,
         "strike_physical": get_bool("strike_physical"),
         "strike_environmental": get_bool("strike_environmental"),
         "flare_occurred": get_bool("flare_occurred"),
@@ -245,6 +248,8 @@ def compute_lag_correlations(observations: list, uv_data: list) -> dict:
         "cognitive":     lambda o: o.get("cognitive"),
         "dermatological":lambda o: o.get("dermatological"),
         "air_hunger":    lambda o: o.get("air_hunger"),
+        "rheumatic":     lambda o: o.get("rheumatic"),
+        "word loss":     lambda o: o.get("word_loss"),
         "flare":         lambda o: o.get("flare_occurred"),
     }
 
@@ -438,24 +443,30 @@ def compute_sleep_bbt_uv(observations: list) -> dict:
 def hrv_view():
     """HRV trend with rolling average, intervention split, and sleep/BBT/UV."""
     observations = db.get_all_daily_observations()
+    all_meds = db.get_all_medications()
     
-    # Read primary intervention from config
-    primary_intervention = CONFIG.get("primary_intervention") or {}
-    intervention_name = primary_intervention.get("name", "intervention")
-    intervention_date = primary_intervention.get("start_date")
+    # Find primary intervention (the medication marked as primary)
+    primary_med = next((m for m in all_meds if m.get("is_primary_intervention") == 1), None)
+    
+    intervention_name = None
+    intervention_date = None
+    
+    if primary_med:
+        intervention_name = primary_med["drug_name"]
+        intervention_date = primary_med["start_date"]
+    
+    # Find secondary interventions (medications marked as secondary)
+    secondary_interventions = [
+        {
+            "drug_name": m["drug_name"],
+            "start_date": m["start_date"]
+        }
+        for m in all_meds
+        if m.get("is_secondary_intervention") == 1
+    ]
     
     hrv_data = compute_hrv_data(observations, intervention_date)
     sleep_bbt_uv = compute_sleep_bbt_uv(observations)
-    
-    # Get other notable medication starts for reference lines
-    all_meds = db.get_all_medications()
-    other_interventions = [
-        {"drug_name": m["drug_name"], "start_date": m["start_date"]}
-        for m in all_meds
-        if m.get("start_date") and
-           m.get("start_date") != intervention_date and
-           m.get("category") in ("prescription", "injection")
-    ]
     
     return render_template(
         "hrv.html",
@@ -464,7 +475,7 @@ def hrv_view():
         sleep_json=json.dumps(sleep_bbt_uv, default=lambda x: int(x) if isinstance(x, bool) else str(x)),
         primary_intervention_name=intervention_name,
         primary_intervention_date=intervention_date,
-        other_interventions_json=json.dumps(other_interventions),
+        other_interventions_json=json.dumps(secondary_interventions),
     )
 
 
@@ -502,6 +513,35 @@ def clinical_record():
         test_names=test_names,
         today=date.today().isoformat(),
     )
+    
+@app.route("/medication/update/<int:med_id>", methods=["POST"])
+def update_medication(med_id):
+    """Update an existing medication."""
+    form = request.form
+    
+    db.update_medication(
+        med_id=med_id,
+        drug_name=form.get("drug_name"),
+        dose=float(form.get("dose")) if form.get("dose") else None,
+        unit=form.get("unit") or None,
+        frequency=form.get("frequency") or None,
+        category=form.get("category") or None,
+        indication=form.get("indication") or None,
+        start_date=form.get("start_date"),
+        end_date=form.get("end_date") or None,
+        notes=form.get("notes") or None,
+        is_primary_intervention=form.get("is_primary_intervention") == "1",
+        is_secondary_intervention=form.get("is_secondary_intervention") == "1",
+    )
+    
+    return redirect(url_for("clinical_record") + "#medications")
+
+
+@app.route("/medication/delete/<int:med_id>", methods=["POST"])
+def delete_medication(med_id):
+    """Delete a medication."""
+    db.delete_medication(med_id)
+    return redirect(url_for("clinical_record") + "#medications")
 
 #============================================================
 # Clinician management
@@ -609,24 +649,25 @@ def add_event():
     return redirect(url_for("clinical_record") + "#events")
 
 
-@app.route("/clinical/medication/add", methods=["POST"])
+@app.route("/medication/add", methods=["POST"])
 def add_medication():
-    """Add a medication course."""
-    form = request.form
-    data = {
-        "drug_name": form.get("drug_name", "").strip(),
-        "dose": float(form["dose"]) if form.get("dose", "").strip() else None,
-        "unit": form.get("unit", "").strip() or None,
-        "frequency": form.get("frequency", "").strip() or None,
-        "route": form.get("route", "oral").strip(),
-        "category": form.get("category", "prescription").strip(),
-        "indication": form.get("indication", "").strip() or None,
-        "start_date": form.get("start_date"),
-        "end_date": form.get("end_date", "").strip() or None,
-        "notes": form.get("notes", "").strip() or None,
-    }
-    db.add_medication(data)
+    """Add a new medication."""
+    db.add_medication({
+        "drug_name": request.form.get("drug_name"),
+        "dose": request.form.get("dose"),
+        "unit": request.form.get("unit"),
+        "frequency": request.form.get("frequency"),
+        "route": request.form.get("route"),
+        "category": request.form.get("category"),
+        "indication": request.form.get("indication"),
+        "start_date": request.form.get("start_date"),
+        "end_date": request.form.get("end_date") or None,
+        "notes": request.form.get("notes"),
+        "is_primary_intervention": request.form.get("is_primary_intervention") == "1",
+        "is_secondary_intervention": request.form.get("is_secondary_intervention") == "1",
+    })
     return redirect(url_for("clinical_record") + "#medications")
+
 
 
 @app.route("/clinical/medication/end/<int:med_id>", methods=["POST"])

@@ -1,11 +1,11 @@
  {% extends "base.html" %}
 
-{% block title %}clinical record — biotracking{% endblock %}
+{% block title %}medical record — biotracking{% endblock %}
 
 {% block content %}
 <div class="page-header">
-    <h1>clinical record</h1>
-    <p class="page-subtitle">labs · ana · medications · events</p>
+    <h1>medical record</h1>
+    <p class="page-subtitle">labs · ana · medications · events · clinicians</p>
 </div>
 
 <!-- Tab navigation -->
@@ -288,52 +288,6 @@
 </div>
 {% endif %}
 
-<script>
-function editLab(id) {
-    // Hide read row, show edit row
-    document.getElementById(`lab-row-${id}`).style.display = 'none';
-    document.getElementById(`lab-edit-${id}`).style.display = 'table-row';
-}
-
-function cancelEdit(id, type) {
-    // Show read row, hide edit row
-    document.getElementById(`${type}-row-${id}`).style.display = 'table-row';
-    document.getElementById(`${type}-edit-${id}`).style.display = 'none';
-    
-    // Reset delete button if it was in confirmation state
-    const deleteBtn = document.getElementById(`delete-${type}-${id}`);
-    if (deleteBtn) {
-        deleteBtn.textContent = 'delete';
-        deleteBtn.style.color = '';
-        deleteBtn.onclick = () => confirmDelete(id, type);
-    }
-}
-
-function confirmDelete(id, type) {
-    const deleteBtn = document.getElementById(`delete-${type}-${id}`);
-    
-    if (deleteBtn.textContent === 'delete') {
-        // First click - show warning
-        deleteBtn.textContent = 'are you sure? click again';
-        deleteBtn.style.color = '#d4784a';  // Orange warning
-        deleteBtn.onclick = () => executeDelete(id, type);
-    }
-}
-
-function executeDelete(id, type) {
-    // Second click - actually delete
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = `/lab/delete/${id}`;  // Update this based on type
-    
-    if (type === 'ana') form.action = `/ana/delete/${id}`;
-    if (type === 'event') form.action = `/event/delete/${id}`;
-    
-    document.body.appendChild(form);
-    form.submit();
-}
-</script>
-
 <style>
 .edit-btn {
     background: transparent;
@@ -568,19 +522,12 @@ function executeDelete(id, type) {
         </tbody>
     </table>
 </div>
-{% else %}
-<div class="empty-state">
+    {% else %}
+    <div class="empty-state">
     <p>No ANA results yet.</p>
+    {% endif %}
 </div>
-{% endif %}
-
-<script>
-function editAna(id) {
-    document.getElementById(`ana-row-${id}`).style.display = 'none';
-    document.getElementById(`ana-edit-${id}`).style.display = 'table-row';
-}
-</script>
-</div>
+    
 
 <!-- ============================================================
      MEDICATIONS TAB
@@ -684,31 +631,25 @@ function editAna(id) {
     </div>
 
     <!-- Active medications -->
+    <!-- Adds BOTH edit (pen icon) and end (quick button) -->
 
-    
-    {% set active = meds | selectattr('end_date', 'none') | list %}
-    {% set inactive = meds | rejectattr('end_date', 'none') | list %}
-
-    {% if active %}
-    <div class="section-header" style="margin-top:var(--space-lg);">
-        <h3 class="section-title">current</h3>
-    </div>
     <div style="overflow-x:auto;">
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>drug</th>
+                    <th>medication</th>
                     <th>dose</th>
                     <th>frequency</th>
                     <th>category</th>
                     <th>started</th>
                     <th>indication</th>
-                    <th></th>
+                    <th style="width:80px;"></th>
                 </tr>
             </thead>
             <tbody>
                 {% for med in active | sort(attribute='start_date', reverse=True) %}
-                <tr>
+                <!-- Read-only row -->
+                <tr id="med-row-{{ med.id }}" class="data-row">
                     <td style="color:var(--text-primary);">{{ med.drug_name }}</td>
                     <td class="mono">
                         {% if med.dose %}{{ med.dose }}{% endif %}
@@ -717,28 +658,136 @@ function editAna(id) {
                     <td style="color:var(--text-muted); font-size:0.85rem;">
                         {{ med.frequency or '—' }}
                     </td>
-                   <td <td>
-                        <span class="badge 
-                            {% if med.category == 'prescription' %}badge-cognitive
-                            {% elif med.category == 'injection' %}badge-migraine
-                            {% elif med.category == 'infusion' %}badge-air
-                            {% elif med.category == 'supplement' %}badge-muscle
-                            {% elif med.category == 'OTC' %}badge-derm
-                            {% else %}badge-emotional{% endif %}">
+                    <td>
+                        {% if med.category == 'prescription' %}
+                            <span class="badge badge-cognitive">prescription</span>
+                        {% elif med.category == 'injection (one-time/periodic IM/IV)' %}
+                            <span class="badge badge-migraine">injection</span>
+                        {% elif med.category == 'infusion (periodic biologic)' %}
+                            <span class="badge badge-air">infusion</span>
+                        {% elif med.category == 'supplement' %}
+                            <span class="badge badge-muscle">supplement</span>
+                        {% elif med.category == 'OTC' %}
+                            <span class="badge badge-derm">OTC</span>
+                        {% else %}
                             {{ med.category or '—' }}
-                        </span>
+                        {% endif %}
                     </td>
                     <td class="mono">{{ med.start_date }}</td>
+                    <td style="color:var(--text-muted); font-size:0.85rem;">
+                        {{ med.indication or '—' }}
+                    </td>
                     <td>
-                        <form method="POST"
-                              action="{{ url_for('end_medication', med_id=med.id) }}"
-                              style="display:inline;">
-                            <input type="hidden" name="end_date" value="{{ today }}">
-                            <button type="submit" class="btn btn-secondary"
-                                    style="padding:2px 8px; font-size:0.8rem;"
-                                    onclick="return confirm('Mark {{ med.drug_name }} as ended today?')">
-                                end
-                            </button>
+                        <div style="display:flex; gap:4px; align-items:center;">
+                            <button class="edit-btn" onclick="editMedication({{ med.id }})" 
+                                    title="edit">✎</button>
+                            <form method="POST"
+                                  action="{{ url_for('end_medication', med_id=med.id) }}"
+                                  style="display:inline;">
+                                <input type="hidden" name="end_date" value="{{ today }}">
+                                <button type="submit" class="btn btn-secondary"
+                                        style="padding:2px 8px; font-size:0.8rem;"
+                                        onclick="return confirm('Mark {{ med.drug_name }} as ended today?')">
+                                    end
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                
+                <!-- Edit row (same as before, full edit form) -->
+                <tr id="med-edit-{{ med.id }}" class="edit-row" style="display:none;">
+                    <td colspan="7">
+                        <form method="POST" action="{{ url_for('update_medication', med_id=med.id) }}">
+                            <div class="inline-edit-grid">
+                                <div class="form-group">
+                                    <label>medication *</label>
+                                    <input type="text" name="drug_name" required 
+                                           value="{{ med.drug_name }}">
+                                </div>
+                                <div class="form-group">
+                                    <label>dose</label>
+                                    <input type="number" name="dose" step="0.01" 
+                                           value="{{ med.dose or '' }}">
+                                </div>
+                                <div class="form-group">
+                                    <label>unit</label>
+                                    <input type="text" name="unit" 
+                                           value="{{ med.unit or '' }}">
+                                </div>
+                                <div class="form-group">
+                                    <label>frequency</label>
+                                    <select name="frequency">
+                                        <option value="">—</option>
+                                        <option value="daily" {% if med.frequency == 'daily' %}selected{% endif %}>daily</option>
+                                        <option value="twice daily" {% if med.frequency == 'twice daily' %}selected{% endif %}>twice daily</option>
+                                        <option value="three times daily" {% if med.frequency == 'three times daily' %}selected{% endif %}>three times daily</option>
+                                        <option value="as needed" {% if med.frequency == 'as needed' %}selected{% endif %}>as needed</option>
+                                        <option value="weekly" {% if med.frequency == 'weekly' %}selected{% endif %}>weekly</option>
+                                        <option value="one-time (injection)" {% if med.frequency == 'one-time (injection)' %}selected{% endif %}>one-time (injection)</option>
+                                        <option value="every 2 weeks" {% if med.frequency == 'every 2 weeks' %}selected{% endif %}>every 2 weeks</option>
+                                        <option value="every 4 weeks (monthly)" {% if med.frequency == 'every 4 weeks (monthly)' %}selected{% endif %}>every 4 weeks (monthly)</option>
+                                        <option value="every 6 weeks" {% if med.frequency == 'every 6 weeks' %}selected{% endif %}>every 6 weeks</option>
+                                        <option value="every 8 weeks" {% if med.frequency == 'every 8 weeks' %}selected{% endif %}>every 8 weeks</option>
+                                        <option value="every 12 weeks (quarterly)" {% if med.frequency == 'every 12 weeks (quarterly)' %}selected{% endif %}>every 12 weeks (quarterly)</option>
+                                        <option value="every 6 months" {% if med.frequency == 'every 6 months' %}selected{% endif %}>every 6 months</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>category</label>
+                                    <select name="category">
+                                        <option value="">—</option>
+                                        <option value="prescription" {% if med.category == 'prescription' %}selected{% endif %}>prescription</option>
+                                        <option value="injection (one-time/periodic IM/IV)" {% if med.category == 'injection (one-time/periodic IM/IV)' %}selected{% endif %}>injection (one-time/periodic IM/IV)</option>
+                                        <option value="infusion (periodic biologic)" {% if med.category == 'infusion (periodic biologic)' %}selected{% endif %}>infusion (periodic biologic)</option>
+                                        <option value="supplement" {% if med.category == 'supplement' %}selected{% endif %}>supplement</option>
+                                        <option value="OTC" {% if med.category == 'OTC' %}selected{% endif %}>OTC</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>start date *</label>
+                                    <input type="date" name="start_date" required 
+                                           value="{{ med.start_date }}">
+                                </div>
+                                <div class="form-group">
+                                    <label>end date</label>
+                                    <input type="date" name="end_date" 
+                                           value="{{ med.end_date or '' }}">
+                                </div>
+                                <div class="form-group" style="grid-column: 1 / -1;">
+                                    <label>indication</label>
+                                    <input type="text" name="indication" 
+                                           value="{{ med.indication or '' }}">
+                                </div>
+                                <div class="form-group" style="grid-column: 1 / -1;">
+                                    <label style="display:flex; align-items:center; gap:var(--space-sm); cursor:pointer;">
+                                        <input type="checkbox" name="is_primary_intervention" value="1"
+                                               {% if med.is_primary_intervention %}checked{% endif %}
+                                               style="accent-color:var(--color-accent);">
+                                        <span>Track as primary intervention on HRV charts</span>
+                                    </label>
+                                </div>
+                                <div class="form-group" style="grid-column: 1 / -1;">
+                                    <label style="display:flex; align-items:center; gap:var(--space-sm); cursor:pointer;">
+                                        <input type="checkbox" name="is_secondary_intervention" value="1"
+                                               {% if med.is_secondary_intervention %}checked{% endif %}
+                                               style="accent-color:var(--color-accent);">
+                                        <span>Track as secondary intervention (reference line)</span>
+                                    </label>
+                                </div>
+                                <div class="form-group" style="grid-column: 1 / -1;">
+                                    <label>notes</label>
+                                    <textarea name="notes" style="min-height:60px;">{{ med.notes or '' }}</textarea>
+                                </div>
+                            </div>
+                            <div class="inline-edit-actions">
+                                <button type="submit" class="btn btn-primary btn-sm">save</button>
+                                <button type="button" class="btn btn-secondary btn-sm" 
+                                        onclick="cancelEdit({{ med.id }}, 'med')">cancel</button>
+                                <button type="button" class="btn btn-danger btn-sm" 
+                                        id="delete-med-{{ med.id }}"
+                                        onclick="confirmDelete({{ med.id }}, 'med')">delete</button>
+                            </div>
                         </form>
                     </td>
                 </tr>
@@ -746,7 +795,9 @@ function editAna(id) {
             </tbody>
         </table>
     </div>
-    {% endif %}
+
+<!-- INACTIVE MEDICATIONS TABLE -->
+<!-- Adds edit/delete to fix mistakes on ended meds -->
 
     {% if inactive %}
     <div class="section-header" style="margin-top:var(--space-xl);">
@@ -756,16 +807,18 @@ function editAna(id) {
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>drug</th>
+                    <th>medication</th>
                     <th>dose</th>
                     <th>started</th>
                     <th>ended</th>
                     <th>indication</th>
+                    <th style="width:40px;"></th>
                 </tr>
             </thead>
             <tbody>
-                {% for med in inactive | sort(attribute='start_date', reverse=True) %}
-                <tr style="opacity:0.6;">
+                {% for med in inactive | sort(attribute='end_date', reverse=True) %}
+                <!-- Read-only row -->
+                <tr id="med-inactive-row-{{ med.id }}" class="data-row" style="opacity:0.6;">
                     <td>{{ med.drug_name }}</td>
                     <td class="mono">
                         {% if med.dose %}{{ med.dose }}{% endif %}
@@ -776,16 +829,63 @@ function editAna(id) {
                     <td style="color:var(--text-muted); font-size:0.85rem;">
                         {{ med.indication or '—' }}
                     </td>
+                    <td>
+                        <button class="edit-btn" onclick="editInactiveMedication({{ med.id }})" 
+                                title="edit">✎</button>
+                    </td>
+                </tr>
+                
+                <!-- Edit row -->
+                <tr id="med-inactive-edit-{{ med.id }}" class="edit-row" style="display:none;">
+                    <td colspan="6">
+                        <form method="POST" action="{{ url_for('update_medication', med_id=med.id) }}">
+                            <div class="inline-edit-grid">
+                                <div class="form-group">
+                                    <label>medication *</label>
+                                    <input type="text" name="drug_name" required 
+                                           value="{{ med.drug_name }}">
+                                </div>
+                                <div class="form-group">
+                                    <label>dose</label>
+                                    <input type="number" name="dose" step="0.01" 
+                                           value="{{ med.dose or '' }}">
+                                </div>
+                                <div class="form-group">
+                                    <label>unit</label>
+                                    <input type="text" name="unit" 
+                                           value="{{ med.unit or '' }}">
+                                </div>
+                                <div class="form-group">
+                                    <label>start date *</label>
+                                    <input type="date" name="start_date" required 
+                                           value="{{ med.start_date }}">
+                                </div>
+                                <div class="form-group">
+                                    <label>end date</label>
+                                    <input type="date" name="end_date" 
+                                           value="{{ med.end_date or '' }}"
+                                           placeholder="Clear to reactivate">
+                                </div>
+                                <div class="form-group" style="grid-column: 1 / -1;">
+                                    <label>indication</label>
+                                    <input type="text" name="indication" 
+                                           value="{{ med.indication or '' }}">
+                                </div>
+                            </div>
+                            <div class="inline-edit-actions">
+                                <button type="submit" class="btn btn-primary btn-sm">save</button>
+                                <button type="button" class="btn btn-secondary btn-sm" 
+                                        onclick="cancelEdit({{ med.id }}, 'med-inactive')">cancel</button>
+                                <button type="button" class="btn btn-danger btn-sm" 
+                                        id="delete-med-inactive-{{ med.id }}"
+                                        onclick="confirmDelete({{ med.id }}, 'med-inactive')">delete</button>
+                            </div>
+                        </form>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
-    </div>
-    {% endif %}
-
-    {% if not meds %}
-    <div class="empty-state">
-        <p>No medications recorded yet.</p>
     </div>
     {% endif %}
 </div>
@@ -800,6 +900,7 @@ function editAna(id) {
             + add event
         </button>
     </div>
+
 
     <div class="add-form-panel" id="form-event">
         <form method="POST" action="{{ url_for('add_event') }}">
@@ -956,16 +1057,9 @@ function editAna(id) {
 {% else %}
 <div class="empty-state">
     <p>No clinical events recorded yet.</p>
-</div>
 {% endif %}
-
-<script>
-function editEvent(id) {
-    document.getElementById(`event-row-${id}`).style.display = 'none';
-    document.getElementById(`event-edit-${id}`).style.display = 'table-row';
-}
-</script>
 </div>
+
 
 <!--============================================================
 CLINICIANS TAB
@@ -1139,16 +1233,6 @@ CLINICIANS TAB
 </div>
 
 <script>
-function editClinician(id) {
-    document.getElementById(`clinician-row-${id}`).style.display = 'none';
-    document.getElementById(`clinician-edit-${id}`).style.display = 'table-row';
-}
-</script>
-
-{% endblock %}
-
-{% block scripts %}
-<script>
 
 // ============================================================
 // Tab switching
@@ -1185,8 +1269,123 @@ window.addEventListener('DOMContentLoaded', () => {
         switchTab(hash);
     }
 });
-</script>
 
+//========================================================
+// Edit/Cancel/Delete
+//========================================================
+function cancelEdit(id, type) {
+    if (type === 'lab') {
+        document.getElementById(`lab-row-${id}`).style.display = 'table-row';
+        document.getElementById(`lab-edit-${id}`).style.display = 'none';
+    } else if (type === 'ana') {
+        document.getElementById(`ana-row-${id}`).style.display = 'table-row';
+        document.getElementById(`ana-edit-${id}`).style.display = 'none';
+    } else if (type === 'event') {
+        document.getElementById(`event-row-${id}`).style.display = 'table-row';
+        document.getElementById(`event-edit-${id}`).style.display = 'none';
+    } else if (type === 'clinician') {
+        document.getElementById(`clinician-row-${id}`).style.display = 'table-row';
+        document.getElementById(`clinician-edit-${id}`).style.display = 'none';
+    } else if (type === 'med') {
+        document.getElementById(`med-row-${id}`).style.display = 'table-row';
+        document.getElementById(`med-edit-${id}`).style.display = 'none';
+    } else if (type === 'med-inactive') {  
+        document.getElementById(`med-inactive-row-${id}`).style.display = 'table-row';
+        document.getElementById(`med-inactive-edit-${id}`).style.display = 'none';
+    }
+}
+
+function confirmDelete(id, type) {
+    let entityName = '';
+    let deleteUrl = '';
+    
+    if (type === 'lab') {
+        entityName = 'lab result';
+        deleteUrl = `/lab/delete/${id}`;
+    } else if (type === 'ana') {
+        entityName = 'ANA result';
+        deleteUrl = `/ana/delete/${id}`;
+    } else if (type === 'event') {
+        entityName = 'clinical event';
+        deleteUrl = `/event/delete/${id}`;
+    } else if (type === 'clinician') {
+        entityName = 'clinician';
+        deleteUrl = `/clinician/delete/${id}`;
+    } else if (type === 'med' || type === 'med-inactive') {  
+        entityName = 'medication';
+        deleteUrl = `/medication/delete/${id}`;
+    }
+    
+    const btn = document.getElementById(`delete-${type}-${id}`);
+    
+    if (btn.classList.contains('confirm-delete')) {
+        // Second click - actually delete
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = deleteUrl;
+        document.body.appendChild(form);
+        form.submit();
+    } else {
+        // First click - show warning
+        btn.textContent = `delete ${entityName}?`;
+        btn.classList.add('confirm-delete');
+        setTimeout(() => {
+            btn.textContent = 'delete';
+            btn.classList.remove('confirm-delete');
+        }, 3000);
+    }
+}
+
+function executeDelete(id, type) {
+    // Second click - actually delete
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = `/ana/delete/${id}`;  // Update this based on type
+    form.action = `/lab/delete/${id}`;  
+    form.action = `/event/delete/${id}`;  
+    form.action = `/clinician/delete/${id}`;  
+    form.action = `/medication/delete/${id}`;  
+    form.action = `/med-inactive/delete/${id}`;  
+
+    if (type === 'ana') form.action = `/ana/delete/${id}`;
+    if (type === 'event') form.action = `/event/delete/${id}`;
+    if (type === 'clinician') form.action = `/clinician/delete/${id}`;
+    if (type === 'med') form.action = `/medication/delete/${id}`;
+    if (type === 'med-inactive') form.action = `/medication/delete/${id}`;
+    if (type === 'lab') form.action = `/lab/delete/${id}`;
+
+    document.body.appendChild(form);
+    form.submit();
+    }
+    function editInactiveMedication(id) {
+    document.getElementById(`med-inactive-row-${id}`).style.display = 'none';
+    document.getElementById(`med-inactive-edit-${id}`).style.display = 'table-row';
+    }
+
+
+    function editClinician(id) {
+    document.getElementById(`clinician-row-${id}`).style.display = 'none';
+    document.getElementById(`clinician-edit-${id}`).style.display = 'table-row';
+    }
+
+
+    function editEvent(id) {
+    document.getElementById(`event-row-${id}`).style.display = 'none';
+    document.getElementById(`event-edit-${id}`).style.display = 'table-row';
+    }
+
+    function editLab(id) {
+    // Hide read row, show edit row
+    document.getElementById(`lab-row-${id}`).style.display = 'none';
+    document.getElementById(`lab-edit-${id}`).style.display = 'table-row';
+    }
+
+    function editAna(id) {
+    document.getElementById(`ana-row-${id}`).style.display = 'none';
+    document.getElementById(`ana-edit-${id}`).style.display = 'table-row';
+    }
+{% endif %}
+</script>
 <style>
 .tab-nav {
     display: flex;
@@ -1257,6 +1456,7 @@ window.addEventListener('DOMContentLoaded', () => {
 @media (max-width: 600px) {
     .tab-btn { font-size: 0.8rem; padding: var(--space-xs) var(--space-sm); }
     .form-grid { grid-template-columns: 1fr; }
-}
 </style>
+
 {% endblock %}
+

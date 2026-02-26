@@ -69,12 +69,16 @@
             <span class="checkbox-label air">air hunger</span>
         </label>
         <label class="symptom-checkbox">
+                    <input type="checkbox" value="rheumatic" data-color="#e85d9e">
+                    <span style="color:#e85d9e;">rheumatic</span>
+                </label>
+        <label class="symptom-checkbox">
             <input type="checkbox" value="dermatological" data-color="#d4784a">
             <span class="checkbox-label derm">dermatological</span>
         </label>
         <label class="symptom-checkbox">
             <input type="checkbox" value="word_loss" data-color="#b8aee8">
-            <span class="checkbox-label emotional">word loss</span>
+            <span class="checkbox-label word">word loss</span>
         </label>
     </div>
     
@@ -83,7 +87,7 @@
         <div class="form-group" style="flex:1; min-width:200px;">
             <label>compare with</label>
             <select id="metric-select">
-                <option value="uv_noon">UV index (noon)</option>
+                <option value="uv_dose">UV dose (index × minutes)</option>
                 <option value="basal_temp_delta">basal temp delta</option>
                 <option value="hrv">HRV</option>
                 <option value="hours_slept">hours slept</option>
@@ -158,9 +162,17 @@ function buildFlareAnalysis() {
     const container = document.getElementById('flare-analysis');
     const daily = TIMELINE_DATA.daily;
     const uvData = TIMELINE_DATA.uv;
-    
+
+   // Build UV index lookup  
     const uvByDate = {};
     uvData.forEach(u => { uvByDate[u.date] = u.uv_noon || 0; });
+    // Build UV dose lookup (index × sun minutes)
+    const uvDoseByDate = {};
+    daily.forEach(d => {
+        const uvNoon = uvByDate[d.date];
+        const sunMin = d.sun_exposure_min || 0;
+        uvDoseByDate[d.date] = uvNoon ? (uvNoon * sunMin) : 0;
+    });
     
     const flareDays = daily.filter(d => d.flare_occurred === 1).reverse(); // newest first
     
@@ -185,9 +197,11 @@ function buildFlareAnalysis() {
         if (day.musculature) symptoms.push({ name: 'musculature', color: '#d4a054', notes: day.musculature_notes });
         if (day.migraine) symptoms.push({ name: 'migraine', color: '#c94040', notes: day.migraine_notes });
         if (day.air_hunger) symptoms.push({ name: 'air hunger', color: '#4ab8b8', notes: day.air_hunger_notes });
+        if (day.rheumatic) symptoms.push({ name: 'rheumatic', color: '#e85d9e', notes: day.rheumatic_notes });
         if (day.dermatological) symptoms.push({ name: 'dermatological', color: '#d4784a', notes: day.derm_notes });
         if (day.word_loss) symptoms.push({ name: 'word loss', color: '#b8aee8', notes: day.emotional_notes });
-        
+        if (day.rheumatic) symptoms.push({ name: 'rheumatic', color: '#e85d9e', notes: day.rheumatic_notes });
+
         const symptomBadges = symptoms.map(s => 
             `<span class="symptom-badge" style="background:${s.color}22; color:${s.color}; border:1px solid ${s.color}44;">
                 ${s.name}
@@ -204,7 +218,7 @@ function buildFlareAnalysis() {
                </div>`
             : '';
         
-        const uv = uvByDate[day.date];
+        const uvDose = uvDoseByDate[day.date] || 0;
         const uvStr = uv !== undefined ? `${uv.toFixed(1)}` : '—';
         const tempStr = day.basal_temp_delta !== null ? `${day.basal_temp_delta > 0 ? '+' : ''}${day.basal_temp_delta.toFixed(2)}°F` : '—';
         const sleepStr = day.hours_slept !== null ? `${day.hours_slept.toFixed(1)}h` : '—';
@@ -218,7 +232,7 @@ function buildFlareAnalysis() {
                         { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
                 </div>
                 <div class="flare-metrics">
-                    <span title="UV noon">☀️ ${uvStr}</span>
+                    <span title="UV dose">☀️ ${uvDose.toFixed(0)}</span>
                     <span title="Basal temp delta">🌡️ ${tempStr}</span>
                     <span title="Hours slept">😴 ${sleepStr}</span>
                     <span title="Pain">💢 ${painStr}</span>
@@ -268,17 +282,25 @@ function generateComparison() {
     });
     
     // UV mapping
+    // Build UV lookup
     const uvByDate = {};
     uvData.forEach(u => { uvByDate[u.date] = u.uv_noon || 0; });
     
-    // Metric data
-    let metricData, metricLabel, metricColor, metricAxis;
+    // Build UV dose lookup (index × sun minutes)
+    const uvDoseByDate = {};
+    daily.forEach(d => {
+        const uvNoon = uvByDate[d.date];
+        const sunMin = d.sun_exposure_min || 0;
+        uvDoseByDate[d.date] = uvNoon ? (uvNoon * sunMin) : 0;
+    });
     
-    if (metric === 'uv_noon') {
-        metricData = dates.map(d => uvByDate[d] !== undefined ? uvByDate[d] : null);
-        metricLabel = 'UV index';
+    // Build metric data
+    let metricData = [];
+    if (metric === 'uv_dose') {
+        metricData = dates.map(d => uvDoseByDate[d] || null);
+        metricLabel = 'UV dose (index × min)';
         metricColor = '#d4b84a';
-        metricAxis = { min: 0, position: 'right', title: 'UV index' };
+        metricAxis = { min: 0, position: 'right', title: 'UV dose' };
     } else if (metric === 'basal_temp_delta') {
         metricData = daily.map(d => d.basal_temp_delta);
         metricLabel = 'temp delta (°F)';
@@ -356,13 +378,13 @@ function generateComparison() {
         label: metricLabel,
         data: metricData,
         borderColor: metricColor,
-        backgroundColor: metric === 'uv_noon' 
-            ? `${metricColor}33`
+        backgroundColor: metric === 'uv_dose' 
+            ? 'rgba(212,184,74,0.1)'
             : 'transparent',
-        borderWidth: 1.5,
-        pointRadius: 0,
-        tension: 0.4,
-        fill: metric === 'uv_noon',
+        borderColor: metricColor,
+        borderWidth: 2,
+        pointRadius: 3,
+        fill: metric === 'uv_dose',
         spanGaps: true,
         yAxisID: 'yMetric',
     });
@@ -575,8 +597,9 @@ window.addEventListener('DOMContentLoaded', () => {
 .checkbox-label.muscle      { color: #d4a054; }
 .checkbox-label.migraine    { color: #c94040; }
 .checkbox-label.air         { color: #4ab8b8; }
+.checkbox-label.rheumatic   { color: #e85d9e; }
 .checkbox-label.derm        { color: #d4784a; }
-.checkbox-label.emotional   { color: #b8aee8; }
+.checkbox-label.word        { color: #b8aee8; }
 
 .comparison-controls {
     display: flex;
