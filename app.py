@@ -188,14 +188,38 @@ def timeline():
         end_date = request.args.get("end")
 
     data = db.get_timeline_data(start_date, end_date)
+    
+    # Get primary intervention info
+    all_meds = db.get_all_medications()
+    primary_med = next((m for m in all_meds if m.get("is_primary_intervention") == 1), None)
+    
+    intervention_date = None
+    intervention_name = None
+    if primary_med:
+        intervention_date = primary_med["start_date"]
+        intervention_name = primary_med["drug_name"]
+    
+    # Extract flare days from daily observations
+    flare_days = [
+        obs["date"] 
+        for obs in data.get("daily", []) 
+        if obs.get("flare_occurred") == 1
+    ]  
+
+    day_count = len(data.get("daily", []))
 
     return render_template(
         "timeline.html",
         start_date=start_date,
         end_date=end_date,
-        # Pass as JSON for Chart.js
         timeline_json=json.dumps(data, default=str),
+        intervention_date=intervention_date,
+        intervention_name=intervention_name,
+        flare_days_json=json.dumps(flare_days),
+        day_count=day_count,  
     )
+
+ 
 
 
 # ============================================================
