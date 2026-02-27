@@ -894,7 +894,6 @@
      EVENTS TAB
      ============================================================ -->
 <div class="tab-panel" id="tab-events">
-
     <div class="add-toggle-row">
         <button class="btn btn-secondary" onclick="toggleForm('form-event')">
             + add event
@@ -1059,6 +1058,7 @@
     <p>No clinical events recorded yet.</p>
 {% endif %}
 </div>
+
 
 
 <!--============================================================
@@ -1336,27 +1336,6 @@ function confirmDelete(id, type) {
     }
 }
 
-function executeDelete(id, type) {
-    // Second click - actually delete
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = `/ana/delete/${id}`;  // Update this based on type
-    form.action = `/lab/delete/${id}`;  
-    form.action = `/event/delete/${id}`;  
-    form.action = `/clinician/delete/${id}`;  
-    form.action = `/medication/delete/${id}`;  
-    form.action = `/med-inactive/delete/${id}`;  
-
-    if (type === 'ana') form.action = `/ana/delete/${id}`;
-    if (type === 'event') form.action = `/event/delete/${id}`;
-    if (type === 'clinician') form.action = `/clinician/delete/${id}`;
-    if (type === 'med') form.action = `/medication/delete/${id}`;
-    if (type === 'med-inactive') form.action = `/medication/delete/${id}`;
-    if (type === 'lab') form.action = `/lab/delete/${id}`;
-
-    document.body.appendChild(form);
-    form.submit();
-    }
     function editInactiveMedication(id) {
     document.getElementById(`med-inactive-row-${id}`).style.display = 'none';
     document.getElementById(`med-inactive-edit-${id}`).style.display = 'table-row';
@@ -1384,7 +1363,7 @@ function executeDelete(id, type) {
     document.getElementById(`ana-row-${id}`).style.display = 'none';
     document.getElementById(`ana-edit-${id}`).style.display = 'table-row';
     }
-{% endif %}
+
 </script>
 <style>
 .tab-nav {
