@@ -152,6 +152,7 @@ const TIMELINE_DATA = {{ timeline_json | safe }};
 const FLARE_DAYS = {{ flare_days_json | safe }};
 const INTERVENTION_DATE = {{ intervention_date | tojson }};
 const INTERVENTION_NAME = {{ intervention_name | tojson }};
+const SECONDARY_INTERVENTIONS = {{ secondary_interventions_json | safe }};
 let comparisonChart = null;
 
 // Date range management
@@ -197,9 +198,22 @@ function toggleComparison() {
 // FLARE PREDICTOR ANALYSIS
 // ============================================================
 
+
+
 function computeFlareStats() {
     const daily = TIMELINE_DATA.daily;
     const uvData = TIMELINE_DATA.uv;
+    
+    // Require at least 30 days of data
+    if (daily.length < 30) {
+        document.getElementById('flare-stats').innerHTML = `
+            <div style="color:var(--text-muted); padding:var(--space-lg); text-align:center;">
+                At least 30 days of observations required for flare prediction analysis.
+                Currently tracking ${daily.length} days.
+            </div>
+        `;
+        return null;
+    }
     
     // Get flare days
     const flareDays = daily.filter(d => d.flare_occurred === 1);
@@ -208,6 +222,16 @@ function computeFlareStats() {
         document.getElementById('flare-stats').innerHTML = `
             <div style="color:var(--text-muted); padding:var(--space-lg); text-align:center;">
                 No flare days recorded in this date range.
+            </div>
+        `;
+        return null;
+    }
+    
+    // Need at least 3 flares for meaningful statistics
+    if (flareDays.length < 3) {
+        document.getElementById('flare-stats').innerHTML = `
+            <div style="color:var(--text-muted); padding:var(--space-lg); text-align:center;">
+                At least 3 flare days required for statistical analysis. Currently have ${flareDays.length}.
             </div>
         `;
         return null;
@@ -224,20 +248,76 @@ function computeFlareStats() {
         uvDoseByDate[d.date] = uvNoon ? (uvNoon * sunMin) : 0;
     });
     
-    // For each flare, look at 3 days before
-    const metrics = {
-        uv_dose: { high: 0, label: 'High UV dose (>300)', threshold: 300, compare: (v) => v > 300 },
-        hrv: { low: 0, label: 'Low HRV (<50ms)', threshold: 50, compare: (v) => v < 50 },
-        hours_slept: { low: 0, label: 'Poor sleep (<6h)', threshold: 6, compare: (v) => v < 6 },
-        steps: { low: 0, label: 'Low activity (<3000 steps)', threshold: 3000, compare: (v) => v < 3000 },
-        basal_temp_delta: { high: 0, label: 'Elevated temp (>0.5°F)', threshold: 0.5, compare: (v) => v > 0.5 }
+    // Calculate personal baselines (mean of non-flare days)
+    const nonFlareDays = daily.filter(d => d.flare_occurred !== 1);
+    
+    const baselines = {
+        uv_dose: calculateMean(nonFlareDays.map(d => uvDoseByDate[d.date]).filter(v => v != null)),
+        hrv: calculateMean(nonFlareDays.map(d => d.hrv).filter(v => v != null)),
+        hours_slept: calculateMean(nonFlareDays.map(d => d.hours_slept).filter(v => v != null)),
+        steps: calculateMean(nonFlareDays.map(d => d.steps).filter(v => v != null)),
+        basal_temp_delta: calculateMean(nonFlareDays.map(d => d.basal_temp_delta).filter(v => v != null))
     };
     
+    // Define metrics with trend-based thresholds
+    const metrics = {
+        uv_dose: {
+            label: 'Elevated UV exposure',
+            threshold: baselines.uv_dose * 1.5, // 50% above personal average
+            compare: (v) => v > baselines.uv_dose * 1.5,
+            direction: 'high'
+        },
+        hrv: {
+            label: 'Low HRV',
+            threshold: baselines.hrv * 0.85, // 15% below personal average
+            compare: (v) => v < baselines.hrv * 0.85,
+            direction: 'low'
+        },
+        hours_slept: {
+            label: 'Poor sleep',
+            threshold: baselines.hours_slept * 0.85, // 15% below average
+            compare: (v) => v < baselines.hours_slept * 0.85,
+            direction: 'low'
+        },
+        steps: {
+            label: 'Low activity',
+            threshold: baselines.steps * 0.7, // 30% below average
+            compare: (v) => v < baselines.steps * 0.7,
+            direction: 'low'
+        },
+        basal_temp_delta: {
+            label: 'Elevated temperature',
+            threshold: baselines.basal_temp_delta + 0.3, // 0.3°F above average
+            compare: (v) => v > baselines.basal_temp_delta + 0.3,
+            direction: 'high'
+        }
+    };
+    
+    // Weighted lag analysis (based on UV lag findings)
+    // 24h and 48h lags are most predictive, weight them more heavily
+    const lagWeights = {
+        1: 1.0,   // same day - weight 1.0
+        2: 1.5,   // 24h lag - weight 1.5 (most important)
+        3: 1.5,   // 48h lag - weight 1.5 (most important)
+        4: 0.75   // 72h lag - weight 0.75 (less important)
+    };
+    
+    // For each metric, collect flare-adjacent values and control values
+    const metricData = {};
+    Object.keys(metrics).forEach(key => {
+        metricData[key] = {
+            flareAdjacent: [],  // values in lag windows before flares
+            control: [],        // values at other times
+            weights: []         // weights for each flare-adjacent value
+        };
+    });
+    
+    // Collect flare-adjacent values
     flareDays.forEach(flare => {
         const flareDate = new Date(flare.date);
         
-        // Check 3 days before flare
-        for (let lag = 1; lag <= 3; lag++) {
+        // Check 1-4 day lags
+        for (let lag = 1; lag <= 4; lag++) {
             const checkDate = new Date(flareDate);
             checkDate.setDate(checkDate.getDate() - lag);
             const dateStr = checkDate.toISOString().split('T')[0];
@@ -245,62 +325,193 @@ function computeFlareStats() {
             const dayData = daily.find(d => d.date === dateStr);
             if (!dayData) continue;
             
-            // Check UV dose
+            const weight = lagWeights[lag];
+            
+            // UV dose
             const uvDose = uvDoseByDate[dateStr];
-            if (uvDose && metrics.uv_dose.compare(uvDose)) {
-                metrics.uv_dose.high++;
+            if (uvDose != null) {
+                metricData.uv_dose.flareAdjacent.push(uvDose);
+                metricData.uv_dose.weights.push(weight);
             }
             
-            // Check HRV
-            if (dayData.hrv && metrics.hrv.compare(dayData.hrv)) {
-                metrics.hrv.low++;
+            // HRV
+            if (dayData.hrv != null) {
+                metricData.hrv.flareAdjacent.push(dayData.hrv);
+                metricData.hrv.weights.push(weight);
             }
             
-            // Check sleep
-            if (dayData.hours_slept !== null && metrics.hours_slept.compare(dayData.hours_slept)) {
-                metrics.hours_slept.low++;
+            // Sleep
+            if (dayData.hours_slept != null) {
+                metricData.hours_slept.flareAdjacent.push(dayData.hours_slept);
+                metricData.hours_slept.weights.push(weight);
             }
             
-            // Check steps
-            if (dayData.steps && metrics.steps.compare(dayData.steps)) {
-                metrics.steps.low++;
+            // Steps
+            if (dayData.steps != null) {
+                metricData.steps.flareAdjacent.push(dayData.steps);
+                metricData.steps.weights.push(weight);
             }
             
-            // Check temp
-            if (dayData.basal_temp_delta !== null && metrics.basal_temp_delta.compare(dayData.basal_temp_delta)) {
-                metrics.basal_temp_delta.high++;
+            // Temp
+            if (dayData.basal_temp_delta != null) {
+                metricData.basal_temp_delta.flareAdjacent.push(dayData.basal_temp_delta);
+                metricData.basal_temp_delta.weights.push(weight);
             }
         }
     });
     
-    // Calculate percentages and find strongest predictor
+    // Collect control values (non-flare days, excluding 4 days before any flare)
+    const flareExclusionDates = new Set();
+    flareDays.forEach(flare => {
+        const flareDate = new Date(flare.date);
+        for (let lag = 0; lag <= 4; lag++) {
+            const excludeDate = new Date(flareDate);
+            excludeDate.setDate(excludeDate.getDate() - lag);
+            flareExclusionDates.add(excludeDate.toISOString().split('T')[0]);
+        }
+    });
+    
+    nonFlareDays.forEach(day => {
+        if (flareExclusionDates.has(day.date)) return;
+        
+        const uvDose = uvDoseByDate[day.date];
+        if (uvDose != null) metricData.uv_dose.control.push(uvDose);
+        if (day.hrv != null) metricData.hrv.control.push(day.hrv);
+        if (day.hours_slept != null) metricData.hours_slept.control.push(day.hours_slept);
+        if (day.steps != null) metricData.steps.control.push(day.steps);
+        if (day.basal_temp_delta != null) metricData.basal_temp_delta.control.push(day.basal_temp_delta);
+    });
+    
+    // Calculate statistics for each metric
     const predictors = [];
     Object.keys(metrics).forEach(key => {
         const m = metrics[key];
-        const count = m.high || m.low || 0;
-        const percent = Math.round((count / (flareDays.length * 3)) * 100);
+        const data = metricData[key];
         
-        if (percent > 0) {
-            predictors.push({
-                metric: key,
-                label: m.label,
-                percent: percent,
-                count: count,
-                threshold: m.threshold
-            });
-        }
+        if (data.flareAdjacent.length < 3 || data.control.length < 5) return;
+        
+        // Weighted mean for flare-adjacent values
+        const flareWeightedMean = calculateWeightedMean(data.flareAdjacent, data.weights);
+        const controlMean = calculateMean(data.control);
+        
+        // Calculate how many flare-adjacent values crossed threshold
+        const crossedCount = data.flareAdjacent.reduce((sum, val, i) => {
+            return sum + (m.compare(val) ? data.weights[i] : 0);
+        }, 0);
+        
+        const totalWeight = data.weights.reduce((a, b) => a + b, 0);
+        const percentCrossed = Math.round((crossedCount / totalWeight) * 100);
+        
+        // T-test for significance
+        const tTest = calculateTTest(data.flareAdjacent, data.control);
+        
+        // Effect size (Cohen's d)
+        const effectSize = calculateCohenD(data.flareAdjacent, data.control);
+        
+        predictors.push({
+            metric: key,
+            label: m.label,
+            threshold: m.threshold,
+            direction: m.direction,
+            percentCrossed: percentCrossed,
+            flareMean: flareWeightedMean,
+            controlMean: controlMean,
+            pValue: tTest.p,
+            tStat: tTest.t,
+            effectSize: effectSize,
+            n: data.flareAdjacent.length,
+            significant: tTest.p < 0.05 && Math.abs(effectSize) > 0.3
+        });
     });
     
-    // Sort by percent
-    predictors.sort((a, b) => b.percent - a.percent);
+    // Sort by effect size (strongest predictors first)
+    predictors.sort((a, b) => Math.abs(b.effectSize) - Math.abs(a.effectSize));
+    
+    // Filter to only significant predictors
+    const significantPredictors = predictors.filter(p => p.significant);
     
     return {
         flareDays: flareDays,
-        predictors: predictors,
-        strongest: predictors[0] || null
+        predictors: significantPredictors.length > 0 ? significantPredictors : predictors.slice(0, 3),
+        strongest: significantPredictors.length > 0 ? significantPredictors[0] : predictors[0],
+        baselines: baselines
     };
 }
 
+// Helper: Calculate mean
+function calculateMean(values) {
+    if (values.length === 0) return 0;
+    return values.reduce((a, b) => a + b, 0) / values.length;
+}
+
+// Helper: Calculate weighted mean
+function calculateWeightedMean(values, weights) {
+    if (values.length === 0) return 0;
+    const weightedSum = values.reduce((sum, val, i) => sum + (val * weights[i]), 0);
+    const totalWeight = weights.reduce((a, b) => a + b, 0);
+    return weightedSum / totalWeight;
+}
+
+// Helper: Calculate standard deviation
+function calculateStdDev(values) {
+    if (values.length < 2) return 0;
+    const mean = calculateMean(values);
+    const squareDiffs = values.map(v => Math.pow(v - mean, 2));
+    const variance = squareDiffs.reduce((a, b) => a + b, 0) / (values.length - 1);
+    return Math.sqrt(variance);
+}
+
+// Helper: Calculate two-sample t-test
+function calculateTTest(sample1, sample2) {
+    const n1 = sample1.length;
+    const n2 = sample2.length;
+    
+    if (n1 < 2 || n2 < 2) return { t: 0, p: 1 };
+    
+    const mean1 = calculateMean(sample1);
+    const mean2 = calculateMean(sample2);
+    const std1 = calculateStdDev(sample1);
+    const std2 = calculateStdDev(sample2);
+    
+    // Pooled standard error
+    const se = Math.sqrt((std1 * std1 / n1) + (std2 * std2 / n2));
+    
+    if (se === 0) return { t: 0, p: 1 };
+    
+    const t = (mean1 - mean2) / se;
+    const df = n1 + n2 - 2;
+    
+    // Approximate p-value using t-distribution
+    // For simplicity, using conservative thresholds
+    let p;
+    const absT = Math.abs(t);
+    if (absT < 1.96) p = 0.05;
+    else if (absT < 2.576) p = 0.01;
+    else if (absT < 3.291) p = 0.001;
+    else p = 0.0001;
+    
+    return { t: t, p: p };
+}
+
+// Helper: Calculate Cohen's d (effect size)
+function calculateCohenD(sample1, sample2) {
+    const mean1 = calculateMean(sample1);
+    const mean2 = calculateMean(sample2);
+    const std1 = calculateStdDev(sample1);
+    const std2 = calculateStdDev(sample2);
+    
+    // Pooled standard deviation
+    const n1 = sample1.length;
+    const n2 = sample2.length;
+    const pooledStd = Math.sqrt(((n1 - 1) * std1 * std1 + (n2 - 1) * std2 * std2) / (n1 + n2 - 2));
+    
+    if (pooledStd === 0) return 0;
+    
+    return (mean1 - mean2) / pooledStd;
+}
+
+
+// Flare statistics
 function displayFlareStats() {
     const stats = computeFlareStats();
     
@@ -318,16 +529,22 @@ function displayFlareStats() {
                     border-left:3px solid ${i === 0 ? 'var(--color-accent)' : 'var(--border-medium)'};">
             <div style="font-size:0.8rem; color:var(--text-muted); text-transform:uppercase; 
                         letter-spacing:0.5px; margin-bottom:4px;">
-                ${i === 0 ? '⭐ strongest predictor' : `predictor #${i + 1}`}
+                ${i === 0 ? '✰ strongest predictor' : `predictor #${i + 1}`}
             </div>
-            <div style="font-size:2rem; font-weight:600; color:var(--text-primary); margin:4px 0;">
-                ${p.percent}%
-            </div>
-            <div style="color:var(--text-secondary); font-size:0.9rem;">
+            <div style="font-size:1.8rem; font-weight:600; color:var(--text-primary); margin:4px 0;">
                 ${p.label}
             </div>
-            <div style="color:var(--text-muted); font-size:0.8rem; margin-top:4px;">
-                Preceded ${p.count} of ${stats.flareDays.length * 3} flare-adjacent days
+            <div style="color:var(--text-secondary); font-size:0.9rem; margin:8px 0;">
+                ${p.direction === 'high' ? 'Flare average' : 'Flare average'}: 
+                <strong>${p.flareMean.toFixed(1)}</strong> vs 
+                normal: <strong>${p.controlMean.toFixed(1)}</strong>
+            </div>
+            <div style="color:var(--text-muted); font-size:0.8rem;">
+                Effect size: <strong>d = ${p.effectSize.toFixed(2)}</strong> • 
+                p ${p.pValue < 0.0001 ? '< 0.0001' : '= ' + p.pValue.toFixed(4)}
+            </div>
+            <div style="color:var(--text-muted); font-size:0.75rem; margin-top:4px;">
+                Based on ${p.n} flare-adjacent observations (weighted by lag)
             </div>
         </div>
     `).join('');
@@ -335,6 +552,7 @@ function displayFlareStats() {
     // Generate overview chart
     generateFlareOverview(stats);
 }
+
 
 function generateFlareOverview(stats) {
     if (!stats || !stats.strongest) return;
@@ -385,28 +603,49 @@ function generateFlareOverview(stats) {
         metricColor = '#d4784a';
     }
     
+    // Build flare marker data (stars at the metric value on flare days)
+    const flareMarkerData = dates.map((d, i) => {
+        return FLARE_DAYS.includes(d) ? metricData[i] : null;
+    });
+    
     new Chart(document.getElementById('flareOverviewChart'), {
         type: 'line',
         data: {
             labels: dateLabels,
-            datasets: [{
-                label: metricLabel,
-                data: metricData,
-                borderColor: metricColor,
-                backgroundColor: 'transparent',
-                borderWidth: 2,
-                pointRadius: 2,
-                tension: 0.3
-            }]
+            datasets: [
+                // Main metric line
+                {
+                    label: metricLabel,
+                    data: metricData,
+                    borderColor: metricColor,
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    pointRadius: 2,
+                    tension: 0.3,
+                    order: 2
+                },
+                // Flare day stars
+                {
+                    label: 'Flare days',
+                    data: flareMarkerData,
+                    type: 'scatter',
+                    borderColor: '#ffffff',
+                    backgroundColor: '#ffffff',
+                    pointStyle: 'star',
+                    pointRadius: 8,
+                    pointHoverRadius: 10,
+                    order: 1  // Draw on top
+                }
+            ]
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false,
+            maintainAspectRatio: true,
             interaction: { mode: 'index', intersect: false },
             plugins: {
                 verticalLines: {
+                    dates: dates,  //the dates array
                     lines: [
-                        // Intervention line
                         ...(INTERVENTION_DATE && dates.includes(INTERVENTION_DATE) ? [{
                             date: INTERVENTION_DATE,
                             color: '#4ab8b8',
@@ -414,12 +653,14 @@ function generateFlareOverview(stats) {
                             dash: [5, 3],
                             label: INTERVENTION_NAME ? INTERVENTION_NAME.substring(0, 12) : 'Intervention'
                         }] : []),
-                        // Flare days (white)
-                        ...FLARE_DAYS.filter(d => dates.includes(d)).map(d => ({
-                            date: d,
-                            color: 'rgba(255, 255, 255, 0.5)',
-                            width: 2
-                        }))
+                        ...SECONDARY_INTERVENTIONS
+                            .filter(si => dates.includes(si.start_date))
+                            .map(si => ({
+                                date: si.start_date,
+                                color: '#9b72cf',
+                                width: 1.5,
+                                label: si.drug_name.substring(0, 10)
+                            }))
                     ]
                 },
                 legend: {
@@ -430,7 +671,22 @@ function generateFlareOverview(stats) {
                     borderColor: '#2a2a38',
                     borderWidth: 1,
                     padding: 8,
-                    cornerRadius: 6
+                    cornerRadius: 6,
+                    callbacks: {
+                        afterLabel: (context) => {
+                            const date = dates[context.dataIndex];
+                            const labels = [];
+                            
+                            if (FLARE_DAYS.includes(date)) {
+                                labels.push('☣ Flare day');
+                            }
+                            if (date === INTERVENTION_DATE) {
+                                labels.push(`⚕️ ${INTERVENTION_NAME} started`);
+                            }
+                            
+                            return labels.length > 0 ? '\n' + labels.join('\n') : '';
+                        }
+                    }
                 }
             },
             scales: {
@@ -463,9 +719,15 @@ const verticalLinePlugin = {
         const xScale = chart.scales.x;
         
         const lines = chart.options.plugins.verticalLines.lines || [];
+        const dates = chart.options.plugins.verticalLines.dates || []; 
         
         lines.forEach(line => {
-            const xPos = xScale.getPixelForValue(line.date);
+            // Find the index of this date in the dates array
+            const dateIndex = dates.indexOf(line.date);
+            if (dateIndex === -1) return; // Date not in range
+            
+            // Get pixel position for this index
+            const xPos = xScale.getPixelForValue(dateIndex);
             
             if (xPos < chartArea.left || xPos > chartArea.right) return;
             
@@ -485,9 +747,9 @@ const verticalLinePlugin = {
             // Add label if provided
             if (line.label) {
                 ctx.fillStyle = line.color || '#ffffff';
-                ctx.font = '11px monospace';
-                ctx.textAlign = 'center';
-                ctx.fillText(line.label, xPos, chartArea.top - 5);
+                ctx.font = '12px "Times New Roman", monospace';
+                ctx.textAlign = 'right';
+                ctx.fillText(line.label, xPos, chartArea.top + 35);
             }
             
             ctx.restore();
@@ -514,6 +776,12 @@ function generateComparison() {
     const metric = document.getElementById('metric-select').value;
     const daily = TIMELINE_DATA.daily;
     const uvData = TIMELINE_DATA.uv;
+
+    // Declare metric variables
+    let metricData = [];
+    let metricLabel = '';
+    let metricColor = '#d4b84a';
+    let metricAxis = {};
     
     // Build datasets
     const dates = daily.map(d => d.date);
@@ -536,7 +804,6 @@ function generateComparison() {
     });
     
     // Build metric data
-    let metricData = [];
     if (metric === 'uv_dose') {
         metricData = dates.map(d => uvDoseByDate[d] || null);
         metricLabel = 'UV dose (index × min)';
@@ -584,9 +851,10 @@ function generateComparison() {
         return selectedSymptoms.reduce((sum, s) => sum + (d[s.key] ? 1 : 0), 0);
     });
     
+    // Build datasets array
     const datasets = [];
     
-    // Individual symptom dots (offset vertically)
+    // Individual symptom dots
     selectedSymptoms.forEach((symptom, idx) => {
         const yOffset = idx * 0.3;
         datasets.push({
@@ -601,7 +869,7 @@ function generateComparison() {
         });
     });
     
-    // Total count line
+    // Total symptom count line
     datasets.push({
         label: 'total symptom count',
         data: totalCount,
@@ -634,37 +902,22 @@ function generateComparison() {
     if (comparisonChart) {
         comparisonChart.destroy();
     }
-    
-    // Build chart
-    const comparisonChart = new Chart(document.getElementById('comparisonChart'), {
-    type: 'line',
-    data: {
-        labels: dateLabels,
-        datasets: [
-            ...symptomDatasets,
-            {
-                label: metricLabel,
-                data: metricData,
-                backgroundColor: metric === 'uv_dose' 
-                    ? 'rgba(212,184,74,0.1)'
-                    : 'transparent',
-                borderColor: metricColor,
-                borderWidth: 2,
-                pointRadius: 3,
-                fill: metric === 'uv_dose',
-                yAxisID: 'yMetric',
-                tension: 0.3
-            }
-        ]
-    },
-    options: {
-        responsive: true,
+
+    // Create new chart
+    comparisonChart = new Chart(document.getElementById('comparison-chart'), {
+        type: 'line',
+        data: {
+            labels: dateLabels,
+            datasets: datasets  // Use the datasets array we just built
+        },
+        options: {
+            responsive: true,
         maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },
         plugins: {
             verticalLines: {
+                dates: dates,  // ADD THIS - the dates array
                 lines: [
-                    // Intervention line (teal)
                     ...(INTERVENTION_DATE && dates.includes(INTERVENTION_DATE) ? [{
                         date: INTERVENTION_DATE,
                         color: '#4ab8b8',
@@ -672,7 +925,14 @@ function generateComparison() {
                         dash: [5, 3],
                         label: INTERVENTION_NAME ? INTERVENTION_NAME.substring(0, 12) : 'Intervention'
                     }] : []),
-                    // Flare days (white, thin)
+                    ...SECONDARY_INTERVENTIONS
+                        .filter(si => dates.includes(si.start_date))
+                        .map(si => ({
+                            date: si.start_date,
+                            color: '#9b72cf',
+                            width: 1.5,
+                            label: si.drug_name.substring(0, 10)
+                        })),
                     ...FLARE_DAYS.filter(d => dates.includes(d)).map(d => ({
                         date: d,
                         color: 'rgba(255, 255, 255, 0.3)',
@@ -695,10 +955,10 @@ function generateComparison() {
                         const labels = [];
                         
                         if (FLARE_DAYS.includes(date)) {
-                            labels.push('⚠️ Flare day');
+                            labels.push('☣ Flare day');
                         }
                         if (date === INTERVENTION_DATE) {
-                            labels.push(`💊 ${INTERVENTION_NAME} started`);
+                            labels.push(`⚕️ ${INTERVENTION_NAME} started`);
                         }
                         
                         return labels.length > 0 ? '\n' + labels.join('\n') : '';
@@ -730,7 +990,6 @@ function generateComparison() {
     
     // Show chart, hide empty state
     document.getElementById('chart-container').style.display = 'block';
-    document.getElementById('empty-state').style.display = 'none';
 }
 
 // Restore previous selection from sessionStorage
@@ -744,7 +1003,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 if (cb) cb.checked = true;
             });
             document.getElementById('metric-select').value = metric;
-            document.getElementById('show-flares').checked = showFlares;
+            //document.getElementById('show-flares').checked = showFlares;
         }
     } catch(e) {}
 });
@@ -755,10 +1014,10 @@ document.getElementById('generate-btn')?.addEventListener('click', () => {
         document.querySelectorAll('.symptom-checkbox input:checked')
     ).map(cb => cb.value);
     const metric = document.getElementById('metric-select').value;
-    const showFlares = document.getElementById('show-flares').checked;
+    //const showFlares = document.getElementById('show-flares').checked;
     
     sessionStorage.setItem('symptomComparison', JSON.stringify({
-        symptoms, metric, showFlares
+        symptoms, metric, //showFlares
     }));
 });
 
@@ -786,7 +1045,6 @@ window.addEventListener('DOMContentLoaded', () => {
         buttons[3].classList.add('active'); // all
     }
     
-    buildFlareAnalysis();
 });
 
 // Call on page load

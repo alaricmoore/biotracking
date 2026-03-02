@@ -198,6 +198,16 @@ def timeline():
     if primary_med:
         intervention_date = primary_med["start_date"]
         intervention_name = primary_med["drug_name"]
+        
+    # Get secondary interventions 
+    secondary_interventions = [
+        {
+            "drug_name": m["drug_name"],
+            "start_date": m["start_date"]
+        }
+        for m in all_meds
+        if m.get("is_secondary_intervention") == 1
+    ]
     
     # Extract flare days from daily observations
     flare_days = [
@@ -215,8 +225,9 @@ def timeline():
         timeline_json=json.dumps(data, default=str),
         intervention_date=intervention_date,
         intervention_name=intervention_name,
+        secondary_interventions_json=json.dumps(secondary_interventions),
         flare_days_json=json.dumps(flare_days),
-        day_count=day_count,  
+        day_count=day_count,      
     )
 
  
