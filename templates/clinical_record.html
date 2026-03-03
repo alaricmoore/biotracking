@@ -38,11 +38,23 @@
 <div class="tab-panel active" id="tab-labs">
 
     <!-- Add form -->
-    <div class="add-toggle-row">
-        <button class="btn btn-secondary" onclick="toggleForm('form-lab')">
-            + add lab result
+    <div class="add-toggle-row" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:var(--space-md);">
+    <button class="btn btn-secondary" onclick="toggleForm('form-lab')">
+        + add lab result
+    </button>
+    
+    <!-- Export section -->
+    <div style="display:flex; gap:var(--space-sm); align-items:center;">
+        <label style="font-size:0.85rem; color:var(--text-muted);">Export:</label>
+        <input type="date" id="export-labs-start" style="padding:4px 8px; font-size:0.85rem;">
+        <span style="color:var(--text-muted);">to</span>
+        <input type="date" id="export-labs-end" style="padding:4px 8px; font-size:0.85rem;">
+        <button class="btn btn-primary btn-sm" onclick="exportLabs()">
+            Download CSV ↓
         </button>
     </div>
+</div>
+
 
     <div class="add-form-panel" id="form-lab">
         <form method="POST" action="{{ url_for('add_lab') }}">
@@ -539,7 +551,21 @@
                 onclick="toggleForm('form-medication')">
             + add medication
         </button>
+    
+
+<!-- Export section -->
+    <div style="display:flex; gap:var(--space-sm); align-items:center;">
+        <label style="font-size:0.85rem; color:var(--text-muted);">Export:</label>
+        <select id="export-meds-filter" style="padding:4px 8px; font-size:0.85rem;">
+            <option value="active">Active only</option>
+            <option value="all">All medications</option>
+            <option value="inactive">Inactive only</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="exportMedications()">
+            Download CSV ↓
+        </button>
     </div>
+</div>
 
     <div class="add-form-panel" id="form-medication">
         <form method="POST" action="{{ url_for('add_medication') }}">
@@ -898,7 +924,32 @@
         <button class="btn btn-secondary" onclick="toggleForm('form-event')">
             + add event
         </button>
+
+    <!-- Export section -->
+    <div style="display:flex; gap:var(--space-sm); align-items:center;">
+        <label style="font-size:0.85rem; color:var(--text-muted);">Export:</label>
+        <input type="date" id="export-events-start" style="padding:4px 8px; font-size:0.85rem;">
+        <span style="color:var(--text-muted);">to</span>
+        <input type="date" id="export-events-end" style="padding:4px 8px; font-size:0.85rem;">
+        <select id="export-events-type" style="padding:4px 8px; font-size:0.85rem;">
+            <option value="all">All types</option>
+            <option value="encounter">Encounters only</option>
+            <option value="biopsy">Biopsies only</option>
+            <option value="injection">Injections only</option>
+            <option value="procedure">Procedures only</option>
+            <option value="lab draw">Lab draws only</option>
+            <option value="imaging">Imaging only</option>
+            <option value="ER visit">ER visits only</option>
+            <option value="hospitalization">Hospitalizations only</option>
+            <option value="other">Other only</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="exportEvents()">
+            Download CSV ↓
+        </button>
     </div>
+</div>
+
+
 
 
     <div class="add-form-panel" id="form-event">
@@ -1066,11 +1117,17 @@ CLINICIANS TAB
 ============================================================ -->
 <div class="tab-panel" id="tab-clinicians">
 
-    <div class="add-toggle-row">
-        <button class="btn btn-secondary" onclick="toggleForm('form-clinician')">
-            + add clinician
-        </button>
-    </div>
+    <div class="add-toggle-row" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:var(--space-md);">
+    <button class="btn btn-secondary" onclick="toggleForm('form-clinician')">
+        + add clinician
+    </button>
+    
+    <!-- Export button -->
+    <button class="btn btn-primary btn-sm" onclick="exportClinicians()">
+        Download CSV ↓
+    </button>
+</div>
+</div>
 
     <div class="add-form-panel" id="form-clinician">
         <form method="POST" action="{{ url_for('add_clinician') }}">
@@ -1363,6 +1420,82 @@ function confirmDelete(id, type) {
     document.getElementById(`ana-row-${id}`).style.display = 'none';
     document.getElementById(`ana-edit-${id}`).style.display = 'table-row';
     }
+
+//==================================
+// Exports
+//==================================
+
+// Export labs to CSV
+function exportLabs() {
+    const start = document.getElementById('export-labs-start').value;
+    const end = document.getElementById('export-labs-end').value;
+    
+    if (!start || !end) {
+        alert('Please select both start and end dates');
+        return;
+    }
+    
+    // Build URL with query parameters
+    const url = `/export/labs?start=${start}&end=${end}`;
+    
+    // Trigger download
+    window.location.href = url;
+}
+
+// Set default date range to last 6 months
+window.addEventListener('DOMContentLoaded', () => {
+    const today = new Date();
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(today.getMonth() - 6);
+    
+    document.getElementById('export-labs-end').value = today.toISOString().split('T')[0];
+    document.getElementById('export-labs-start').value = sixMonthsAgo.toISOString().split('T')[0];
+});
+
+// Export medications to CSV
+function exportMedications() {
+    const filter = document.getElementById('export-meds-filter').value;
+    
+    // Build URL with filter parameter
+    const url = `/export/medications?filter=${filter}`;
+    
+    // Trigger download
+    window.location.href = url;
+}
+
+// Export events to CSV
+function exportEvents() {
+    const start = document.getElementById('export-events-start').value;
+    const end = document.getElementById('export-events-end').value;
+    const eventType = document.getElementById('export-events-type').value;
+    
+    if (!start || !end) {
+        alert('Please select both start and end dates');
+        return;
+    }
+    
+    // Build URL with query parameters
+    const url = `/export/events?start=${start}&end=${end}&type=${eventType}`;
+    
+    // Trigger download
+    window.location.href = url;
+}
+
+// Set default date range to last year for events
+window.addEventListener('DOMContentLoaded', () => {
+    const today = new Date();
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(today.getFullYear() - 1);
+    
+    // Only set if elements exist (events tab)
+    const eventsEndInput = document.getElementById('export-events-end');
+    const eventsStartInput = document.getElementById('export-events-start');
+    
+    if (eventsEndInput && eventsStartInput) {
+        eventsEndInput.value = today.toISOString().split('T')[0];
+        eventsStartInput.value = oneYearAgo.toISOString().split('T')[0];
+    }
+});
 
 </script>
 <style>

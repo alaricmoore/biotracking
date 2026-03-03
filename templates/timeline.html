@@ -535,7 +535,7 @@ function displayFlareStats() {
                 ${p.label}
             </div>
             <div style="color:var(--text-secondary); font-size:0.9rem; margin:8px 0;">
-                ${p.direction === 'high' ? 'Flare average' : 'Flare average'}: 
+                ${p.direction === 'high' ? '☣ Flare average' : '☣ Flare average'}: 
                 <strong>${p.flareMean.toFixed(1)}</strong> vs 
                 normal: <strong>${p.controlMean.toFixed(1)}</strong>
             </div>
@@ -647,11 +647,14 @@ function generateFlareOverview(stats) {
                     dates: dates,  //the dates array
                     lines: [
                         ...(INTERVENTION_DATE && dates.includes(INTERVENTION_DATE) ? [{
-                            date: INTERVENTION_DATE,
-                            color: '#4ab8b8',
-                            width: 2,
-                            dash: [5, 3],
-                            label: INTERVENTION_NAME ? INTERVENTION_NAME.substring(0, 12) : 'Intervention'
+                                date: INTERVENTION_DATE,
+                                color: '#05e9fe99',
+                                width: 2,
+                                dash: [5, 3],
+                                label: INTERVENTION_NAME ? INTERVENTION_NAME.substring(0, 20) : 'Intervention',
+                                font: "11px 'Source Serif 4', serif",
+                                fillText: (ctx) => ctx.fillText(INTERVENTION_NAME, x + 3, chartArea.top + 28 + (i * 11)),
+                                fillStyle:  (ctx) => ctx.fillStyle = line.color || '#05eaff99'
                         }] : []),
                         ...SECONDARY_INTERVENTIONS
                             .filter(si => dates.includes(si.start_date))
@@ -659,7 +662,9 @@ function generateFlareOverview(stats) {
                                 date: si.start_date,
                                 color: '#9b72cf',
                                 width: 1.5,
-                                label: si.drug_name.substring(0, 10)
+                                label: si.drug_name.substring(0, 20),
+                                font: "11px 'Source Serif 4', serif",
+                                fillText: (ctx) => ctx.fillText(si.drug_name, x + 10, chartArea.top + 10 + (i * 8))
                             }))
                     ]
                 },

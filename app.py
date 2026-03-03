@@ -16,10 +16,13 @@ import json
 import os
 from datetime import date, datetime, timedelta
 
-from flask import Flask, jsonify, render_template, request, redirect, url_for
+from flask import Flask, jsonify, render_template, request, redirect, url_for, Response
 
 import db
 import uv_fetcher
+
+import csv
+from io import StringIO
 
 
 app = Flask(__name__)
@@ -650,6 +653,7 @@ def add_lab():
     return redirect(url_for("clinical_record") + "#labs")
 
 
+
 @app.route("/clinical/ana/add", methods=["POST"])
 def add_ana():
     """Add an ANA result."""
@@ -703,7 +707,9 @@ def add_medication():
     })
     return redirect(url_for("clinical_record") + "#medications")
 
-
+#=======================================
+# Edit/Cancel/Delete
+#=======================================
 
 @app.route("/clinical/medication/end/<int:med_id>", methods=["POST"])
 def end_medication(med_id):
@@ -797,6 +803,284 @@ def delete_event(event_id):
     """Delete a clinical event."""
     db.delete_clinical_event(event_id)
     return redirect(url_for("clinical_record") + "#events")
+
+#======================================
+# Export Lab/Meds/Clinicians/Events
+#======================================
+
+@app.route("/export/labs")
+def export_labs():
+    """Export lab results as CSV within date range."""
+    start_date = request.args.get("start")
+    end_date = request.args.get("end")
+    
+    if not start_date or not end_date:
+        return "Missing date range parameters", 400
+    
+    # Get labs in date range
+    all_labs = db.get_lab_results()
+    filtered_labs = [
+        lab for lab in all_labs
+        if start_date <= lab["date"] <= end_date
+    ]
+    
+    # Sort by date (most recent first)
+    filtered_labs.sort(key=lambda x: x["date"], reverse=True)
+    
+    # Create CSV
+    output = StringIO()
+    writer = csv.writer(output)
+    
+    # Write header
+    writer.writerow([
+        'Date',
+        'Test Name',
+        'Numeric Value',
+        'Unit',
+        'Qualitative Result',
+        'Reference Range',
+        'Flag',
+        'Provider',
+        'Lab Facility',
+        'Notes'
+    ])
+    
+    # Write data rows
+    for lab in filtered_labs:
+        writer.writerow([
+            lab.get('date', ''),
+            lab.get('test_name', ''),
+            lab.get('numeric_value', '') if lab.get('numeric_value') is not None else '',
+            lab.get('unit', '') or '',
+            lab.get('qualitative_result', '') or '',
+            lab.get('reference_range', '') or '',
+            lab.get('flag', '') or '',
+            lab.get('provider', '') or '',
+            lab.get('lab_facility', '') or '',
+            lab.get('notes', '') or ''
+        ])
+    
+    # Prepare response
+    csv_data = output.getvalue()
+    output.close()
+    
+    # Generate filename with date range
+    filename = f"lab_results_{start_date}_to_{end_date}.csv"
+    
+    # Return as downloadable CSV
+    return Response(
+        csv_data,
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename={filename}'}
+    )
+
+@app.route("/export/clinicians")
+def export_clinicians():
+    """Export all clinicians as CSV."""
+    
+    # Get all clinicians
+    clinicians = db.get_all_clinicians()
+    
+    # Sort by name
+    clinicians.sort(key=lambda x: x.get('name', '').lower())
+    
+    # Create CSV
+    output = StringIO()
+    writer = csv.writer(output)
+    
+    # Write header
+    writer.writerow([
+        'Name',
+        'Specialty',
+        'Clinic Name',
+        'Phone',
+        'Email/Portal',
+        'Network',
+        'Address',
+        'Notes'
+    ])
+    
+    # Write data rows
+    for c in clinicians:
+        writer.writerow([
+            c.get('name', ''),
+            c.get('specialty', ''),
+            c.get('clinic_name', '') or '',
+            c.get('phone', '') or '',
+            c.get('email', '') or '',
+            c.get('network', '') or '',
+            c.get('address', '') or '',
+            c.get('notes', '') or ''
+        ])
+    
+    # Prepare response
+    csv_data = output.getvalue()
+    output.close()
+    
+    # Generate filename with today's date
+    today = date.today().isoformat()
+    filename = f"clinicians_{today}.csv"
+    
+    # Return as downloadable CSV
+    return Response(
+        csv_data,
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename={filename}'}
+    )
+    
+@app.route("/export/medications")
+def export_medications():
+    """Export medications as CSV with filter (active/all/inactive)."""
+    
+    filter_type = request.args.get("filter", "active")
+    
+    # Get all medications
+    all_meds = db.get_all_medications()
+    
+    # Filter based on selection
+    today_str = date.today().isoformat()
+    
+    if filter_type == "active":
+        filtered_meds = [
+            m for m in all_meds 
+            if m["start_date"] <= today_str and
+               (m.get("end_date") is None or m["end_date"] >= today_str)
+        ]
+        filename_suffix = "active"
+    elif filter_type == "inactive":
+        filtered_meds = [
+            m for m in all_meds 
+            if m.get("end_date") and m["end_date"] < today_str
+        ]
+        filename_suffix = "inactive"
+    else:  # all
+        filtered_meds = all_meds
+        filename_suffix = "all"
+    
+    # Sort by start date (most recent first)
+    filtered_meds.sort(key=lambda x: x.get("start_date", ""), reverse=True)
+    
+    # Create CSV
+    output = StringIO()
+    writer = csv.writer(output)
+    
+    # Write header
+    writer.writerow([
+        'Drug Name',
+        'Dose',
+        'Unit',
+        'Frequency',
+        'Route',
+        'Category',
+        'Indication',
+        'Start Date',
+        'End Date',
+        'Primary Intervention',
+        'Secondary Intervention',
+        'Notes'
+    ])
+    
+    # Write data rows
+    for med in filtered_meds:
+        writer.writerow([
+            med.get('drug_name', ''),
+            med.get('dose', '') if med.get('dose') is not None else '',
+            med.get('unit', '') or '',
+            med.get('frequency', '') or '',
+            med.get('route', '') or '',
+            med.get('category', '') or '',
+            med.get('indication', '') or '',
+            med.get('start_date', ''),
+            med.get('end_date', '') or '',
+            'Yes' if med.get('is_primary_intervention') == 1 else 'No',
+            'Yes' if med.get('is_secondary_intervention') == 1 else 'No',
+            med.get('notes', '') or ''
+        ])
+    
+    # Prepare response
+    csv_data = output.getvalue()
+    output.close()
+    
+    # Generate filename
+    today = date.today().isoformat()
+    filename = f"medications_{filename_suffix}_{today}.csv"
+    
+    # Return as downloadable CSV
+    return Response(
+        csv_data,
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename={filename}'}
+    )
+    
+@app.route("/export/events")
+def export_events():
+    """Export clinical events as CSV within date range and optional event type filter."""
+    
+    start_date = request.args.get("start")
+    end_date = request.args.get("end")
+    event_type = request.args.get("type", "all")
+    
+    if not start_date or not end_date:
+        return "Missing date range parameters", 400
+    
+    # Get all events
+    all_events = db.get_clinical_events()
+    
+    # Filter by date range
+    filtered_events = [
+        event for event in all_events
+        if start_date <= event["date"] <= end_date
+    ]
+    
+    # Filter by event type if not "all"
+    if event_type != "all":
+        filtered_events = [
+            event for event in filtered_events
+            if event.get("event_type") == event_type
+        ]
+    
+    # Sort by date (most recent first)
+    filtered_events.sort(key=lambda x: x["date"], reverse=True)
+    
+    # Create CSV
+    output = StringIO()
+    writer = csv.writer(output)
+    
+    # Write header
+    writer.writerow([
+        'Date',
+        'Event Type',
+        'Provider',
+        'Facility',
+        'Follow-up Date',
+        'Notes'
+    ])
+    
+    # Write data rows
+    for event in filtered_events:
+        writer.writerow([
+            event.get('date', ''),
+            event.get('event_type', ''),
+            event.get('provider', '') or '',
+            event.get('facility', '') or '',
+            event.get('follow_up_date', '') or '',
+            event.get('notes', '') or ''
+        ])
+    
+    # Prepare response
+    csv_data = output.getvalue()
+    output.close()
+    
+    # Generate filename
+    type_suffix = event_type if event_type != "all" else "all"
+    filename = f"events_{type_suffix}_{start_date}_to_{end_date}.csv"
+    
+    # Return as downloadable CSV
+    return Response(
+        csv_data,
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename={filename}'}
+    )
 
 # ============================================================
 # Search
