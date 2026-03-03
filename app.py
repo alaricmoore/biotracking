@@ -11,18 +11,20 @@ Run with:
 Access locally:    http://localhost:5000
 Access from phone: http://<your-mac-ip>:5000
 """
+import csv
+from io import StringIO
+from flask import Response  # Add Response to existing flask imports
 
 import json
 import os
 from datetime import date, datetime, timedelta
 
-from flask import Flask, jsonify, render_template, request, redirect, url_for, Response
+from flask import Flask, jsonify, render_template, request, redirect, url_for
 
 import db
 import uv_fetcher
 
-import csv
-from io import StringIO
+
 
 
 app = Flask(__name__)
@@ -353,9 +355,6 @@ def compute_lag_correlations(observations: list, uv_data: list) -> dict:
             }
 
     return results
-
-    
-
 
 @app.route("/uv-lag")
 def uv_lag():
@@ -807,6 +806,10 @@ def delete_event(event_id):
 #======================================
 # Export Lab/Meds/Clinicians/Events
 #======================================
+
+import csv
+from io import StringIO
+from flask import Response
 
 @app.route("/export/labs")
 def export_labs():
