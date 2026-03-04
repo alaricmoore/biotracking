@@ -35,7 +35,7 @@
 <div class="card" style="margin-bottom:var(--space-lg);">
     <p style="color:var(--text-secondary); font-size:0.9rem; line-height:1.7;">
         Each bar shows the Pearson correlation (r) between <strong style="color:var(--text-primary);">UV dose</strong>
-        (UV index × sun exposure minutes) and a symptom at a given lag.
+        (UV index)<sup>1.5</sup> × sun exposure minutes) and a symptom at a given lag.
         <strong style="color:var(--text-primary);">Lag 0</strong> = same day.
         <strong style="color:var(--text-primary);">Lag 2</strong> = UV today predicts symptom
         in two days. A bar marked <strong style="color:var(--color-flare);">*</strong>
@@ -46,7 +46,7 @@
 
 <!-- Main correlation chart -->
 <div class="chart-container">
-    <div class="chart-title">uv dose (index × minutes) → symptom correlation by lag window</div>
+    <div class="chart-title">uv dose (index<sup>1.5</sup> × minutes) → symptom correlation by lag window</div>
     <canvas id="chartLag" style="max-height: 420px;"></canvas>
 </div>
 
@@ -83,16 +83,16 @@ const LAG_LABELS = {
 
 // Symptom display names and their badge colors
 const SYMPTOM_META = {
-    pain:           { label: 'pain',           color: '#c94040' },
-    fatigue:        { label: 'fatigue',         color: '#d4a054' },
-    flare:          { label: 'flare',           color: '#ffffff' },
-    neurological:   { label: 'neurological',    color: '#4a90d9' },
-    musculature:    { label: 'musculature',     color: '#d4a054' },
-    migraine:       { label: 'migraine',        color: '#c94040' },
-    cognitive:      { label: 'cognitive',       color: '#9b72cf' },
-    dermatological: { label: 'dermatological',  color: '#d4784a' },
-    air_hunger:     { label: 'air hunger',      color: '#4ab8b8' },
-    rheumatic:      { label: 'rheumatic',       color: '#e85d9e' },
+    pain:           { label: 'pain',           color: getComputedStyle(document.documentElement).getPropertyValue('--color-pain').trim() },
+    fatigue:        { label: 'fatigue',         color: getComputedStyle(document.documentElement).getPropertyValue('--color-fatigue').trim() },
+    flare:          { label: 'flare',           color: getComputedStyle(document.documentElement).getPropertyValue('--color-flare').trim() },
+    neurological:   { label: 'neurological',    color: getComputedStyle(document.documentElement).getPropertyValue('--color-neuro').trim() },
+    musculature:    { label: 'musculature',     color: getComputedStyle(document.documentElement).getPropertyValue('--color-muscle').trim() },
+    migraine:       { label: 'migraine',        color: getComputedStyle(document.documentElement).getPropertyValue('--color-migraine').trim() },
+    cognitive:      { label: 'cognitive',       color: getComputedStyle(document.documentElement).getPropertyValue('--color-cognitive').trim() },
+    dermatological: { label: 'dermatological',  color: getComputedStyle(document.documentElement).getPropertyValue('--color-derm').trim() },
+    air_hunger:     { label: 'air hunger',      color: getComputedStyle(document.documentElement).getPropertyValue('--color-air').trim() },
+    rheumatic:      { label: 'rheumatic',       color: getComputedStyle(document.documentElement).getPropertyValue('--color-rheum').trim() },
 };
 
 Chart.defaults.font.family = "'Source Serif 4', 'Times New Roman', serif";
