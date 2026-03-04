@@ -11,10 +11,10 @@
     <h1>search</h1>
 </div>
 
-<div class="card" style="margin-bottom:var(--space-lg); background:var(--bg-elevated); 
-                         border:1px solid var(--border-medium);">
-    <div style="display:flex; justify-content:space-between; align-items:center;">
-        <div>
+<!-- Data Management Card -->
+<div class="card" style="margin-bottom:var(--space-lg);">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:var(--space-md);">
+        <div style="flex:1;">
             <h3 style="margin:0 0 0.25rem 0; font-size:1rem; color:var(--text-primary);">
                 data management
             </h3>
@@ -22,12 +22,113 @@
                 Export all your tracking data for backup or transfer
             </p>
         </div>
-        <button onclick="downloadAllData()" 
-                class="btn btn-primary"
-                style="display:flex; align-items:center; gap:0.5rem;">
-            <span>⏚</span>
-            <span>Download All Data</span>
-        </button>
+        <div style="display:flex; gap:var(--space-sm);">
+            <button onclick="downloadAllData()" 
+                    class="btn btn-primary"
+                    style="display:flex; align-items:center; gap:0.5rem;">
+                <span>⏚</span>
+                <span>Download All Data</span>
+            </button>
+            <button onclick="showDeleteModal()" 
+                    class="btn"
+                    style="background:transparent; border:1px solid var(--color-danger); 
+                           color:var(--color-danger); font-size:0.85rem; padding:0.5rem 1rem;">
+                Delete
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div id="deleteModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; 
+                              background:rgba(0,0,0,0.85); z-index:9999; 
+                              align-items:center; justify-content:center;">
+    <div style="background:var(--bg-surface); border:2px solid var(--color-danger); 
+                border-radius:var(--radius-lg); max-width:600px; width:90%; 
+                padding:var(--space-xl); position:relative;">
+
+<!-- Last exported info -->
+        <div id="lastExportInfo" style="margin-bottom:var(--space-lg); padding:var(--space-md); 
+                                         background:var(--bg-elevated); border-radius:var(--radius-sm); 
+                                         border-left:3px solid var(--color-warning);">
+            <p style="margin:0; font-size:0.85rem; color:var(--text-muted);">
+                💡 <strong>Backup first!</strong> Use the "Download All Data" button to create a backup 
+                before deleting.
+            </p>
+        </div>
+        
+        <!-- ASCII Gandalf -->
+        <pre style="color:var(--text-muted); font-size:0.7rem; line-height:1.2; 
+                    margin:0 0 var(--space-lg) 0; text-align:center; overflow-x:auto;">
+                    /\
+                   /**\
+                  /****\   /\
+                 /      \ /**\
+                /  /\    /    \        /\    /\  /\      /\            /\/\/\  /\
+               /  /  \  /      \      /  \/\/  \/  \  /\/  \/\  /\  /\/ / /  \/  \
+              /  /    \/ /\     \    /    \ \  /    \/ /   /  \/  \/  \  /    \   \
+             /  /      \/  \/\   \  /      \    /   /    \
+          __/__/_______/___/__\___\__________________________________________________
+
+                           YOU SHALL NOT PASS!
+        </pre>
+        
+        <div style="margin-bottom:var(--space-lg); color:var(--text-primary);">
+            <h2 style="margin:0 0 var(--space-md) 0; color:var(--color-danger); font-size:1.5rem;">
+                ⚠️ ATTENTION: THIS ACTION IS PERMANENT
+            </h2>
+            <p style="margin:0 0 var(--space-sm) 0; line-height:1.6;">
+                You are about to <strong>permanently delete ALL your tracking data</strong>, including:
+            </p>
+            <ul style="margin:var(--space-sm) 0; padding-left:var(--space-lg); 
+                       color:var(--text-secondary); line-height:1.8;">
+                <li>All daily observations (symptoms, UV, HRV, sleep)</li>
+                <li>All lab results and test results</li>
+                <li>All medications and treatment history</li>
+                <li>All clinical events and appointments</li>
+                <li>All clinician contact information</li>
+                <li>The entire SQLite database</li>
+            </ul>
+            <p style="margin:var(--space-md) 0 0 0; color:var(--color-danger); font-weight:600;">
+                This action CANNOT be undone. There is no recovery.
+            </p>
+        </div>
+        
+
+        
+        <!-- Type to confirm -->
+        <div style="margin-bottom:var(--space-lg);">
+            <label style="display:block; margin-bottom:var(--space-sm); 
+                          color:var(--text-primary); font-weight:500;">
+                Type <code style="background:var(--bg-elevated); padding:2px 6px; 
+                                 border-radius:3px; color:var(--color-danger);">DELETE MY DATA</code> 
+                to enable deletion:
+            </label>
+            <input type="text" 
+                   id="deleteConfirmInput" 
+                   placeholder="DELETE MY DATA"
+                   oninput="checkDeleteInput()"
+                   style="width:100%; padding:var(--space-sm); font-size:1rem; 
+                          background:var(--bg-input); border:2px solid var(--border-medium); 
+                          border-radius:var(--radius-sm); color:var(--text-primary); 
+                          font-family:var(--font-mono);">
+        </div>
+        
+        <!-- Action buttons -->
+        <div style="display:flex; gap:var(--space-md); justify-content:flex-end;">
+            <button onclick="hideDeleteModal()" 
+                    class="btn btn-secondary">
+                Cancel (ESC)
+            </button>
+            <button id="confirmDeleteBtn" 
+                    onclick="confirmDelete()" 
+                    disabled
+                    class="btn"
+                    style="background:var(--color-danger); color:white; border:none; 
+                           opacity:0.5; cursor:not-allowed;">
+                🗑 Delete Everything Forever
+            </button>
+        </div>
     </div>
 </div>
 
@@ -139,7 +240,6 @@
     </div>
     {% endif %}
     {% endfor %}
-
     {% endif %}
 {% endif %}
 {% endblock %}
@@ -522,6 +622,77 @@ function downloadAllData() {
         btn.disabled = false;
     }, 3000);
 }
+
+function showDeleteModal() {
+    const modal = document.getElementById('deleteModal');
+    modal.style.display = 'flex';
+    document.getElementById('deleteConfirmInput').value = '';
+    document.getElementById('deleteConfirmInput').focus();
+    
+    // ESC key to close
+    document.addEventListener('keydown', handleDeleteModalEsc);
+}
+
+function hideDeleteModal() {
+    const modal = document.getElementById('deleteModal');
+    modal.style.display = 'none';
+    document.removeEventListener('keydown', handleDeleteModalEsc);
+}
+
+function handleDeleteModalEsc(e) {
+    if (e.key === 'Escape') {
+        hideDeleteModal();
+    }
+}
+
+function checkDeleteInput() {
+    const input = document.getElementById('deleteConfirmInput');
+    const btn = document.getElementById('confirmDeleteBtn');
+    
+    if (input.value === 'DELETE MY DATA') {
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
+    } else {
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+        btn.style.cursor = 'not-allowed';
+    }
+}
+
+function confirmDelete() {
+    // Final confirmation
+    const reallyConfirm = confirm(
+        "🧙‍♂️ GANDALF'S FINAL WARNING 🧙‍♂️\n\n" +
+        "This is your LAST chance to turn back.\n\n" +
+        "All your data will be permanently deleted.\n\n" +
+        "Click OK to proceed with deletion, or Cancel to keep your data."
+    );
+    
+    if (reallyConfirm) {
+        // Show loading
+        const btn = document.getElementById('confirmDeleteBtn');
+        btn.innerHTML = '⏳ Deleting...';
+        btn.disabled = true;
+        
+        // Execute deletion
+        fetch('/delete/all-data', { method: 'POST' })
+            .then(response => {
+                if (response.ok) {
+                    alert('All data has been deleted. Redirecting to home page...');
+                    window.location.href = '/';
+                } else {
+                    alert('Error deleting data. Please try again or contact support.');
+                    hideDeleteModal();
+                }
+            })
+            .catch(error => {
+                alert('Error: ' + error.message);
+                hideDeleteModal();
+            });
+    }
+}
+
 </script>
 
 

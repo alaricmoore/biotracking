@@ -695,3 +695,4 @@ def delete_medication(med_id: int) -> bool:
     with get_db() as conn:
         conn.execute("DELETE FROM medications WHERE id = ?", (med_id,))
     return True
+

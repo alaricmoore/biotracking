@@ -1499,6 +1499,34 @@ def api_uv_lag():
     uv_data = db.get_uv_data_range(start, end)
     return jsonify({"observations": observations, "uv": uv_data})
 
+# ============================================================
+# DELETE ALL DATA
+# ============================================================
+
+@app.route("/delete/all-data", methods=["POST"])
+def delete_all_data():
+    """
+    NUCLEAR OPTION: Delete ALL tracking data.
+    This is irreversible and should only be called after multiple confirmations.
+    """
+    try:
+        # Close any open connections
+        db.close_all_connections()  
+        
+        # Delete the SQLite database file
+        db_path = Path("biotracking.db")
+        if db_path.exists():
+            db_path.unlink()
+        
+        # Recreate empty database with schema
+        from setup import initialize_database
+        initialize_database()
+        
+        return jsonify({"success": True, "message": "All data deleted"}), 200
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 
 # ============================================================
 # Run
