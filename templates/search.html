@@ -11,6 +11,26 @@
     <h1>search</h1>
 </div>
 
+<div class="card" style="margin-bottom:var(--space-lg); background:var(--bg-elevated); 
+                         border:1px solid var(--border-medium);">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+            <h3 style="margin:0 0 0.25rem 0; font-size:1rem; color:var(--text-primary);">
+                data management
+            </h3>
+            <p style="margin:0; font-size:0.85rem; color:var(--text-muted);">
+                Export all your tracking data for backup or transfer
+            </p>
+        </div>
+        <button onclick="downloadAllData()" 
+                class="btn btn-primary"
+                style="display:flex; align-items:center; gap:0.5rem;">
+            <span>⏚</span>
+            <span>Download All Data</span>
+        </button>
+    </div>
+</div>
+
 <!-- Search form -->
 <form method="GET" action="{{ url_for('search') }}"
       style="display:flex; gap:var(--space-md); margin-bottom:var(--space-lg); align-items:center;">
@@ -484,6 +504,23 @@ function toggleSnippet(id) {
         snippet.classList.add('expanded');
         toggle.textContent = 'show less ↑';
     }
+}
+
+function downloadAllData() {
+    // Show loading state
+    const btn = event.target.closest('button');
+    const originalHTML = btn.innerHTML;
+    btn.innerHTML = '<span>⨋</span><span>Preparing download...</span>';
+    btn.disabled = true;
+    
+    // Trigger download
+    window.location.href = '/export/all-data';
+    
+    // Reset button after delay
+    setTimeout(() => {
+        btn.innerHTML = originalHTML;
+        btn.disabled = false;
+    }, 3000);
 }
 </script>
 

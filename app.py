@@ -20,11 +20,10 @@ from flask import Flask, jsonify, render_template, request, redirect, url_for, R
 
 import db
 import uv_fetcher
-
-
-
-
-
+import zipfile
+import shutil
+from pathlib import Path
+from flask import send_file 
 
 app = Flask(__name__)
 
@@ -1239,6 +1238,116 @@ def search():
         chart_dataset_json=json.dumps(chart_dataset),
         patient_name=CONFIG.get("patient_name", ""),
     )
+    
+# ============================================================
+# Data Management & Export
+# ============================================================
+
+import zipfile
+import shutil
+from pathlib import Path
+from datetime import datetime
+
+@app.route("/export/all-data")
+def export_all_data():
+    """Export complete database and all data as ZIP file."""
+    
+    # Create temporary directory for exports
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    temp_dir = Path(f"/tmp/biotracking_export_{timestamp}")
+    temp_dir.mkdir(exist_ok=True)
+    zip_path = None  # Initialize here
+    
+    try:
+        # 1. Copy SQLite database
+        db_path = Path("biotracking.db")  # Adjust to your actual DB path
+        if db_path.exists():
+            shutil.copy(db_path, temp_dir / "biotracking.db")
+        
+        # 2. Export all tables as CSV
+        export_csvs_to_directory(temp_dir)
+        
+        # 3. Create ZIP file
+        zip_path = temp_dir.parent / f"biotracking_backup_{timestamp}.zip"
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for file in temp_dir.rglob('*'):
+                if file.is_file():
+                    zipf.write(file, file.relative_to(temp_dir))
+        
+        # 4. Send ZIP file
+        return send_file(
+            zip_path,
+            mimetype='application/zip',
+            as_attachment=True,
+            download_name=f'biotracking_backup_{timestamp}.zip'
+        )
+    
+    finally:
+        # Cleanup temp directory
+        if temp_dir.exists():
+            shutil.rmtree(temp_dir)
+        if zip_path and zip_path.exists():  # Check if zip_path was created
+            zip_path.unlink()
+        
+
+
+def export_csvs_to_directory(directory: Path):
+    """Export all database tables as CSV files to a directory."""
+    
+    # Daily observations
+    daily_obs = db.get_all_observations()  # You'll need this function in db.py
+    write_csv(directory / "daily_observations.csv", daily_obs, [
+        'date', 'sun_exposure_min', 'neurological', 'musculature', 'migraine',
+        'cognitive', 'dermatological', 'air_hunger', 'rheumatic', 'word_loss',
+        'pain_scale', 'fatigue_scale', 'emotional_state', 'flare_occurred',
+        'basal_temp_delta', 'hours_slept', 'hrv', 'steps', 'notes'
+    ])
+    
+    # Labs
+    labs = db.get_lab_results()
+    write_csv(directory / "labs.csv", labs, [
+        'date', 'test_name', 'numeric_value', 'unit', 'qualitative_result',
+        'reference_range', 'flag', 'provider', 'lab_facility', 'notes'
+    ])
+    
+    # Medications
+    meds = db.get_all_medications()
+    write_csv(directory / "medications.csv", meds, [
+        'drug_name', 'dose', 'unit', 'frequency', 'route', 'category',
+        'indication', 'start_date', 'end_date', 'is_primary_intervention',
+        'is_secondary_intervention', 'notes'
+    ])
+    
+    # Events
+    events = db.get_clinical_events()
+    write_csv(directory / "events.csv", events, [
+        'date', 'event_type', 'provider', 'facility', 'follow_up_date', 'notes'
+    ])
+    
+    # Clinicians
+    clinicians = db.get_all_clinicians()
+    write_csv(directory / "clinicians.csv", clinicians, [
+        'name', 'specialty', 'clinic_name', 'phone', 'email', 'network',
+        'address', 'notes'
+    ])
+    
+    # ANA results
+    ana_results = db.get_ana_results()
+    write_csv(directory / "ana_results.csv", ana_results, [
+        'date', 'titer', 'screen_result', 'patterns', 'provider', 'notes'
+    ])
+
+
+def write_csv(filepath: Path, data: list, columns: list):
+    """Write data to CSV file."""
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(columns)
+    
+    for row in data:
+        writer.writerow([row.get(col, '') for col in columns])
+    
+    filepath.write_text(output.getvalue())
 
 # ============================================================
 # Clinical Report

@@ -129,6 +129,16 @@ def get_all_daily_observations() -> list[dict]:
         ).fetchall()
     return [dict(row) for row in rows]
 
+def get_all_observations():
+    """Get all daily observations."""
+    with get_db() as conn:
+        cursor = conn.execute("""
+            SELECT * FROM daily_observations 
+            ORDER BY date DESC
+        """)
+        rows = cursor.fetchall()
+    return [dict(row) for row in rows]
+
 
 # ============================================================
 # uv_data
