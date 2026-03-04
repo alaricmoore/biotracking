@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
@@ -43,6 +43,10 @@
             --color-rheum:        #e85d9e;   /* pink         - rheumatic     */
             --color-flare:        #ffffff;   /* white        - flare days    */
 
+            /* Intervention colors - can be used for medications, lifestyle changes, etc. */
+            --color-intervention: #4ab8b8;  /* teal - primary intervention */
+            --color-intervention-secondary: #9b72cf;  /* purple - secondary interventions */
+
             /* Semantic colors */
             --color-success:  #4a9e6e;
             --color-warning:  #d4a054;
@@ -67,6 +71,47 @@
             --radius-md: 8px;
             --radius-lg: 12px;
         }
+
+        /* Light theme */
+        [data-theme="light"] {
+            /* Background layers */
+            --bg-base:        #f5f5f0;
+            --bg-surface:     #ffffff;
+            --bg-elevated:    #fafaf8;
+            --bg-input:       #ffffff;
+
+            /* Borders */
+            --border-subtle:  #e0e0d8;
+            --border-medium:  #c8c8c0;
+
+            /* Text */
+            --text-primary:   #1a1a1a;
+            --text-secondary: #5a5a60;
+            --text-muted:     #9090a0;
+            --text-inverse:   #e4dcdcff;
+
+            /* Symptom category colors - stay the same */
+            --color-neuro:        #4a90d9;
+            --color-muscle:       #bd904cff;
+            --color-migraine:     #c94040;
+            --color-cognitive:    #8b66bcff;
+            --color-derm:         #be6b42ff;
+            --color-air:          #3f9d9dff;
+            --color-word:         #6c7cceff;
+            --color-uv:           #c4ab44ff;
+            --color-rheum:        #e85d9e;
+            --color-flare:        #1a1a1aff;   /* dark for light theme */
+
+            --color-intervention: #398f8fff;  /* teal - primary intervention */
+            --color-intervention-secondary: #9b72cf;  /* purple - secondary interventions */
+
+            /* Semantic colors */
+            --color-success:  #4a9e6e;
+            --color-warning:  #d99d43ff;
+            --color-danger:   #ce3b3bff;
+            --color-accent:   #7a8de0;
+        }
+
 
         /* ================================================
            Reset and base
@@ -138,6 +183,10 @@
             position: sticky;
             top: 0;
             z-index: 100;
+        }
+
+        .theme-option:hover {
+            opacity: 0.8;
         }
 
         .header-inner {
@@ -694,8 +743,37 @@
                         {% if request.endpoint == 'search' %}class="active"{% endif %}>
                         search
                     </a></li>
+                    <li style="margin-left: auto; display: flex; align-items: center; gap: 0.25rem;">
+                        <button id="theme-toggle" 
+                                style="background: var(--bg-elevated); 
+                                       border: 1px solid var(--border-subtle); 
+                                       border-radius: 20px;
+                                       padding: 0.25rem;
+                                       cursor: pointer;
+                                       display: flex;
+                                       gap: 0.25rem;
+                                       transition: all 0.2s;"
+                                aria-label="Toggle light/dark theme">
+                            <span class="theme-option" id="theme-dark" 
+                                  style="padding: 0.25rem 0.5rem; 
+                                         border-radius: 16px; 
+                                         font-size: 0.9rem;
+                                         transition: all 0.2s;
+                                         cursor: pointer;">
+                                ☽
+                            </span>
+                            <span class="theme-option" id="theme-light" 
+                                  style="padding: 0.25rem 0.5rem; 
+                                         border-radius: 16px; 
+                                         font-size: 0.9rem;
+                                         transition: all 0.2s;
+                                         cursor: pointer;">
+                                ✯
+                            </span>
+                        </button>
+                    </li>
                 </ul>
-            </nav>
+            </li>
         </div>
     </header>
 
@@ -706,6 +784,47 @@
 </div>
 
 {% block scripts %}{% endblock %}
+
+<script>
+// Theme toggle functionality
+const themeToggle = document.getElementById('theme-toggle');
+const darkOption = document.getElementById('theme-dark');
+const lightOption = document.getElementById('theme-light');
+const htmlElement = document.documentElement;
+
+// Check for saved theme preference or default to dark
+const currentTheme = localStorage.getItem('theme') || 'dark';
+htmlElement.setAttribute('data-theme', currentTheme);
+updateToggleUI(currentTheme);
+
+// Toggle theme on click
+themeToggle.addEventListener('click', () => {
+    const currentTheme = htmlElement.getAttribute('data-theme');
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    
+    htmlElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+    updateToggleUI(newTheme);
+    
+    // Reload the page to refresh charts with new theme colors
+    window.location.reload();
+});
+
+// Update toggle appearance
+function updateToggleUI(theme) {
+    if (theme === 'dark') {
+        darkOption.style.background = 'var(--bg-input)';
+        darkOption.style.color = 'var(--text-primary)';
+        lightOption.style.background = 'transparent';
+        lightOption.style.color = 'var(--text-muted)';
+    } else {
+        lightOption.style.background = 'var(--bg-input)';
+        lightOption.style.color = 'var(--text-primary)';
+        darkOption.style.background = 'transparent';
+        darkOption.style.color = 'var(--text-muted)';
+    }
+}
+</script>
 
 </body>
 </html>

@@ -629,8 +629,8 @@ function generateFlareOverview(stats) {
                     label: 'Flare days',
                     data: flareMarkerData,
                     type: 'scatter',
-                    borderColor: '#ffffff',
-                    backgroundColor: '#ffffff',
+                    borderColor: getComputedStyle(document.documentElement).getPropertyValue('--color-flare').trim(),
+                    backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--color-flare').trim(),
                     pointStyle: 'star',
                     pointRadius: 8,
                     pointHoverRadius: 10,
@@ -648,7 +648,7 @@ function generateFlareOverview(stats) {
                     lines: [
                         ...(INTERVENTION_DATE && dates.includes(INTERVENTION_DATE) ? [{
                                 date: INTERVENTION_DATE,
-                                color: '#05e9fe99',
+                                color: getComputedStyle(document.documentElement).getPropertyValue('--color-intervention').trim(),
                                 width: 2,
                                 dash: [5, 3],
                                 label: INTERVENTION_NAME ? INTERVENTION_NAME.substring(0, 20) : 'Intervention',
@@ -660,7 +660,7 @@ function generateFlareOverview(stats) {
                             .filter(si => dates.includes(si.start_date))
                             .map(si => ({
                                 date: si.start_date,
-                                color: '#9b72cf',
+                                color: getComputedStyle(document.documentElement).getPropertyValue('--color-intervention-secondary').trim(),
                                 width: 1.5,
                                 label: si.drug_name.substring(0, 20),
                                 font: "11px 'Source Serif 4', serif",
@@ -714,6 +714,8 @@ window.addEventListener('DOMContentLoaded', displayFlareStats);
 // ============================================================
 // Chart.js plugin for vertical line annotations
 // ============================================================
+
+const flareColor = getComputedStyle(document.documentElement).getPropertyValue('--color-flare').trim();
 const verticalLinePlugin = {
     id: 'verticalLines',
     afterDraw: (chart) => {
@@ -737,7 +739,7 @@ const verticalLinePlugin = {
             if (xPos < chartArea.left || xPos > chartArea.right) return;
             
             ctx.save();
-            ctx.strokeStyle = line.color || '#ffffff';
+            ctx.strokeStyle = line.color || flareColor;
             ctx.lineWidth = line.width || 2;
             
             if (line.dash) {
@@ -751,7 +753,7 @@ const verticalLinePlugin = {
             
             // Add label if provided
             if (line.label) {
-                ctx.fillStyle = line.color || '#ffffff';
+                ctx.fillStyle = line.color || flareColor;
                 ctx.font = '12px "Times New Roman", monospace';
                 ctx.textAlign = 'right';
                 ctx.fillText(line.label, xPos, chartArea.top + 35);
@@ -878,7 +880,7 @@ function generateComparison() {
     datasets.push({
         label: 'total symptom count',
         data: totalCount,
-        borderColor: '#ffffff',
+        borderColor: getComputedStyle(document.documentElement).getPropertyValue('--color-flare').trim(),
         backgroundColor: 'rgba(255,255,255,0.1)',
         borderWidth: 2,
         pointRadius: 0,
@@ -913,7 +915,7 @@ function generateComparison() {
         type: 'line',
         data: {
             labels: dateLabels,
-            datasets: datasets  // Use the datasets array we just built
+            datasets: datasets  
         },
         options: {
             responsive: true,
@@ -921,11 +923,11 @@ function generateComparison() {
         interaction: { mode: 'index', intersect: false },
         plugins: {
             verticalLines: {
-                dates: dates,  // ADD THIS - the dates array
+                dates: dates,  
                 lines: [
                     ...(INTERVENTION_DATE && dates.includes(INTERVENTION_DATE) ? [{
                         date: INTERVENTION_DATE,
-                        color: '#4ab8b8',
+                        color: getComputedStyle(document.documentElement).getPropertyValue('--color-intervention').trim(),
                         width: 2,
                         dash: [5, 3],
                         label: INTERVENTION_NAME ? INTERVENTION_NAME.substring(0, 12) : 'Intervention'
@@ -934,7 +936,7 @@ function generateComparison() {
                         .filter(si => dates.includes(si.start_date))
                         .map(si => ({
                             date: si.start_date,
-                            color: '#9b72cf',
+                            color: getComputedStyle(document.documentElement).getPropertyValue('--color-intervention-secondary').trim(),
                             width: 1.5,
                             label: si.drug_name.substring(0, 10)
                         })),
