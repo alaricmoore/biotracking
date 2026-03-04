@@ -245,8 +245,9 @@ def compute_lag_correlations(observations: list, uv_data: list) -> dict:
     """Compute Pearson correlation between UV dose and each symptom
     at lag windows of 0, 1, 2, and 3 days.
 
-    UV dose = UV index × sun exposure minutes.
+    UV dose = (UV index^1.5) × sun exposure minutes
     UV dose on day D is correlated against symptom on day D+lag.
+    Exponential weighting reflects that high UV is disproportionately more damaging.
     
     A high correlation at lag=2 means UV exposure predicts
     that symptom two days later.
@@ -310,7 +311,7 @@ def compute_lag_correlations(observations: list, uv_data: list) -> dict:
                 if uv_noon is None or sun_min is None:
                     continue
                 
-                uv_dose = float(uv_noon) * float(sun_min)
+                uv_dose = (float(uv_noon) ** 1.5) * float(sun_min)
 
                 # Find the date lag days later
                 lag_date = (

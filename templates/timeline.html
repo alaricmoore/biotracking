@@ -95,7 +95,7 @@
         <div class="form-group" style="flex:1; min-width:200px;">
             <label>compare with</label>
             <select id="metric-select">
-                <option value="uv_dose">UV dose (index × minutes)</option>
+                <option value="uv_dose">UV dose (index^1.5 × minutes)</option>
                 <option value="basal_temp_delta">basal temp delta</option>
                 <option value="hrv">HRV</option>
                 <option value="hours_slept">hours slept</option>
@@ -245,7 +245,7 @@ function computeFlareStats() {
     daily.forEach(d => {
         const uvNoon = uvByDate[d.date];
         const sunMin = d.sun_exposure_min || 0;
-        uvDoseByDate[d.date] = uvNoon ? (uvNoon * sunMin) : 0;
+        uvDoseByDate[d.date] = uvNoon ? (Math.pow(uvNoon, 1.5) * sunMin) : 0;
     });
     
     // Calculate personal baselines (mean of non-flare days)
@@ -580,7 +580,7 @@ function generateFlareOverview(stats) {
         daily.forEach(d => {
             const uvNoon = uvByDate[d.date];
             const sunMin = d.sun_exposure_min || 0;
-            uvDoseByDate[d.date] = uvNoon ? (uvNoon * sunMin) : 0;
+            uvDoseByDate[d.date] = uvNoon ? (Math.pow(uvNoon, 1.5) * sunMin) : 0;
         });
         
         metricData = dates.map(d => uvDoseByDate[d] || null);
@@ -807,13 +807,13 @@ function generateComparison() {
     daily.forEach(d => {
         const uvNoon = uvByDate[d.date];
         const sunMin = d.sun_exposure_min || 0;
-        uvDoseByDate[d.date] = uvNoon ? (uvNoon * sunMin) : 0;
+        uvDoseByDate[d.date] = uvNoon ? (Math.pow(uvNoon, 1.5) * sunMin) : 0;
     });
     
     // Build metric data
     if (metric === 'uv_dose') {
         metricData = dates.map(d => uvDoseByDate[d] || null);
-        metricLabel = 'UV dose (index × min)';
+        metricLabel = 'UV dose (index^1.5 × min)';
         metricColor = '#d4b84a';
         metricAxis = { min: 0, position: 'right', title: 'UV dose' };
     } else if (metric === 'basal_temp_delta') {
