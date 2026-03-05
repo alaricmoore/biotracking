@@ -239,9 +239,9 @@
                                        value="{{ lab.numeric_value if lab.numeric_value is not none else '' }}">
                             </div>
                             <div class="form-group">
-                    <label>unit|or|type</label>
-                    <select name="unit">
-                        <option value="">—</option>
+                                <label>unit|or|type</label>
+                                <select name="unit">
+                                    <option value="">—</option>
                         
                         <!-- Biopsy types -->
                         <optgroup label="Biopsy Types">
@@ -1486,6 +1486,11 @@ function confirmDelete(id, type) {
     function editAna(id) {
     document.getElementById(`ana-row-${id}`).style.display = 'none';
     document.getElementById(`ana-edit-${id}`).style.display = 'table-row';
+    }
+
+    function editMedication(id) {
+    document.getElementById('med-row-' + id).style.display = 'none';
+    document.getElementById('med-edit-' + id).style.display = 'table-row';
     }
 
 //==================================
