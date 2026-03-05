@@ -106,6 +106,7 @@
                     +{{ factor.points }}
                 </span>
             </div>
+            
             {% endfor %}
             
             {% if not factors %}
@@ -180,7 +181,6 @@
         {% endfor %}
     </div>
 </div>
-
 {% endif %}
 {% endblock %}
 
@@ -258,5 +258,16 @@ new Chart(document.getElementById('trendChart'), {
     }
 });
 </script>
+<!-- Hacker prompt easter egg -->
+            <div style="position:fixed; bottom:20px; right:20px; cursor:pointer; 
+                        opacity:0.6; transition:opacity 0.2s;"
+                onmouseover="this.style.opacity='1'"
+                onmouseout="this.style.opacity='0.6'"
+                onclick="window.location.href='{{ url_for('forecast_lab') }}'">
+                <div style="font-family:var(--font-mono); font-size:1.5rem; 
+                            color:#4ade80; text-shadow:0 0 10px rgba(74,222,128,0.5);">
+                    >>
+                </div>
+            </div>
 {% endif %}
 {% endblock %}

@@ -28,6 +28,7 @@ from flask import send_file
 from typing import Optional, Dict, List, Any 
 from collections import Counter
 
+
 app = Flask(__name__)
 
 
@@ -1089,6 +1090,301 @@ def export_events():
         mimetype='text/csv',
         headers={'Content-Disposition': f'attachment; filename={filename}'}
     )
+def calculate_model_stats(observations, custom_weights=None):
+    """Calculate model accuracy metrics."""
+    from collections import Counter
+    
+    true_pos = 0
+    true_neg = 0
+    false_pos = 0
+    false_neg = 0
+    
+    for obs in observations:
+        if custom_weights:
+            score = calculate_score_with_custom_weights(obs, custom_weights)
+        else:
+            score = calculate_flare_prime_score(obs)
+        
+        predicted_flare = score >= 8
+        actual_flare = obs.get('flare_occurred') == 1
+        
+        if predicted_flare and actual_flare:
+            true_pos += 1
+        elif not predicted_flare and not actual_flare:
+            true_neg += 1
+        elif predicted_flare and not actual_flare:
+            false_pos += 1
+        else:
+            false_neg += 1
+    
+    total = len(observations)
+    correct = true_pos + true_neg
+    
+    accuracy = round((correct / total * 100) if total > 0 else 0, 1)
+    
+    predicted_pos = true_pos + false_pos
+    precision = round((true_pos / predicted_pos * 100) if predicted_pos > 0 else 0, 1)
+    
+    actual_pos = true_pos + false_neg
+    recall = round((true_pos / actual_pos * 100) if actual_pos > 0 else 0, 1)
+    
+    return {
+        'accuracy': accuracy,
+        'precision': precision,
+        'recall': recall,
+        'true_positives': true_pos,
+        'true_negatives': true_neg,
+        'false_positives': false_pos,
+        'false_negatives': false_neg
+    }
+# ============================================================
+# Forecast Laboratory Helpers
+# ============================================================
+
+def calculate_score_with_custom_weights(obs, weights):
+    """Calculate score using custom symptom weights."""
+    score = 0.0
+    
+    # UV, overexertion, temp - unchanged from calculate_flare_prime_score
+    sun_min = obs.get('sun_exposure_min') or 0
+    if sun_min >= 100:
+        score += 3
+    elif sun_min >= 70:
+        score += 1.25
+    
+    steps = obs.get('steps') or 0
+    hours_slept = obs.get('hours_slept') or 8
+    if hours_slept > 0:
+        ratio = steps / hours_slept
+        if ratio >= 2000:
+            score += 2.0
+        elif ratio >= 1500:
+            score += 1.5
+    
+    basal_temp = obs.get('basal_temp_delta') or 0
+    if basal_temp >= 0.8:
+        score += 3
+    elif basal_temp >= 0.5:
+        score += 2
+    elif basal_temp >= 0.3:
+        score += 1
+    
+    # Custom symptom weights (this is what changes)
+    for symptom, weight in weights.items():
+        if obs.get(symptom):
+            score += weight
+    
+    # Rheumatic with joint parsing
+    if obs.get('rheumatic'):
+        rheum_notes = (obs.get('rheumatic_notes') or '').lower()
+        major_joints = ['hip', 'knee', 'shoulder', 'elbow', 'ankle', 'wrist', 'jaw']
+        minor_joints = ['finger', 'toe', 'hand']
+        
+        if any(joint in rheum_notes for joint in major_joints):
+            score += 2.0
+        elif any(joint in rheum_notes for joint in minor_joints):
+            score += 1.0
+        else:
+            score += weights.get('rheumatic', 0.5)
+    
+    # Pain, fatigue, emotional - unchanged
+    pain = obs.get('pain_scale') or 0
+    if pain >= 7:
+        score += 1
+    
+    fatigue = obs.get('fatigue_scale') or 0
+    if fatigue >= 7:
+        score += 3
+    elif fatigue > 5:
+        score += 1
+    elif fatigue > 3:
+        score += 0.5
+    
+    emotional = obs.get('emotional_state') or 5
+    if emotional <= 4:
+        score += 2
+    
+    return round(score, 1)
+
+
+def analyze_prediction_flips(observations, custom_weights):
+    """Identify which predictions would change with new weights."""
+    flips_to_positive = []
+    flips_to_negative = []
+    
+    for obs in observations[:10]:
+        old_score = calculate_flare_prime_score(obs)
+        new_score = calculate_score_with_custom_weights(obs, custom_weights)
+        
+        old_pred = old_score >= 8
+        new_pred = new_score >= 8
+        
+        if not old_pred and new_pred:
+            flips_to_positive.append(obs['date'])
+        elif old_pred and not new_pred:
+            flips_to_negative.append(obs['date'])
+    
+    summary = ""
+    if flips_to_positive:
+        summary += f"> Would now predict flare on: {', '.join(flips_to_positive)}<br>"
+    if flips_to_negative:
+        summary += f"> Would no longer predict flare on: {', '.join(flips_to_negative)}<br>"
+    if not summary:
+        summary = "> No prediction changes in the last 10 days."
+    
+    return {'summary': summary}
+
+
+def assign_grade(accuracy):
+    """Assign letter grade."""
+    if accuracy >= 85:
+        return 'A'
+    elif accuracy >= 75:
+        return 'B'
+    elif accuracy >= 65:
+        return 'C'
+    elif accuracy >= 50:
+        return 'D'
+    else:
+        return 'F'    
+# ============================================================
+# Forecast Laboratory
+# ============================================================
+
+@app.route("/forecast/lab")
+def forecast_lab():
+    """
+    Experimental model tuning interface.
+    Terminal-style UI for adjusting weights and running simulations.
+    """
+    # Get current model performance
+    all_obs = db.get_all_daily_observations()
+    if not all_obs or len(all_obs) < 7:
+        return redirect(url_for('forecast'))
+    
+    # Calculate current metrics (reuse from forecast_accuracy)
+    all_obs.sort(key=lambda x: x['date'], reverse=True)
+    analysis_set = all_obs[:60]
+
+    # Current symptom weights
+    symptoms = [
+        {'key': 'neurological', 'name': 'Neurological', 'weight': 1.5, 
+         'description': 'Numbness, tingling, vision changes'},
+        {'key': 'cognitive', 'name': 'Cognitive', 'weight': 1.0,
+         'description': 'Brain fog, memory, word recall'},
+        {'key': 'musculature', 'name': 'Musculature', 'weight': 1.5,
+         'description': 'Muscle pain, cramping, weakness'},
+        {'key': 'migraine', 'name': 'Migraine', 'weight': 1.0,
+         'description': 'Headaches, light sensitivity'},
+        {'key': 'pulmonary', 'name': 'Pulmonary', 'weight': 1.0,
+         'description': 'Air hunger, chest discomfort'},
+        {'key': 'dermatological', 'name': 'Dermatological', 'weight': 0.75,
+         'description': 'Rash, skin changes, photosensitivity'},
+        {'key': 'mucosal', 'name': 'Mucosal', 'weight': 0.25,
+         'description': 'Dry mouth, dry eyes, nasal dryness'},
+        {'key': 'rheumatic', 'name': 'Rheumatic (base)', 'weight': 0.5,
+         'description': 'Joint pain without specificity'},
+    ]
+    
+    # Current weights as dict for JavaScript
+    current_weights = {s['key']: s['weight'] for s in symptoms}
+
+    
+    # Model code snippet
+    model_code = '''def calculate_flare_prime_score(obs):
+    """Calculate flare risk score."""
+    score = 0.0
+
+    # Symptoms
+    if obs.get('neurological'):
+        score += 1.5
+    if obs.get('cognitive'):
+        score += 1.0
+    if obs.get('musculature'):
+        score += 1.5
+    if obs.get('migraine'):
+        score += 1.0
+    if obs.get('pulmonary'):
+        score += 1.0
+    if obs.get('dermatological'):
+        score += 0.75
+    if obs.get('mucosal'):
+        score += 0.25
+
+    # UV, temperature, fatigue, pain...
+    # (see full code in app.py)
+
+    return round(score, 1)'''
+    
+    # Calculate current stats
+    model_stats = calculate_model_stats(analysis_set, custom_weights=None)
+    
+    # Achievements (check localStorage or session for unlocked ones)
+    achievements = [
+            {'icon': '🏆', 'name': 'First Experiment', 'unlocked': False,
+            'description': 'Adjusted your first weight'},
+            {'icon': '📈', 'name': 'Recall Hero', 'unlocked': False,
+            'description': 'Improved recall by 10%'},
+            {'icon': '🎯', 'name': 'Precision Master', 'unlocked': model_stats['precision'] > 90,
+            'description': 'Maintained >90% precision'},
+            {'icon': '🧪', 'name': 'Mad Scientist', 'unlocked': False,
+            'description': 'Ran 10 simulations'},
+            {'icon': '⚖️', 'name': 'Perfect Balance', 'unlocked': False,
+            'description': 'Achieved 80%+ accuracy, recall, and precision'},
+        ]
+        
+    return render_template(
+        "forecast_lab.html",
+            current_accuracy=model_stats['accuracy'],
+            current_recall=model_stats['recall'],
+            current_precision=model_stats['precision'],
+            false_negatives=model_stats['false_negatives'],
+            false_positives=model_stats['false_positives'],
+            symptoms=symptoms,
+            current_weights=current_weights,
+            model_code=model_code,
+            achievements=achievements
+        )
+
+@app.route("/forecast/lab/simulate", methods=["POST"])
+def forecast_lab_simulate():
+    """
+    Run simulation with custom weights.
+    Returns new accuracy metrics and which predictions would flip.
+    """
+    from flask import request, jsonify
+    
+    custom_weights = request.json.get('weights', {})
+    
+    # Get data
+    all_obs = db.get_all_daily_observations()
+    all_obs.sort(key=lambda x: x['date'], reverse=True)
+    analysis_set = all_obs[:60]
+    
+    # Calculate stats with custom weights
+    new_stats = calculate_model_stats(analysis_set, custom_weights)
+    
+    # Calculate stats with current weights (for comparison)
+    current_stats = calculate_model_stats(analysis_set, None)
+    
+    # Find which predictions would flip
+    flips = analyze_prediction_flips(analysis_set, custom_weights)
+    
+    return jsonify({
+        'accuracy': new_stats['accuracy'],
+        'recall': new_stats['recall'],
+        'precision': new_stats['precision'],
+        'grade': assign_grade(new_stats['accuracy']),
+        'accuracy_change': round(new_stats['accuracy'] - current_stats['accuracy'], 1),
+        'recall_change': round(new_stats['recall'] - current_stats['recall'], 1),
+        'precision_change': round(new_stats['precision'] - current_stats['precision'], 1),
+        'flip_summary': flips['summary']
+    })
+
+
+
+
+
 # ============================================================
 # Forecast
 # ============================================================
@@ -1296,90 +1592,88 @@ def get_risk_level(score):
             'description': 'High flare risk. Prioritize rest, avoid sun exposure, and monitor symptoms closely.'
         }
     else:  # 12+, was 15+
-        return {
-            'level': 'Critical Risk',
-            'color': '#c94040',
-            'description': 'Critical flare risk. Consider a rest day and avoid all triggering activities.'
-        }
-
+            return {
+                'level': 'Critical Risk',
+                'color': '#c94040',
+                'description': 'Critical flare risk. Consider a rest day and avoid all triggering activities.'
+            }
 
 
 def get_contributing_factors(obs: dict) -> list:
-    """Identify what's contributing to today's risk score."""
-    factors = []
+        """Identify what's contributing to today's risk score."""
+        factors = []
+        
+        # UV exposure
+        sun_min = obs.get('sun_exposure_min') or 0
+        if sun_min >= 100:
+            factors.append({'name': 'High UV exposure', 'points': 3, 'color': '#d4b84a'})
+        elif sun_min >= 70:
+            factors.append({'name': 'Moderate UV exposure', 'points': 1.25, 'color': '#d4b84a'})
+        
+        # Overexertion
+        steps = obs.get('steps') or 0
+        hours_slept = obs.get('hours_slept') or 8
+        if hours_slept > 0:
+            exertion_ratio = steps / hours_slept
+            if exertion_ratio >= 2000:
+                factors.append({'name': 'Severe overexertion', 'points': 2, 'color': '#c94040'})
+            elif exertion_ratio >= 1500:
+                factors.append({'name': 'Moderate overexertion', 'points': 1.5, 'color': '#d4784a'})
+        
+        # Temperature
+        basal_temp = obs.get('basal_temp_delta') or 0
+        if basal_temp >= 0.8:
+            factors.append({'name': 'High fever', 'points': 3, 'color': '#c94040'})
+        elif basal_temp >= 0.5:
+            factors.append({'name': 'Moderate fever', 'points': 2, 'color': '#d4784a'})
+        elif basal_temp >= 0.3:
+            factors.append({'name': 'Mild fever', 'points': 1, 'color': '#d4b84a'})
+        
+        # Active symptoms
+        if obs.get('migraine'):
+            factors.append({'name': 'Migraine', 'points': 1, 'color': '#c94040'})
+        if obs.get('pulmonary'):
+            factors.append({'name': 'Pulmonary symptoms', 'points': 1, 'color': '#4ab8b8'})
+        if obs.get('musculature'):
+            factors.append({'name': 'Muscle symptoms', 'points': 1.5, 'color': '#d4a054'})  # CHANGED
+        if obs.get('dermatological'):
+            factors.append({'name': 'Skin symptoms', 'points': 0.75, 'color': '#d4784a'})
+        if obs.get('cognitive'):
+            factors.append({'name': 'Cognitive symptoms', 'points': 1.0, 'color': '#9b72cf'})  # CHANGED
+        if obs.get('neurological'):
+            factors.append({'name': 'Neurological symptoms', 'points': 1.5, 'color': '#4a90d9'})  # CHANGED
+        if obs.get('mucosal'):
+            factors.append({'name': 'Mucosal symptoms', 'points': 0.25, 'color': '#d4c4a0'})
+        
+        # Rheumatic
+        if obs.get('rheumatic'):
+            rheum_notes = (obs.get('rheumatic_notes') or '').lower()
+            if any(j in rheum_notes for j in ['hip', 'knee', 'shoulder', 'elbow', 'ankle', 'wrist', 'jaw']):
+                factors.append({'name': 'Major joint pain', 'points': 2, 'color': '#e85d9e'})
+            elif any(j in rheum_notes for j in ['finger', 'toe', 'hand']):
+                factors.append({'name': 'Minor joint pain', 'points': 1, 'color': '#e85d9e'})
+            else:
+                factors.append({'name': 'Rheumatic symptoms', 'points': 0.5, 'color': '#e85d9e'})
+        
+        # High fatigue
+        fatigue = obs.get('fatigue_scale') or 0
+        if fatigue >= 7:
+            factors.append({'name': 'Severe fatigue', 'points': 3, 'color': '#d4a054'})
+        elif fatigue > 5:
+            factors.append({'name': 'Moderate fatigue', 'points': 1, 'color': '#d4a054'})
+        
+        # High pain
+        pain = obs.get('pain_scale') or 0
+        if pain >= 7:
+            factors.append({'name': 'High pain', 'points': 1, 'color': '#c94040'})
+        
+        # Low emotional state
+        emotional = obs.get('emotional_state') or 5
+        if emotional <= 3:
+            factors.append({'name': 'Low emotional state', 'points': 2, 'color': '#7a8499'})
+        
+        return factors
     
-    # UV exposure
-    sun_min = obs.get('sun_exposure_min') or 0
-    if sun_min >= 100:
-        factors.append({'name': 'High UV exposure', 'points': 3, 'color': '#d4b84a'})
-    elif sun_min >= 70:
-        factors.append({'name': 'Moderate UV exposure', 'points': 1.25, 'color': '#d4b84a'})
-    
-    # Overexertion
-    steps = obs.get('steps') or 0
-    hours_slept = obs.get('hours_slept') or 8
-    if hours_slept > 0:
-        exertion_ratio = steps / hours_slept
-        if exertion_ratio >= 2000:
-            factors.append({'name': 'Severe overexertion', 'points': 2, 'color': '#c94040'})
-        elif exertion_ratio >= 1500:
-            factors.append({'name': 'Moderate overexertion', 'points': 1.5, 'color': '#d4784a'})
-    
-    # Temperature
-    basal_temp = obs.get('basal_temp_delta') or 0
-    if basal_temp >= 0.8:
-        factors.append({'name': 'High fever', 'points': 3, 'color': '#c94040'})
-    elif basal_temp >= 0.5:
-        factors.append({'name': 'Moderate fever', 'points': 2, 'color': '#d4784a'})
-    elif basal_temp >= 0.3:
-        factors.append({'name': 'Mild fever', 'points': 1, 'color': '#d4b84a'})
-    
-    # Active symptoms
-    if obs.get('migraine'):
-        factors.append({'name': 'Migraine', 'points': 1, 'color': '#c94040'})
-    if obs.get('pulmonary'):
-        factors.append({'name': 'Pulmonary symptoms', 'points': 1, 'color': '#4ab8b8'})
-    if obs.get('musculature'):
-        factors.append({'name': 'Muscle symptoms', 'points': 1.5, 'color': '#d4a054'})  # CHANGED
-    if obs.get('dermatological'):
-        factors.append({'name': 'Skin symptoms', 'points': 0.75, 'color': '#d4784a'})
-    if obs.get('cognitive'):
-        factors.append({'name': 'Cognitive symptoms', 'points': 1.0, 'color': '#9b72cf'})  # CHANGED
-    if obs.get('neurological'):
-        factors.append({'name': 'Neurological symptoms', 'points': 1.5, 'color': '#4a90d9'})  # CHANGED
-    if obs.get('mucosal'):
-        factors.append({'name': 'Mucosal symptoms', 'points': 0.25, 'color': '#d4c4a0'})
-    
-    # Rheumatic
-    if obs.get('rheumatic'):
-        rheum_notes = (obs.get('rheumatic_notes') or '').lower()
-        if any(j in rheum_notes for j in ['hip', 'knee', 'shoulder', 'elbow', 'ankle', 'wrist', 'jaw']):
-            factors.append({'name': 'Major joint pain', 'points': 2, 'color': '#e85d9e'})
-        elif any(j in rheum_notes for j in ['finger', 'toe', 'hand']):
-            factors.append({'name': 'Minor joint pain', 'points': 1, 'color': '#e85d9e'})
-        else:
-            factors.append({'name': 'Rheumatic symptoms', 'points': 0.5, 'color': '#e85d9e'})
-    
-    # High fatigue
-    fatigue = obs.get('fatigue_scale') or 0
-    if fatigue >= 7:
-        factors.append({'name': 'Severe fatigue', 'points': 3, 'color': '#d4a054'})
-    elif fatigue > 5:
-        factors.append({'name': 'Moderate fatigue', 'points': 1, 'color': '#d4a054'})
-    
-    # High pain
-    pain = obs.get('pain_scale') or 0
-    if pain >= 7:
-        factors.append({'name': 'High pain', 'points': 1, 'color': '#c94040'})
-    
-    # Low emotional state
-    emotional = obs.get('emotional_state') or 5
-    if emotional <= 3:
-        factors.append({'name': 'Low emotional state', 'points': 2, 'color': '#7a8499'})
-    
-    return factors
-
-
 def get_recommendations(risk_level: str, factors: list) -> list:
     """Generate actionable recommendations based on risk."""
     recs = []
@@ -1435,6 +1729,7 @@ def get_score_breakdown(obs: dict) -> list:
     steps = obs.get('steps') or 0
     hours_slept = obs.get('hours_slept') or 8
     exertion = 0
+    ratio = 0
     if hours_slept > 0:
         ratio = steps / hours_slept
         if ratio >= 2000:
@@ -1794,10 +2089,16 @@ def forecast_accuracy():
 # Search
 # ============================================================
 
-@app.route("/search")
+@app.route("/search", methods=["GET", "POST"])
 def search():
-    """Keyword search across all note fields, grouped by source type."""
-    query = request.args.get("q", "").strip()
+    """Search through observations and clinical notes."""
+    # ... existing code ...
+    
+    query = request.form.get("query", "").strip()
+    
+    # Easter egg: redirect to lab for help queries
+    if query.lower() in ['help', 'user manual', 'cli', 'lab', 'code', 'weights', 'tune', 'manual']:
+        return redirect(url_for('forecast_lab'))
 
     grouped = {
         "daily":       [],
@@ -2251,3 +2552,4 @@ if __name__ == "__main__":
         port=5000,
         debug=True,        # set to False when you want cleaner output
     )
+    

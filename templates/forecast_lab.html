@@ -1,0 +1,384 @@
+{% extends "base.html" %}
+
+{% block title %}laboratory — biotracking{% endblock %}
+
+{% block head %}
+<style>
+    /* Terminal styling */
+    .terminal {
+        background: #0a0a0a;
+        color: #4ade80;
+        font-family: 'Courier New', monospace;
+        padding: var(--space-xl);
+        border-radius: var(--radius-md);
+        border: 2px solid #1a1a1a;
+        box-shadow: 0 0 30px rgba(74, 222, 128, 0.1);
+        min-height: 600px;
+    }
+    
+    .terminal-header {
+        border: 2px solid #4ade80;
+        padding: var(--space-md);
+        margin-bottom: var(--space-lg);
+        text-align: center;
+        position: relative;
+    }
+    
+    .terminal-line {
+        margin: 0.5rem 0;
+        line-height: 1.6;
+    }
+    
+    .terminal-prompt {
+        color: #4ade80;
+        font-weight: bold;
+    }
+    
+    .terminal-input {
+        background: transparent;
+        border: none;
+        color: #4ade80;
+        font-family: 'Courier New', monospace;
+        font-size: 1rem;
+        outline: none;
+        width: 100%;
+        caret-color: #4ade80;
+    }
+    
+    .weight-slider {
+        width: 100%;
+        height: 6px;
+        background: #1a1a1a;
+        border-radius: 3px;
+        outline: none;
+        -webkit-appearance: none;
+    }
+    
+    .weight-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 16px;
+        height: 16px;
+        background: #4ade80;
+        cursor: pointer;
+        border-radius: 50%;
+        box-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+    }
+    
+    .weight-slider::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+        background: #4ade80;
+        cursor: pointer;
+        border-radius: 50%;
+        box-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+    }
+    
+    .achievement {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        background: rgba(74, 222, 128, 0.1);
+        border: 1px solid #4ade80;
+        border-radius: 4px;
+        margin: 0.25rem;
+        font-size: 0.85rem;
+    }
+    
+    .stat-box {
+        background: #1a1a1a;
+        border: 1px solid #4ade80;
+        padding: var(--space-md);
+        border-radius: 4px;
+        text-align: center;
+    }
+    
+    .stat-value {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #4ade80;
+    }
+    
+    .blink {
+        animation: blink 1s infinite;
+    }
+    
+    @keyframes blink {
+        0%, 50% { opacity: 1; }
+        51%, 100% { opacity: 0; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="terminal">
+    <div class="terminal-header">
+        <pre style="color:#4ade80; margin:0; font-size:0.7rem; line-height:1.2;">
+┌─────────────────────────────────────────────────────────────┐
+│  FLARE PREDICTION LABORATORY v2.0                           │
+│  Experimental Model Tuning Interface                        │
+│  Type 'help' for commands                                   │
+└─────────────────────────────────────────────────────────────┘
+        </pre>
+    </div>
+    
+    <div id="terminal-output">
+        <div class="terminal-line">> Initializing laboratory...</div>
+        <div class="terminal-line">> Loading model parameters...</div>
+        <div class="terminal-line">> Current accuracy: <span style="color:#fbbf24;">{{ current_accuracy }}%</span></div>
+        <div class="terminal-line">> Recall: <span style="color:#fbbf24;">{{ current_recall }}%</span> | Precision: <span style="color:#fbbf24;">{{ current_precision }}%</span></div>
+        <div class="terminal-line">> False negatives: <span style="color:#ef4444;">{{ false_negatives }}</span> | False positives: <span style="color:#f59e0b;">{{ false_positives }}</span></div>
+        <div class="terminal-line" style="margin-top:1rem;">> System ready. ✓</div>
+        
+        <div style="margin-top:2rem; border-top:1px solid #1a1a1a; padding-top:1rem;">
+            <div class="terminal-line">MAIN MENU:</div>
+            <div class="terminal-line">[1] View Current Weights</div>
+            <div class="terminal-line">[2] Adjust Symptom Weights</div>
+            <div class="terminal-line">[3] Run Simulation</div>
+            <div class="terminal-line">[4] View Model Code</div>
+            <div class="terminal-line">[5] Export Changes</div>
+            <div class="terminal-line">[6] Achievements</div>
+            <div class="terminal-line">[?] Help</div>
+            <div class="terminal-line">[X] Exit Lab</div>
+        </div>
+        
+        <div style="margin-top:1rem;">
+            <span class="terminal-prompt">> </span>
+            <input type="text" class="terminal-input" id="command-input" 
+                   placeholder="Enter command..." autofocus
+                   onkeypress="if(event.key==='Enter') executeCommand()">
+        </div>
+    </div>
+    
+    <!-- Hidden panels for different modes -->
+    <div id="weights-panel" style="display:none; margin-top:2rem;">
+        <div class="terminal-line" style="font-size:1.2rem; margin-bottom:1rem;">
+            ⚖️ SYMPTOM WEIGHT ADJUSTMENT
+        </div>
+        
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:var(--space-lg);">
+            {% for symptom in symptoms %}
+            <div style="margin-bottom:var(--space-md);">
+                <div class="terminal-line">
+                    {{ symptom.name }}: 
+                    <span id="weight-{{ symptom.key }}-value">{{ symptom.weight }}</span>
+                </div>
+                <input type="range" 
+                       class="weight-slider"
+                       id="weight-{{ symptom.key }}"
+                       min="0" max="3" step="0.25"
+                       value="{{ symptom.weight }}"
+                       oninput="updateWeight('{{ symptom.key }}', this.value)">
+                <div style="font-size:0.75rem; color:#666; margin-top:0.25rem;">
+                    {{ symptom.description }}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div style="margin-top:var(--space-lg); display:flex; gap:var(--space-md);">
+            <button onclick="runSimulation()" 
+                    style="background:#4ade80; color:#0a0a0a; border:none; 
+                           padding:0.75rem 1.5rem; border-radius:4px; 
+                           font-family:'Courier New'; cursor:pointer;">
+                Run Simulation →
+            </button>
+            <button onclick="resetWeights()" 
+                    style="background:transparent; color:#4ade80; border:1px solid #4ade80; 
+                           padding:0.75rem 1.5rem; border-radius:4px; 
+                           font-family:'Courier New'; cursor:pointer;">
+                Reset to Default
+            </button>
+            <button onclick="showMenu()" 
+                    style="background:transparent; color:#666; border:1px solid #666; 
+                           padding:0.75rem 1.5rem; border-radius:4px; 
+                           font-family:'Courier New'; cursor:pointer;">
+                ← Back
+            </button>
+        </div>
+    </div>
+    
+    <div id="simulation-results" style="display:none; margin-top:2rem;">
+        <div class="terminal-line" style="font-size:1.2rem; margin-bottom:1rem;">
+            🧪 SIMULATION RESULTS
+        </div>
+        
+        <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:var(--space-md); 
+                    margin-bottom:var(--space-lg);">
+            <div class="stat-box">
+                <div style="font-size:0.75rem; margin-bottom:0.5rem;">Accuracy</div>
+                <div class="stat-value" id="sim-accuracy">--</div>
+                <div style="font-size:0.75rem; margin-top:0.5rem;" id="sim-accuracy-change">--</div>
+            </div>
+            <div class="stat-box">
+                <div style="font-size:0.75rem; margin-bottom:0.5rem;">Recall</div>
+                <div class="stat-value" id="sim-recall">--</div>
+                <div style="font-size:0.75rem; margin-top:0.5rem;" id="sim-recall-change">--</div>
+            </div>
+            <div class="stat-box">
+                <div style="font-size:0.75rem; margin-bottom:0.5rem;">Precision</div>
+                <div class="stat-value" id="sim-precision">--</div>
+                <div style="font-size:0.75rem; margin-top:0.5rem;" id="sim-precision-change">--</div>
+            </div>
+            <div class="stat-box">
+                <div style="font-size:0.75rem; margin-bottom:0.5rem;">Grade</div>
+                <div class="stat-value" id="sim-grade">--</div>
+                <div style="font-size:0.75rem; margin-top:0.5rem;" id="sim-grade-change">--</div>
+            </div>
+        </div>
+        
+        <div id="flip-analysis" class="terminal-line" style="margin-top:var(--space-lg);">
+            <!-- Will be populated with which predictions would flip -->
+        </div>
+        
+        <div style="margin-top:var(--space-lg);">
+            <button onclick="applyChanges()" 
+                    style="background:#4ade80; color:#0a0a0a; border:none; 
+                           padding:0.75rem 1.5rem; border-radius:4px; 
+                           font-family:'Courier New'; cursor:pointer;">
+                Apply These Changes ✓
+            </button>
+            <button onclick="showWeights()" 
+                    style="background:transparent; color:#4ade80; border:1px solid #4ade80; 
+                           padding:0.75rem 1.5rem; border-radius:4px; 
+                           font-family:'Courier New'; cursor:pointer; margin-left:0.5rem;">
+                ← Adjust More
+            </button>
+        </div>
+    </div>
+    
+    <div id="code-view" style="display:none; margin-top:2rem;">
+        <div class="terminal-line" style="font-size:1.2rem; margin-bottom:1rem;">
+            📝 MODEL CODE
+        </div>
+        <pre style="background:#1a1a1a; padding:var(--space-md); border-radius:4px; 
+                    overflow-x:auto; font-size:0.85rem; line-height:1.6;">{{ model_code }}</pre>
+        <button onclick="showMenu()" 
+                style="background:transparent; color:#666; border:1px solid #666; 
+                       padding:0.75rem 1.5rem; border-radius:4px; margin-top:1rem;
+                       font-family:'Courier New'; cursor:pointer;">
+            ← Back
+        </button>
+    </div>
+    
+    <div id="achievements-view" style="display:none; margin-top:2rem;">
+        <div class="terminal-line" style="font-size:1.2rem; margin-bottom:1rem;">
+            🏆 ACHIEVEMENTS
+        </div>
+        <div id="achievements-list">
+            {% for achievement in achievements %}
+            <div class="achievement">
+                {{ achievement.icon }} {{ achievement.name }}
+                {% if achievement.unlocked %}
+                <span style="color:#4ade80;">✓</span>
+                {% else %}
+                <span style="color:#666;">🔒</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        <button onclick="showMenu()" 
+                style="background:transparent; color:#666; border:1px solid #666; 
+                       padding:0.75rem 1.5rem; border-radius:4px; margin-top:1rem;
+                       font-family:'Courier New'; cursor:pointer;">
+            ← Back
+        </button>
+    </div>
+</div>
+
+<script>
+let currentWeights = {{ current_weights | tojson }};
+
+function executeCommand() {
+    const input = document.getElementById('command-input');
+    const cmd = input.value.toLowerCase().trim();
+    input.value = '';
+    
+    if (cmd === '1' || cmd === 'weights') {
+        showWeights();
+    } else if (cmd === '2' || cmd === 'adjust') {
+        showWeights();
+    } else if (cmd === '3' || cmd === 'simulate' || cmd === 'sim') {
+        showWeights();
+    } else if (cmd === '4' || cmd === 'code') {
+        showCode();
+    } else if (cmd === '6' || cmd === 'achievements') {
+        showAchievements();
+    } else if (cmd === 'x' || cmd === 'exit') {
+        window.location.href = '{{ url_for("forecast") }}';
+    } else if (cmd === '?' || cmd === 'help') {
+        alert('Commands:\n1 - View weights\n2 - Adjust weights\n3 - Run simulation\n4 - View code\n6 - Achievements\nX - Exit');
+    } else {
+        alert('Unknown command. Type ? for help.');
+    }
+}
+
+function showMenu() {
+    document.getElementById('weights-panel').style.display = 'none';
+    document.getElementById('simulation-results').style.display = 'none';
+    document.getElementById('code-view').style.display = 'none';
+    document.getElementById('achievements-view').style.display = 'none';
+}
+
+function showWeights() {
+    showMenu();
+    document.getElementById('weights-panel').style.display = 'block';
+}
+
+function showCode() {
+    showMenu();
+    document.getElementById('code-view').style.display = 'block';
+}
+
+function showAchievements() {
+    showMenu();
+    document.getElementById('achievements-view').style.display = 'block';
+}
+
+function updateWeight(key, value) {
+    document.getElementById('weight-' + key + '-value').textContent = value;
+    currentWeights[key] = parseFloat(value);
+}
+
+function resetWeights() {
+    location.reload();
+}
+
+function runSimulation() {
+    // Show simulation panel
+    document.getElementById('weights-panel').style.display = 'none';
+    document.getElementById('simulation-results').style.display = 'block';
+    
+    // Send weights to backend for simulation
+    fetch('/forecast/lab/simulate', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({weights: currentWeights})
+    })
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('sim-accuracy').textContent = data.accuracy + '%';
+        document.getElementById('sim-recall').textContent = data.recall + '%';
+        document.getElementById('sim-precision').textContent = data.precision + '%';
+        document.getElementById('sim-grade').textContent = data.grade;
+        
+        // Show changes
+        document.getElementById('sim-accuracy-change').innerHTML = formatChange(data.accuracy_change);
+        document.getElementById('sim-recall-change').innerHTML = formatChange(data.recall_change);
+        document.getElementById('sim-precision-change').innerHTML = formatChange(data.precision_change);
+        
+        // Show which predictions would flip
+        document.getElementById('flip-analysis').innerHTML = data.flip_summary;
+    });
+}
+
+function formatChange(value) {
+    if (value > 0) return `<span style="color:#4ade80;">+${value}%</span>`;
+    if (value < 0) return `<span style="color:#ef4444;">${value}%</span>`;
+    return '<span style="color:#666;">no change</span>';
+}
+
+function applyChanges() {
+    // Generate code snippet to copy
+    alert('Feature coming soon! For now, manually edit app.py calculate_flare_prime_score()');
+}
+</script>
+{% endblock %}
