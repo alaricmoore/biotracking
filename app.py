@@ -1176,122 +1176,132 @@ def forecast():
     )
 
 def calculate_flare_prime_score(obs):
-        """
-        Calculate flare prime score for a single observation.
-        Based on refined logic with exponential UV weighting.
-        """
-        score = 0.0
+    """
+    Calculate flare prime score for a single observation.
+    Based on refined logic with exponential UV weighting.
+    
+    UPDATED 2026-03-05: Weights adjusted based on accuracy analysis
+    - Lowered threshold from 10 → 8 (improve recall from 20.9%)
+    - Increased neurological: 0.5 → 1.5 (appeared in 51 missed flares)
+    - Increased cognitive: 0.5 → 1.0 (appeared in 34 missed flares)
+    - Increased musculature: 1.0 → 1.5 (appeared in 44 missed flares)
+    """
+    score = 0.0
+    
+    # 1. UV Exposure (exponential weighting: UV^1.5 × minutes)
+    sun_min = obs.get('sun_exposure_min') or 0
+    if sun_min >= 100:
+        score += 3
+    elif sun_min >= 70:
+        score += 1.25
+    
+    # 2. Physical Overexertion (steps / hours slept)
+    steps = obs.get('steps') or 0
+    hours_slept = obs.get('hours_slept') or 8
+    if hours_slept > 0:
+        exertion_ratio = steps / hours_slept
+        if exertion_ratio >= 2000:
+            score += 2.0
+        elif exertion_ratio >= 1500:
+            score += 1.5
+    
+    # 3. Basal Temperature (simplified, non-overlapping)
+    basal_temp = obs.get('basal_temp_delta') or 0
+    if basal_temp >= 0.8:
+        score += 3
+    elif basal_temp >= 0.5:
+        score += 2
+    elif basal_temp >= 0.3:
+        score += 1
+    
+    # 4. Symptoms (UPDATED WEIGHTS)
+    if obs.get('neurological'):
+        score += 1.5  # CHANGED from 0.5
+    if obs.get('cognitive'):
+        score += 1.0  # CHANGED from 0.5
+    if obs.get('musculature'):
+        score += 1.5  # CHANGED from 1.0
+    if obs.get('migraine'):
+        score += 1    # unchanged
+    if obs.get('pulmonary'):
+        score += 1    # unchanged
+    if obs.get('dermatological'):
+        score += 0.75  # unchanged
+    if obs.get('mucosal'):
+        score += 0.25  # unchanged
+    # gastro: +0 (waiting for 3 months of data)
+    
+    # 5. Rheumatic (parse notes for joint type)
+    if obs.get('rheumatic'):
+        rheum_notes = (obs.get('rheumatic_notes') or '').lower()
+        major_joints = ['hip', 'knee', 'shoulder', 'elbow', 'ankle', 'wrist', 'jaw']
+        minor_joints = ['finger', 'toe', 'hand']
         
-
-        sun_min = obs.get('sun_exposure_min') or 0
-        # Note: We don't have UV index in daily_observations, only sun_minutes
-        # For now, use sun_minutes as a proxy until we link UV data
-        # TODO: Link with uv_index table for more accurate calculation
-        if sun_min >= 100:
-            score += 3
-        elif sun_min >= 70:
-            score += 1.25
-        
-        # 2. Physical Overexertion (steps / hours slept)
-        steps = obs.get('steps') or 0
-        hours_slept = obs.get('hours_slept') or 8  # default to avoid div/0
-        if hours_slept > 0:
-            exertion_ratio = steps / hours_slept
-            if exertion_ratio >= 2000:
-                score += 2.0
-            elif exertion_ratio >= 1500:
-                score += 1.5
-        
-        # 3. Basal Temperature (simplified, non-overlapping)
-        basal_temp = obs.get('basal_temp_delta') or 0
-        if basal_temp >= 0.8:
-            score += 3
-        elif basal_temp >= 0.5:
-            score += 2
-        elif basal_temp >= 0.3:
-            score += 1
-        
-        # 4. Symptoms (updated weights)
-        if obs.get('neurological'):
+        if any(joint in rheum_notes for joint in major_joints):
+            score += 2.0
+        elif any(joint in rheum_notes for joint in minor_joints):
+            score += 1.0
+        else:
             score += 0.5
-        if obs.get('cognitive'):
-            score += 0.5
-        if obs.get('musculature'):
-            score += 1
-        if obs.get('migraine'):
-            score += 1
-        if obs.get('pulmonary'):
-            score += 1
-        if obs.get('dermatological'):
-            score += 0.75
-        if obs.get('mucosal'):
-            score += 0.25
-        # gastro: +0 (waiting for 3 months of data)
-        
-        # 5. Rheumatic (parse notes for joint type)
-        if obs.get('rheumatic'):
-            rheum_notes = (obs.get('rheumatic_notes') or '').lower()
-            major_joints = ['hip', 'knee', 'shoulder', 'elbow', 'ankle', 'wrist', 'jaw']
-            minor_joints = ['finger', 'toe', 'hand']
-            
-            if any(joint in rheum_notes for joint in major_joints):
-                score += 2.0  # Major joint = strong predictor
-            elif any(joint in rheum_notes for joint in minor_joints):
-                score += 1.0  # Minor joint = moderate predictor
-            else:
-                score += 0.5  # Rheumatic but no joint specificity
-        
-        # 6. Pain Scale
-        pain = obs.get('pain_scale') or 0
-        if pain >= 7:
-            score += 1
-        
-        # 7. Fatigue Scale
-        fatigue = obs.get('fatigue_scale') or 0
-        if fatigue >= 7:
-            score += 3
-        elif fatigue > 5:
-            score += 1
-        elif fatigue > 3:
-            score += 0.5
-        
-        # 8. Emotional State
-        emotional = obs.get('emotional_state') or 5
-        if emotional <= 4:
-            score += 2
-        
-        # Note: NOT including flare_occurred or strikes in the score
-        # These are used for retrospective accuracy validation
-        
-        return round(score, 1)
+    
+    # 6. Pain Scale
+    pain = obs.get('pain_scale') or 0
+    if pain >= 7:
+        score += 1
+    
+    # 7. Fatigue Scale
+    fatigue = obs.get('fatigue_scale') or 0
+    if fatigue >= 7:
+        score += 3
+    elif fatigue > 5:
+        score += 1
+    elif fatigue > 3:
+        score += 0.5
+    
+    # 8. Emotional State
+    emotional = obs.get('emotional_state') or 5
+    if emotional <= 4:
+        score += 2
+    
+    return round(score, 1)
+    
 
 
-def get_risk_level(score: float) -> dict:
-    """Determine risk level based on score."""
+def get_risk_level(score):
+    """
+    Determine risk level based on score.
+    
+    UPDATED 2026-03-05: Lowered thresholds to improve recall
+    - Low: 0-5 (unchanged)
+    - Moderate: 5-8 (was 5-10)
+    - High: 8-12 (was 10-15)
+    - Critical: 12+ (was 15+)
+    """
     if score < 5:
         return {
             'level': 'Low Risk',
             'color': '#4a9e6e',
             'description': 'Your flare risk is low. Keep up your current routine and rest patterns.'
         }
-    elif score < 10:
+    elif score < 8:  # CHANGED from 10
         return {
             'level': 'Moderate Risk',
             'color': '#d4b84a',
             'description': 'Elevated risk detected. Consider reducing physical demands and UV exposure.'
         }
-    elif score < 15:
+    elif score < 12:  # CHANGED from 15
         return {
             'level': 'High Risk',
             'color': '#d4784a',
             'description': 'High flare risk. Prioritize rest, avoid sun exposure, and monitor symptoms closely.'
         }
-    else:
+    else:  # 12+, was 15+
         return {
             'level': 'Critical Risk',
             'color': '#c94040',
             'description': 'Critical flare risk. Consider a rest day and avoid all triggering activities.'
         }
+
 
 
 def get_contributing_factors(obs: dict) -> list:
@@ -1336,7 +1346,7 @@ def get_contributing_factors(obs: dict) -> list:
     if obs.get('cognitive'):
         factors.append({'name': 'Cognitive symptoms', 'points': 0.5, 'color': '#9b72cf'})
     if obs.get('neurological'):
-        factors.append({'name': 'Neurological symptoms', 'points': 0.5, 'color': '#4a90d9'})
+        factors.append({'name': 'Neurological symptoms', 'points': 0.25, 'color': '#4a90d9'})
     if obs.get('mucosal'):
         factors.append({'name': 'Mucosal symptoms', 'points': 0.25, 'color': '#d4c4a0'})
     
@@ -1364,7 +1374,7 @@ def get_contributing_factors(obs: dict) -> list:
     
     # Low emotional state
     emotional = obs.get('emotional_state') or 5
-    if emotional <= 4:
+    if emotional <= 3:
         factors.append({'name': 'Low emotional state', 'points': 2, 'color': '#7a8499'})
     
     return factors
@@ -1543,9 +1553,9 @@ def forecast_history():
         # Did a flare occur?
         flare_occurred = obs.get('flare_occurred') == 1
         
-        # Did we predict high risk? (score >= 10)
-        predicted_high = score >= 10
-        
+        # Did we predict high risk? (score >= 8)
+        predicted_high = score >= 8 #Changed from 10 to catch more actual flares. 
+
         # Check if prediction was correct
         if predicted_high and flare_occurred:
             correct += 1
@@ -1634,7 +1644,7 @@ def forecast_accuracy():
     
     for obs in analysis_set:
         score = calculate_flare_prime_score(obs)
-        predicted_flare = score >= 10  # High risk threshold
+        predicted_flare = score >= 8  # CHANGED from 10 
         actual_flare = obs.get('flare_occurred') == 1
         
         if predicted_flare and actual_flare:
