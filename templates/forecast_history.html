@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}forecast history — biotracking{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>forecast history</h1>
+    <p class="page-subtitle">
+        past 30 days of flare risk predictions
+    </p>
+</div>
+
+<div style="display:flex; gap:var(--space-md); margin-bottom:var(--space-lg);">
+    <a href="{{ url_for('forecast') }}" class="btn btn-secondary">
+        ← Back to Forecast
+    </a>
+    <a href="{{ url_for('forecast_accuracy') }}" class="btn btn-primary">
+        Check Model Accuracy
+    </a>
+</div>
+
+<div class="card">
+    <div style="overflow-x:auto;">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Predicted Risk</th>
+                    <th>Score</th>
+                    <th>Actual Flare</th>
+                    <th>Match</th>
+                    <th>Top Factors</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for day in history %}
+                <tr>
+                    <td class="mono">{{ day.date }}</td>
+                    <td>
+                        <span class="badge" style="background:{{ day.risk_color }}22; 
+                                                     color:{{ day.risk_color }}; 
+                                                     border:1px solid {{ day.risk_color }};">
+                            {{ day.risk_level }}
+                        </span>
+                    </td>
+                    <td class="mono" style="color:{{ day.risk_color }};">
+                        {{ day.score }}
+                    </td>
+                    <td style="text-align:center;">
+                        {% if day.flare_occurred %}
+                            <span style="color:var(--color-danger); font-size:1.2rem;">☣</span>
+                        {% else %}
+                            <span style="color:var(--text-muted);">—</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align:center;">
+                        {% if day.prediction_correct %}
+                            <span style="color:var(--color-success);">✓</span>
+                        {% elif day.flare_occurred or day.predicted_high_risk %}
+                            <span style="color:var(--color-danger);">✗</span>
+                        {% else %}
+                            <span style="color:var(--text-muted);">—</span>
+                        {% endif %}
+                    </td>
+                    <td style="font-size:0.85rem; color:var(--text-muted);">
+                        {{ day.top_factors }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Summary Stats -->
+<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); 
+            gap:var(--space-md); margin-top:var(--space-lg);">
+    
+    <div class="card" style="text-align:center;">
+        <div style="font-size:2rem; font-weight:600; color:var(--color-success);">
+            {{ correct_predictions }}
+        </div>
+        <div style="font-size:0.85rem; color:var(--text-muted); margin-top:var(--space-xs);">
+            Correct Predictions
+        </div>
+    </div>
+    
+    <div class="card" style="text-align:center;">
+        <div style="font-size:2rem; font-weight:600; color:var(--color-danger);">
+            {{ false_positives }}
+        </div>
+        <div style="font-size:0.85rem; color:var(--text-muted); margin-top:var(--space-xs);">
+            False Alarms
+        </div>
+    </div>
+    
+    <div class="card" style="text-align:center;">
+        <div style="font-size:2rem; font-weight:600; color:var(--color-warning);">
+            {{ false_negatives }}
+        </div>
+        <div style="font-size:0.85rem; color:var(--text-muted); margin-top:var(--space-xs);">
+            Missed Flares
+        </div>
+    </div>
+    
+    <div class="card" style="text-align:center;">
+        <div style="font-size:2rem; font-weight:600; color:var(--color-accent);">
+            {{ accuracy_percent }}%
+        </div>
+        <div style="font-size:0.85rem; color:var(--text-muted); margin-top:var(--space-xs);">
+            Overall Accuracy
+        </div>
+    </div>
+</div>
+
+{% endblock %}

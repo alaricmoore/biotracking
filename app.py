@@ -26,6 +26,7 @@ from pathlib import Path
 from flask import send_file 
 
 from typing import Optional, Dict, List, Any 
+from collections import Counter
 
 app = Flask(__name__)
 
@@ -1376,25 +1377,25 @@ def get_recommendations(risk_level: str, factors: list) -> list:
     if risk_level == 'Low Risk':
         recs.append({'icon': '✓', 'text': 'Maintain current routine and rest schedule'})
         recs.append({'icon': '☀', 'text': 'Continue with normal sun protection practices'})
-        recs.append({'icon': '💧', 'text': 'Stay hydrated and maintain balanced nutrition'})
+        recs.append({'icon': '⛆', 'text': 'Stay hydrated and maintain balanced nutrition'})
     
     elif risk_level == 'Moderate Risk':
         recs.append({'icon': '⚠', 'text': 'Reduce physical demands and pace activities'})
         recs.append({'icon': '☀', 'text': 'Limit UV exposure, stay in shade during peak hours'})
-        recs.append({'icon': '😴', 'text': 'Prioritize 8+ hours of sleep tonight'})
-        recs.append({'icon': '🧊', 'text': 'Use cooling strategies if overheated'})
+        recs.append({'icon': '⏾', 'text': 'Prioritize 8+ hours of sleep tonight'})
+        recs.append({'icon': '❆', 'text': 'Use cooling strategies if overheated'})
     
     elif risk_level == 'High Risk':
-        recs.append({'icon': '🛑', 'text': 'Avoid strenuous activity and sun exposure'})
-        recs.append({'icon': '😴', 'text': 'Rest is critical - cancel non-essential plans'})
-        recs.append({'icon': '💊', 'text': 'Have NSAIDs and comfort measures ready'})
-        recs.append({'icon': '🌡', 'text': 'Monitor temperature and symptoms closely'})
+        recs.append({'icon': '⚠', 'text': 'Avoid strenuous activity and sun exposure'})
+        recs.append({'icon': '⏾', 'text': 'Rest is critical - cancel non-essential plans'})
+        recs.append({'icon': '℞', 'text': 'Have NSAIDs and comfort measures ready'})
+        recs.append({'icon': '⦨', 'text': 'Monitor temperature and symptoms closely'})
     
     else:  # Critical Risk
-        recs.append({'icon': '🚨', 'text': 'Take a full rest day - no exceptions'})
-        recs.append({'icon': '🏠', 'text': 'Stay indoors in cool, comfortable environment'})
-        recs.append({'icon': '💊', 'text': 'Use all available symptom management tools'})
-        recs.append({'icon': '📱', 'text': 'Consider contacting healthcare provider if symptoms worsen'})
+        recs.append({'icon': '𝚾𝚾𝚾𝚾', 'text': 'Take a full rest day - no exceptions'})
+        recs.append({'icon': '⌂', 'text': 'Stay indoors in cool, comfortable environment'})
+        recs.append({'icon': '℞', 'text': 'Use all available symptom management tools'})
+        recs.append({'icon': '✆', 'text': 'Consider contacting healthcare provider if symptoms worsen'})
     
     # Add specific recommendations based on factors
     factor_names = [f['name'] for f in factors]
@@ -1514,6 +1515,270 @@ def format_date_short(date_str: str) -> str:
     dt = datetime.strptime(date_str, '%Y-%m-%d')
     return dt.strftime('%b %d')
 
+# ============================================================
+# Forecast History
+# ============================================================
+
+@app.route("/forecast/history")
+def forecast_history():
+    """Show past 30 days of predictions vs actuals."""
+    
+    # Get last 30 days
+    all_obs = db.get_all_daily_observations()
+    if not all_obs:
+        return redirect(url_for('forecast'))
+    
+    all_obs.sort(key=lambda x: x['date'], reverse=True)
+    last_30 = all_obs[:30]
+    
+    history = []
+    correct = 0
+    false_pos = 0
+    false_neg = 0
+    
+    for obs in last_30:
+        score = calculate_flare_prime_score(obs)
+        risk_info = get_risk_level(score)
+        
+        # Did a flare occur?
+        flare_occurred = obs.get('flare_occurred') == 1
+        
+        # Did we predict high risk? (score >= 10)
+        predicted_high = score >= 10
+        
+        # Check if prediction was correct
+        if predicted_high and flare_occurred:
+            correct += 1
+            prediction_correct = True
+        elif not predicted_high and not flare_occurred:
+            correct += 1
+            prediction_correct = True
+        elif predicted_high and not flare_occurred:
+            false_pos += 1
+            prediction_correct = False
+        elif not predicted_high and flare_occurred:
+            false_neg += 1
+            prediction_correct = False
+        else:
+            prediction_correct = None
+        
+        # Get top contributing factors
+        factors = get_contributing_factors(obs)
+        top_factors = ', '.join([f['name'] for f in factors[:3]]) if factors else 'None'
+        
+        history.append({
+            'date': obs['date'],
+            'score': round(score, 1),
+            'risk_level': risk_info['level'],
+            'risk_color': risk_info['color'],
+            'flare_occurred': flare_occurred,
+            'predicted_high_risk': predicted_high,
+            'prediction_correct': prediction_correct,
+            'top_factors': top_factors
+        })
+    
+    # Calculate accuracy
+    total = len(last_30)
+    accuracy = round((correct / total * 100) if total > 0 else 0, 1)
+    
+    return render_template(
+        "forecast_history.html",
+        history=history,
+        correct_predictions=correct,
+        false_positives=false_pos,
+        false_negatives=false_neg,
+        accuracy_percent=accuracy
+    )
+    
+# ============================================================
+# Forecast Accuracy Analysis and Self-Grading
+# ============================================================
+
+@app.route("/forecast/accuracy")
+def forecast_accuracy():
+    """
+    Analyze model accuracy and suggest weight adjustments.
+    Self-grading system that learns from false predictions.
+    """
+    from collections import Counter
+    
+    # Get requested time window
+    days_param = request.args.get('days', '60')
+    
+    # Get all observations
+    all_obs = db.get_all_daily_observations()
+    if not all_obs:
+        return redirect(url_for('forecast'))
+    
+    all_obs.sort(key=lambda x: x['date'], reverse=True)
+    
+    # Select analysis window
+    if days_param == 'all':
+        analysis_set = all_obs
+        days_display = 'all'
+    else:
+        days_int = int(days_param)
+        analysis_set = all_obs[:days_int]
+        days_display = days_int
+    
+    # Calculate predictions vs actuals
+    true_positives = 0   # Predicted flare, flare occurred
+    true_negatives = 0   # Predicted no flare, no flare
+    false_positives = 0  # Predicted flare, no flare (false alarm)
+    false_negatives = 0  # Predicted no flare, but flare occurred (missed)
+    
+    # Track which factors appear in false predictions
+    false_pos_factors = Counter()
+    false_neg_factors = Counter()
+    problem_cases = []
+    
+    for obs in analysis_set:
+        score = calculate_flare_prime_score(obs)
+        predicted_flare = score >= 10  # High risk threshold
+        actual_flare = obs.get('flare_occurred') == 1
+        
+        if predicted_flare and actual_flare:
+            true_positives += 1
+        elif not predicted_flare and not actual_flare:
+            true_negatives += 1
+        elif predicted_flare and not actual_flare:
+            false_positives += 1
+            # Track factors present in false alarm
+            factors = get_contributing_factors(obs)
+            for f in factors:
+                false_pos_factors[f['name']] += 1
+            
+            # Add to problem cases
+            if len(problem_cases) < 10:
+                problem_cases.append({
+                    'date': obs['date'],
+                    'type': 'False Alarm',
+                    'type_color': '#d4784a',
+                    'score': round(score, 1),
+                    'factors': ', '.join([f['name'] for f in factors[:3]])
+                })
+        elif not predicted_flare and actual_flare:
+            false_negatives += 1
+            # Track factors present in missed flare
+            factors = get_contributing_factors(obs)
+            for f in factors:
+                false_neg_factors[f['name']] += 1
+            
+            # Add to problem cases
+            if len(problem_cases) < 10:
+                problem_cases.append({
+                    'date': obs['date'],
+                    'type': 'Missed Flare',
+                    'type_color': '#c94040',
+                    'score': round(score, 1),
+                    'factors': ', '.join([f['name'] for f in factors[:3]])
+                })
+    
+    # Calculate metrics
+    total = len(analysis_set)
+    correct = true_positives + true_negatives
+    accuracy = round((correct / total * 100) if total > 0 else 0, 1)
+    
+    # Precision: Of all predicted flares, how many were correct?
+    predicted_pos = true_positives + false_positives
+    precision = round((true_positives / predicted_pos * 100) if predicted_pos > 0 else 0, 1)
+    
+    # Recall: Of all actual flares, how many did we catch?
+    actual_pos = true_positives + false_negatives
+    recall = round((true_positives / actual_pos * 100) if actual_pos > 0 else 0, 1)
+    
+    # False alarm rate
+    predicted_pos_total = true_positives + false_positives
+    false_alarm_rate = round((false_positives / predicted_pos_total * 100) if predicted_pos_total > 0 else 0, 1)
+    
+    # Assign grade
+    if accuracy >= 85:
+        grade = 'A'
+        grade_color = '#4a9e6e'
+        grade_desc = 'Excellent - Model is highly accurate'
+    elif accuracy >= 75:
+        grade = 'B'
+        grade_color = '#4ab8b8'
+        grade_desc = 'Good - Model performs well with minor issues'
+    elif accuracy >= 65:
+        grade = 'C'
+        grade_color = '#d4b84a'
+        grade_desc = 'Fair - Model needs improvement'
+    elif accuracy >= 50:
+        grade = 'D'
+        grade_color = '#d4784a'
+        grade_desc = 'Poor - Significant adjustments needed'
+    else:
+        grade = 'F'
+        grade_color = '#c94040'
+        grade_desc = 'Failing - Model requires major revision'
+    
+    # Generate weight adjustment suggestions
+    suggestions = []
+    
+    # If too many false alarms, suggest reducing weights of common factors
+    if false_positives > 5:
+        for factor, count in false_pos_factors.most_common(3):
+            if count >= 3:  # Factor appears in 3+ false alarms
+                suggestions.append({
+                    'factor': factor,
+                    'current_weight': 'Current',
+                    'suggested_weight': '↓ Reduce',
+                    'reason': f'Appears in {count} false alarms. May be over-weighted.',
+                    'color': '#d4784a'
+                })
+    
+    # If too many missed flares, suggest increasing weights of common factors
+    if false_negatives > 3:
+        for factor, count in false_neg_factors.most_common(3):
+            if count >= 2:  # Factor appears in 2+ missed flares
+                suggestions.append({
+                    'factor': factor,
+                    'current_weight': 'Current',
+                    'suggested_weight': '↑ Increase',
+                    'reason': f'Appears in {count} missed flares. May be under-weighted.',
+                    'color': '#c94040'
+                })
+    
+    # Specific suggestions based on patterns
+    if false_alarm_rate > 40:
+        suggestions.insert(0, {
+            'factor': 'Overall Threshold',
+            'current_weight': '10 points',
+            'suggested_weight': '12 points',
+            'reason': 'High false alarm rate suggests threshold is too sensitive.',
+            'color': '#9b72cf'
+        })
+    
+    if recall < 70:
+        suggestions.insert(0, {
+            'factor': 'Overall Threshold',
+            'current_weight': '10 points',
+            'suggested_weight': '8 points',
+            'reason': 'Low recall suggests threshold is too conservative.',
+            'color': '#9b72cf'
+        })
+    
+    return render_template(
+        "forecast_accuracy.html",
+        n_days=len(analysis_set),
+        days=days_display,
+        grade=grade,
+        grade_color=grade_color,
+        grade_description=grade_desc,
+        accuracy=accuracy,
+        precision=precision,
+        recall=recall,
+        false_alarm_rate=false_alarm_rate,
+        correct_predictions=correct,
+        total_predictions=total,
+        true_positives=true_positives,
+        true_negatives=true_negatives,
+        false_positives=false_positives,
+        false_negatives=false_negatives,
+        suggestions=suggestions,
+        problem_cases=problem_cases[:10]
+    )
 
 # ============================================================
 # Search

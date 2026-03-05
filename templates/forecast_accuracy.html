@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block title %}model accuracy — biotracking{% endblock %}
+
+{% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>model accuracy assessment</h1>
+    <p class="page-subtitle">
+        self-grading analysis based on {{ n_days }} days of data
+    </p>
+</div>
+
+<div style="display:flex; gap:var(--space-md); align-items:center; margin-bottom:var(--space-lg);">
+    <a href="{{ url_for('forecast') }}" class="btn btn-secondary">
+        ← Back to Forecast
+    </a>
+    <a href="{{ url_for('forecast_history') }}" class="btn btn-secondary">
+        View History
+    </a>
+    
+    <!-- Time Window Selector -->
+    <div style="margin-left:auto; display:flex; align-items:center; gap:var(--space-sm);">
+        <label style="font-size:0.85rem; color:var(--text-muted);">
+            Analysis Window:
+        </label>
+        <select onchange="window.location.href='{{ url_for('forecast_accuracy') }}?days=' + this.value"
+                style="padding:0.5rem 1rem; background:var(--bg-input); border:1px solid var(--border-medium); 
+                       border-radius:var(--radius-sm); color:var(--text-primary); font-size:0.9rem;">
+            <option value="60" {% if days == 60 %}selected{% endif %}>60 days</option>
+            <option value="90" {% if days == 90 %}selected{% endif %}>90 days</option>
+            <option value="120" {% if days == 120 %}selected{% endif %}>120 days</option>
+            <option value="all" {% if days == 'all' %}selected{% endif %}>All time</option>
+        </select>
+    </div>
+</div>
+
+<!-- Overall Grade -->
+<div class="card" style="margin-bottom:var(--space-xl); text-align:center; 
+                         border:2px solid {{ grade_color }};">
+    <div style="font-size:0.85rem; text-transform:uppercase; letter-spacing:0.1em; 
+                color:var(--text-muted); margin-bottom:var(--space-sm);">
+        Model Performance Grade
+    </div>
+    <div style="font-size:4rem; font-weight:600; color:{{ grade_color }}; 
+                font-family:var(--font-display); line-height:1;">
+        {{ grade }}
+    </div>
+    <div style="font-size:1rem; color:var(--text-secondary); margin-top:var(--space-sm);">
+        {{ grade_description }}
+    </div>
+</div>
+
+<!-- Metrics Grid -->
+<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); 
+            gap:var(--space-md); margin-bottom:var(--space-xl);">
+    
+    <div class="card" style="text-align:center; border-top:3px solid var(--color-success);">
+        <div style="font-size:2rem; font-weight:600; color:var(--color-success);">
+            {{ accuracy }}%
+        </div>
+        <div style="font-size:0.85rem; color:var(--text-muted); margin-top:var(--space-xs);">
+            Accuracy
+        </div>
+        <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem;">
+            {{ correct_predictions }}/{{ total_predictions }} correct
+        </div>
+    </div>
+    
+    <div class="card" style="text-align:center; border-top:3px solid var(--color-accent);">
+        <div style="font-size:2rem; font-weight:600; color:var(--color-accent);">
+            {{ precision }}%
+        </div>
+        <div style="font-size:0.85rem; color:var(--text-muted); margin-top:var(--space-xs);">
+            Precision
+        </div>
+        <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem;">
+            When predicting flare
+        </div>
+    </div>
+    
+    <div class="card" style="text-align:center; border-top:3px solid var(--color-warning);">
+        <div style="font-size:2rem; font-weight:600; color:var(--color-warning);">
+            {{ recall }}%
+        </div>
+        <div style="font-size:0.85rem; color:var(--text-muted); margin-top:var(--space-xs);">
+            Recall
+        </div>
+        <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem;">
+            Catches actual flares
+        </div>
+    </div>
+    
+    <div class="card" style="text-align:center; border-top:3px solid var(--color-danger);">
+        <div style="font-size:2rem; font-weight:600; color:var(--color-danger);">
+            {{ false_alarm_rate }}%
+        </div>
+        <div style="font-size:0.85rem; color:var(--text-muted); margin-top:var(--space-xs);">
+            False Alarm Rate
+        </div>
+        <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem;">
+            {{ false_positives }} false alarms
+        </div>
+    </div>
+</div>
+
+<!-- Confusion Matrix -->
+<div class="card" style="margin-bottom:var(--space-xl);">
+    <div class="card-title">confusion matrix</div>
+    <div style="display:grid; grid-template-columns:150px 1fr 1fr; gap:1px; 
+                background:var(--border-subtle); border:1px solid var(--border-subtle);">
+        <!-- Header row -->
+        <div style="background:var(--bg-surface); padding:var(--space-md);"></div>
+        <div style="background:var(--bg-surface); padding:var(--space-md); text-align:center; 
+                    font-weight:600; color:var(--text-primary);">
+            Predicted: No Flare
+        </div>
+        <div style="background:var(--bg-surface); padding:var(--space-md); text-align:center; 
+                    font-weight:600; color:var(--text-primary);">
+            Predicted: Flare
+        </div>
+        
+        <!-- Actual: No Flare row -->
+        <div style="background:var(--bg-surface); padding:var(--space-md); 
+                    font-weight:600; color:var(--text-primary);">
+            Actual: No Flare
+        </div>
+        <div style="background:var(--bg-elevated); padding:var(--space-lg); text-align:center;">
+            <div style="font-size:2rem; font-weight:600; color:var(--color-success);">
+                {{ true_negatives }}
+            </div>
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem;">
+                True Negatives ✓
+            </div>
+        </div>
+        <div style="background:var(--bg-elevated); padding:var(--space-lg); text-align:center;">
+            <div style="font-size:2rem; font-weight:600; color:var(--color-danger);">
+                {{ false_positives }}
+            </div>
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem;">
+                False Positives ✗
+            </div>
+        </div>
+        
+        <!-- Actual: Flare row -->
+        <div style="background:var(--bg-surface); padding:var(--space-md); 
+                    font-weight:600; color:var(--text-primary);">
+            Actual: Flare
+        </div>
+        <div style="background:var(--bg-elevated); padding:var(--space-lg); text-align:center;">
+            <div style="font-size:2rem; font-weight:600; color:var(--color-warning);">
+                {{ false_negatives }}
+            </div>
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem;">
+                False Negatives ✗
+            </div>
+        </div>
+        <div style="background:var(--bg-elevated); padding:var(--space-lg); text-align:center;">
+            <div style="font-size:2rem; font-weight:600; color:var(--color-success);">
+                {{ true_positives }}
+            </div>
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem;">
+                True Positives ✓
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Suggested Adjustments -->
+{% if suggestions %}
+<div class="card" style="margin-bottom:var(--space-xl); 
+                         border-left:4px solid var(--color-accent);">
+    <div class="card-title">suggested weight adjustments</div>
+    <p style="color:var(--text-secondary); font-size:0.9rem; margin-bottom:var(--space-md); 
+              line-height:1.6;">
+        Based on analysis of false predictions, the model suggests these adjustments to improve accuracy:
+    </p>
+    
+    <div style="display:flex; flex-direction:column; gap:var(--space-md);">
+        {% for suggestion in suggestions %}
+        <div style="padding:var(--space-md); background:var(--bg-elevated); 
+                    border-radius:var(--radius-sm); border-left:3px solid {{ suggestion.color }};">
+            <div style="display:flex; justify-content:space-between; align-items:baseline; 
+                        margin-bottom:var(--space-xs);">
+                <span style="font-weight:600; color:var(--text-primary);">
+                    {{ suggestion.factor }}
+                </span>
+                <span style="font-family:var(--font-mono); color:{{ suggestion.color }};">
+                    {{ suggestion.current_weight }} → {{ suggestion.suggested_weight }}
+                </span>
+            </div>
+            <div style="font-size:0.85rem; color:var(--text-muted); line-height:1.5;">
+                {{ suggestion.reason }}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% else %}
+<div class="card" style="text-align:center; padding:var(--space-xl); 
+                         background:var(--bg-elevated);">
+    <div style="font-size:1.5rem; margin-bottom:var(--space-sm);">✓</div>
+    <div style="color:var(--text-secondary);">
+        Model is performing well. No weight adjustments needed at this time.
+    </div>
+</div>
+{% endif %}
+
+<!-- Problem Cases -->
+{% if problem_cases %}
+<div class="card">
+    <div class="card-title">recent problem cases</div>
+    <div style="overflow-x:auto;">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Score</th>
+                    <th>Main Factors</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for case in problem_cases %}
+                <tr>
+                    <td class="mono">{{ case.date }}</td>
+                    <td>
+                        <span class="badge" style="background:{{ case.type_color }}22; 
+                                                     color:{{ case.type_color }}; 
+                                                     border:1px solid {{ case.type_color }};">
+                            {{ case.type }}
+                        </span>
+                    </td>
+                    <td class="mono">{{ case.score }}</td>
+                    <td style="font-size:0.85rem; color:var(--text-muted);">
+                        {{ case.factors }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
