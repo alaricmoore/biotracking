@@ -731,6 +731,10 @@
                         {% if request.endpoint == 'daily_entry' %}class="active"{% endif %}>
                         today
                     </a></li>
+                    <li><a href="{{ url_for('forecast') }}"
+                        {% if request.endpoint == 'forecast' %}class="active"{% endif %}>
+                        forecast
+                    </a></li>
                     <li><a href="{{ url_for('timeline') }}"
                         {% if request.endpoint == 'timeline' %}class="active"{% endif %}>
                         timeline
