@@ -1340,13 +1340,13 @@ def get_contributing_factors(obs: dict) -> list:
     if obs.get('pulmonary'):
         factors.append({'name': 'Pulmonary symptoms', 'points': 1, 'color': '#4ab8b8'})
     if obs.get('musculature'):
-        factors.append({'name': 'Muscle symptoms', 'points': 1, 'color': '#d4a054'})
+        factors.append({'name': 'Muscle symptoms', 'points': 1.5, 'color': '#d4a054'})  # CHANGED
     if obs.get('dermatological'):
         factors.append({'name': 'Skin symptoms', 'points': 0.75, 'color': '#d4784a'})
     if obs.get('cognitive'):
-        factors.append({'name': 'Cognitive symptoms', 'points': 0.5, 'color': '#9b72cf'})
+        factors.append({'name': 'Cognitive symptoms', 'points': 1.0, 'color': '#9b72cf'})  # CHANGED
     if obs.get('neurological'):
-        factors.append({'name': 'Neurological symptoms', 'points': 0.25, 'color': '#4a90d9'})
+        factors.append({'name': 'Neurological symptoms', 'points': 1.5, 'color': '#4a90d9'})  # CHANGED
     if obs.get('mucosal'):
         factors.append({'name': 'Mucosal symptoms', 'points': 0.25, 'color': '#d4c4a0'})
     
