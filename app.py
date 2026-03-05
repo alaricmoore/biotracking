@@ -148,12 +148,14 @@ def daily_entry_submit():
         "musculature_notes": form.get("musculature_notes", "").strip() or None,
         "migraine": get_bool("migraine"),
         "migraine_notes": form.get("migraine_notes", "").strip() or None,
-        "air_hunger": get_bool("air_hunger"),
-        "air_hunger_notes": form.get("air_hunger_notes", "").strip() or None,
+        "pulmonary": get_bool("pulmonary"),
+        "pulmonary_notes": form.get("pulmonary_notes", "").strip() or None,
+        "gastro": get_bool("gastro"),
+        "gastro_notes": form.get("gastro_notes", "").strip() or None,
+        "mucosal": get_bool("mucosal"),
+        "mucosal_notes": form.get("mucosal_notes", "").strip() or None,
         "dermatological": get_bool("dermatological"),
         "derm_notes": form.get("derm_notes", "").strip() or None,
-        "word_loss": get_bool("word_loss"),
-        "word_loss_notes": form.get("word_loss_notes", "").strip() or None,
         "rheumatic": get_bool("rheumatic"),
         "rheumatic_notes": form.get("rheumatic_notes", "").strip() or None,
         "strike_physical": get_bool("strike_physical"),
@@ -286,9 +288,10 @@ def compute_lag_correlations(observations: list, uv_data: list) -> dict:
         "migraine":      lambda o: o.get("migraine"),
         "cognitive":     lambda o: o.get("cognitive"),
         "dermatological":lambda o: o.get("dermatological"),
-        "air_hunger":    lambda o: o.get("air_hunger"),
+        "pulmonary":     lambda o: o.get("pulmonary"),
         "rheumatic":     lambda o: o.get("rheumatic"),
-        "word loss":     lambda o: o.get("word_loss"),
+        "gastro":        lambda o: o.get("gastro"),
+        "mucosal":       lambda o: o.get("mucosal"),
         "flare":         lambda o: o.get("flare_occurred"),
     }
 
@@ -1298,7 +1301,7 @@ def export_csvs_to_directory(directory: Path):
     daily_obs = db.get_all_observations()  # You'll need this function in db.py
     write_csv(directory / "daily_observations.csv", daily_obs, [
         'date', 'sun_exposure_min', 'neurological', 'musculature', 'migraine',
-        'cognitive', 'dermatological', 'air_hunger', 'rheumatic', 'word_loss',
+        'cognitive', 'dermatological', 'pulmonary', 'rheumatic', 'gastro', 'mucosal',
         'pain_scale', 'fatigue_scale', 'emotional_state', 'flare_occurred',
         'basal_temp_delta', 'hours_slept', 'hrv', 'steps', 'notes'
     ])

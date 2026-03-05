@@ -37,8 +37,9 @@
             --color-migraine:     #c94040;   /* deep red     - migraine      */
             --color-cognitive:    #9b72cf;   /* soft purple  - cognitive     */
             --color-derm:         #d4784a;   /* muted orange - dermatological*/
-            --color-air:          #4ab8b8;   /* teal         - air hunger    */
-            --color-word:         #7a8499;   /* slate grey   - emotional     */
+            --color-pulmonary:    #4ab8b8;   /* teal         - pulmonary     */
+            --color-gastro:       #a8d46f;   /* soft green   - gastrointestinal*/
+            --color-mucosal:      #d4c4a0;   /* muted beige  - mucosal       */ 
             --color-uv:           #d4b84a;   /* yellow-gold  - UV index      */
             --color-rheum:        #e85d9e;   /* pink         - rheumatic     */
             --color-flare:        #ffffff;   /* white        - flare days    */
@@ -98,8 +99,9 @@
             --color-migraine:     #c94040;
             --color-cognitive:    #8b66bcff;
             --color-derm:         #be6b42ff;
-            --color-air:          #3f9d9dff;
-            --color-word:         #6c7cceff;
+            --color-pulmonary:    #4ab8b8;
+            --color-gastro:       #a8d46f;   
+            --color-mucosal:      #d4c4a0; 
             --color-uv:           #c4ab44ff;
             --color-rheum:        #e85d9e;
             --color-flare:        #1a1a1aff;   /* dark for light theme */
@@ -412,25 +414,31 @@
             border-color: var(--color-cognitive);
             color: var(--color-cognitive);
         }
+
+        .toggle-item.pulmonary input:checked ~ .toggle-label {
+            background: color-mix(in srgb, var(--color-pulmonary) 15%, var(--bg-surface));
+            border-color: var(--color-pulmonary);
+            color: var(--color-pulmonary);
+        }
+        .toggle-item.gastro input:checked ~ .toggle-label {
+            background: color-mix(in srgb, var(--color-gastro) 15%, var(--bg-surface));
+            border-color: var(--color-gastro);
+            color: var(--color-gastro);
+        }
+        .toggle-item.mucosal input:checked ~ .toggle-label {
+            background: color-mix(in srgb, var(--color-mucosal) 15%, var(--bg-surface));
+            border-color: var(--color-mucosal);
+            color: var(--color-mucosal);
+        }
         .toggle-item.derm input:checked ~ .toggle-label {
             background: color-mix(in srgb, var(--color-derm) 15%, var(--bg-surface));
             border-color: var(--color-derm);
             color: var(--color-derm);
         }
-        .toggle-item.air input:checked ~ .toggle-label {
-            background: color-mix(in srgb, var(--color-air) 15%, var(--bg-surface));
-            border-color: var(--color-air);
-            color: var(--color-air);
-        }
         .toggle-item.rheum input:checked ~ .toggle-label {
             background: color-mix(in srgb, var(--color-rheum) 15%, var(--bg-surface));
             border-color: var(--color-rheum);
             color: var(--color-rheum);
-        }
-        .toggle-item.word input:checked ~ .toggle-label {
-            background: color-mix(in srgb, var(--color-word) 15%, var(--bg-surface));
-            border-color: var(--color-word);
-            color: var(--color-word);
         }
 
         /* Expandable note fields */

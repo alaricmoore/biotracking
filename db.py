@@ -73,10 +73,11 @@ def upsert_daily_observation(data: dict) -> bool:
         "cognitive", "cognitive_notes",
         "musculature", "musculature_notes",
         "migraine", "migraine_notes",
-        "air_hunger", "air_hunger_notes",
+        "pulmonary", "pulmonary_notes",
         "rheumatic", "rheumatic_notes",
         "dermatological", "derm_notes",
-        "word_loss", "word_loss_notes",
+        "mucosal", "mucosal_notes",
+        "gastro", "gastro_notes",
         "strike_physical", "strike_environmental", "flare_occurred",
         "notes"
     ]
@@ -696,3 +697,8 @@ def delete_medication(med_id: int) -> bool:
         conn.execute("DELETE FROM medications WHERE id = ?", (med_id,))
     return True
 
+def close_all_connections():
+    """Close any open database connections."""
+    # If you're using connection pooling, close the pool here
+    # For basic sqlite3, this may not be necessary
+    pass

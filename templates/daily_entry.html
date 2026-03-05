@@ -180,17 +180,17 @@
                 </div>
             </div>
 
-            <div class="toggle-item air">
-                <input type="checkbox" name="air_hunger" id="tog-air"
-                    {% if existing and existing.air_hunger %}checked{% endif %}
-                    onchange="toggleNotes(this, 'notes-air')">
-                <label class="toggle-label" for="tog-air">
-                    <span>air hunger</span>
+            <div class="toggle-item pulmonary">
+                <input type="checkbox" name="pulmonary" id="tog-pulmonary"
+                    {% if existing and existing.pulmonary %}checked{% endif %}
+                    onchange="toggleNotes(this, 'notes-pulmonary')">
+                <label class="toggle-label" for="tog-pulmonary">
+                    <span>pulmonary</span>
                 </label>
-                <div class="notes-expand {% if existing and existing.air_hunger_notes %}visible{% endif %}"
-                     id="notes-air">
-                    <textarea name="air_hunger_notes" placeholder="severity, triggers, duration…"
-                        >{{ existing.air_hunger_notes if existing and existing.air_hunger_notes else '' }}</textarea>
+                <div class="notes-expand {% if existing and existing.pulmonary_notes %}visible{% endif %}"
+                     id="notes-pulmonary">
+                    <textarea name="pulmonary_notes" placeholder="severity, triggers, duration…"
+                        >{{ existing.pulmonary_notes if existing and existing.pulmonary_notes else '' }}</textarea>
                 </div>
             </div>
 
@@ -222,17 +222,30 @@
                 </div>
             </div>
 
-            <div class="toggle-item word">
-                <input type="checkbox" name="word_loss" id="tog-word"
-                    {% if existing and existing.word_loss %}checked{% endif %}
-                    onchange="toggleNotes(this, 'notes-word')">
-                <label class="toggle-label" for="tog-word">
-                    <span>word loss</span>
+            <div class="toggle-item gastro">
+                <input type="checkbox" name="gastro" id="tog-gastro"
+                    {% if existing and existing.gastro %}checked{% endif %}
+                    onchange="toggleNotes(this, 'notes-gastro')">
+                <label class="toggle-label" for="tog-gastro">
+                    <span>gastro</span>
                 </label>
-                <div class="notes-expand {% if existing and existing.word_notes %}visible{% endif %}"
-                     id="notes-word">
-                    <textarea name="word_loss_notes" placeholder="specific incidents, severity..."
-                        >{{ existing.word_loss_notes if existing and existing.word_loss_notes else '' }}</textarea>
+                <div class="notes-expand {% if existing and existing.gastro_notes %}visible{% endif %}"
+                     id="notes-gastro">
+                    <textarea name="gastro_notes" placeholder="abdominal pain, bloating, diarrhea..."
+                        >{{ existing.gastro_notes if existing and existing.gastro_notes else '' }}</textarea>
+                </div>
+            </div>
+            <div class="toggle-item mucosal">
+                <input type="checkbox" name="mucosal" id="tog-mucosal"
+                    {% if existing and existing.mucosal %}checked{% endif %}
+                    onchange="toggleNotes(this, 'notes-mucosal')">
+                <label class="toggle-label" for="tog-mucosal">
+                    <span>mucosal</span>
+                </label>
+                <div class="notes-expand {% if existing and existing.mucosal_notes %}visible{% endif %}"
+                     id="notes-mucosal">
+                    <textarea name="mucosal_notes" placeholder="eye dryness, irritation, dry mouth, cracked lips..."
+                        >{{ existing.mucosal_notes if existing and existing.mucosal_notes else '' }}</textarea>
                 </div>
             </div>
         </div>
