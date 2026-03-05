@@ -25,6 +25,8 @@ import shutil
 from pathlib import Path
 from flask import send_file 
 
+from typing import Optional, Dict, List, Any 
+
 app = Flask(__name__)
 
 
@@ -1086,6 +1088,432 @@ def export_events():
         mimetype='text/csv',
         headers={'Content-Disposition': f'attachment; filename={filename}'}
     )
+# ============================================================
+# Forecast
+# ============================================================
+@app.route("/forecast")
+def forecast():
+    """
+    Flare risk forecast page.
+    Calculates flare prime score based on recent observations.
+    """
+    from datetime import datetime, timedelta
+    
+    # Get last 30 days of observations for analysis
+    all_obs = db.get_all_daily_observations()
+    if not all_obs:
+        return render_template("forecast.html", has_data=False)
+    
+    # Sort by date
+    all_obs.sort(key=lambda x: x['date'], reverse=True)
+    
+    # Need at least 7 days
+    if len(all_obs) < 7:
+        return render_template("forecast.html", has_data=False)
+    
+    # Get last 7 days for trend
+    last_7 = all_obs[:7]
+    today_obs = all_obs[0] if all_obs else None
+    
+    if not today_obs:
+        return render_template("forecast.html", has_data=False)
+    
+    # Calculate scores for last 7 days
+    scores_7day = []
+    for obs in last_7:
+        score = calculate_flare_prime_score(obs)
+        scores_7day.append({
+            'date': obs['date'],
+            'score': score
+        })
+    
+    # Today's score with 3-day weighted average
+    today_score = scores_7day[0]['score']
+    
+    # 3-day rolling weighted average (if we have enough data)
+    if len(scores_7day) >= 3:
+        weighted_score = (
+            scores_7day[0]['score'] * 1.0 +  # today
+            scores_7day[1]['score'] * 0.75 +  # yesterday
+            scores_7day[2]['score'] * 0.5     # day before
+        ) / 2.25
+    else:
+        weighted_score = today_score
+    
+    # Determine risk level and color
+    risk_info = get_risk_level(weighted_score)
+    
+    # Get contributing factors (what's adding to score today)
+    factors = get_contributing_factors(today_obs)
+    
+    # Get recommendations based on risk level
+    recommendations = get_recommendations(risk_info['level'], factors)
+    
+    # Build trend data for chart
+    trend_data = {
+        'dates': [format_date_short(s['date']) for s in reversed(scores_7day)],
+        'scores': [s['score'] for s in reversed(scores_7day)]
+    }
+    
+    # Build score breakdown by category
+    breakdown = get_score_breakdown(today_obs)
+    
+    return render_template(
+        "forecast.html",
+        has_data=True,
+        n_days=len(all_obs),
+        today_score=round(weighted_score, 1),
+        max_score=25,  # Theoretical maximum
+        risk_percentage=min(100, (weighted_score / 25) * 100),
+        risk_level=risk_info['level'],
+        risk_color=risk_info['color'],
+        risk_description=risk_info['description'],
+        factors=factors,
+        recommendations=recommendations,
+        trend_data=trend_data,
+        breakdown=breakdown
+    )
+
+def calculate_flare_prime_score(obs):
+        """
+        Calculate flare prime score for a single observation.
+        Based on refined logic with exponential UV weighting.
+        """
+        score = 0.0
+        
+
+        sun_min = obs.get('sun_exposure_min') or 0
+        # Note: We don't have UV index in daily_observations, only sun_minutes
+        # For now, use sun_minutes as a proxy until we link UV data
+        # TODO: Link with uv_index table for more accurate calculation
+        if sun_min >= 100:
+            score += 3
+        elif sun_min >= 70:
+            score += 1.25
+        
+        # 2. Physical Overexertion (steps / hours slept)
+        steps = obs.get('steps') or 0
+        hours_slept = obs.get('hours_slept') or 8  # default to avoid div/0
+        if hours_slept > 0:
+            exertion_ratio = steps / hours_slept
+            if exertion_ratio >= 2000:
+                score += 2.0
+            elif exertion_ratio >= 1500:
+                score += 1.5
+        
+        # 3. Basal Temperature (simplified, non-overlapping)
+        basal_temp = obs.get('basal_temp_delta') or 0
+        if basal_temp >= 0.8:
+            score += 3
+        elif basal_temp >= 0.5:
+            score += 2
+        elif basal_temp >= 0.3:
+            score += 1
+        
+        # 4. Symptoms (updated weights)
+        if obs.get('neurological'):
+            score += 0.5
+        if obs.get('cognitive'):
+            score += 0.5
+        if obs.get('musculature'):
+            score += 1
+        if obs.get('migraine'):
+            score += 1
+        if obs.get('pulmonary'):
+            score += 1
+        if obs.get('dermatological'):
+            score += 0.75
+        if obs.get('mucosal'):
+            score += 0.25
+        # gastro: +0 (waiting for 3 months of data)
+        
+        # 5. Rheumatic (parse notes for joint type)
+        if obs.get('rheumatic'):
+            rheum_notes = (obs.get('rheumatic_notes') or '').lower()
+            major_joints = ['hip', 'knee', 'shoulder', 'elbow', 'ankle', 'wrist', 'jaw']
+            minor_joints = ['finger', 'toe', 'hand']
+            
+            if any(joint in rheum_notes for joint in major_joints):
+                score += 2.0  # Major joint = strong predictor
+            elif any(joint in rheum_notes for joint in minor_joints):
+                score += 1.0  # Minor joint = moderate predictor
+            else:
+                score += 0.5  # Rheumatic but no joint specificity
+        
+        # 6. Pain Scale
+        pain = obs.get('pain_scale') or 0
+        if pain >= 7:
+            score += 1
+        
+        # 7. Fatigue Scale
+        fatigue = obs.get('fatigue_scale') or 0
+        if fatigue >= 7:
+            score += 3
+        elif fatigue > 5:
+            score += 1
+        elif fatigue > 3:
+            score += 0.5
+        
+        # 8. Emotional State
+        emotional = obs.get('emotional_state') or 5
+        if emotional <= 4:
+            score += 2
+        
+        # Note: NOT including flare_occurred or strikes in the score
+        # These are used for retrospective accuracy validation
+        
+        return round(score, 1)
+
+
+def get_risk_level(score: float) -> dict:
+    """Determine risk level based on score."""
+    if score < 5:
+        return {
+            'level': 'Low Risk',
+            'color': '#4a9e6e',
+            'description': 'Your flare risk is low. Keep up your current routine and rest patterns.'
+        }
+    elif score < 10:
+        return {
+            'level': 'Moderate Risk',
+            'color': '#d4b84a',
+            'description': 'Elevated risk detected. Consider reducing physical demands and UV exposure.'
+        }
+    elif score < 15:
+        return {
+            'level': 'High Risk',
+            'color': '#d4784a',
+            'description': 'High flare risk. Prioritize rest, avoid sun exposure, and monitor symptoms closely.'
+        }
+    else:
+        return {
+            'level': 'Critical Risk',
+            'color': '#c94040',
+            'description': 'Critical flare risk. Consider a rest day and avoid all triggering activities.'
+        }
+
+
+def get_contributing_factors(obs: dict) -> list:
+    """Identify what's contributing to today's risk score."""
+    factors = []
+    
+    # UV exposure
+    sun_min = obs.get('sun_exposure_min') or 0
+    if sun_min >= 100:
+        factors.append({'name': 'High UV exposure', 'points': 3, 'color': '#d4b84a'})
+    elif sun_min >= 70:
+        factors.append({'name': 'Moderate UV exposure', 'points': 1.25, 'color': '#d4b84a'})
+    
+    # Overexertion
+    steps = obs.get('steps') or 0
+    hours_slept = obs.get('hours_slept') or 8
+    if hours_slept > 0:
+        exertion_ratio = steps / hours_slept
+        if exertion_ratio >= 2000:
+            factors.append({'name': 'Severe overexertion', 'points': 2, 'color': '#c94040'})
+        elif exertion_ratio >= 1500:
+            factors.append({'name': 'Moderate overexertion', 'points': 1.5, 'color': '#d4784a'})
+    
+    # Temperature
+    basal_temp = obs.get('basal_temp_delta') or 0
+    if basal_temp >= 0.8:
+        factors.append({'name': 'High fever', 'points': 3, 'color': '#c94040'})
+    elif basal_temp >= 0.5:
+        factors.append({'name': 'Moderate fever', 'points': 2, 'color': '#d4784a'})
+    elif basal_temp >= 0.3:
+        factors.append({'name': 'Mild fever', 'points': 1, 'color': '#d4b84a'})
+    
+    # Active symptoms
+    if obs.get('migraine'):
+        factors.append({'name': 'Migraine', 'points': 1, 'color': '#c94040'})
+    if obs.get('pulmonary'):
+        factors.append({'name': 'Pulmonary symptoms', 'points': 1, 'color': '#4ab8b8'})
+    if obs.get('musculature'):
+        factors.append({'name': 'Muscle symptoms', 'points': 1, 'color': '#d4a054'})
+    if obs.get('dermatological'):
+        factors.append({'name': 'Skin symptoms', 'points': 0.75, 'color': '#d4784a'})
+    if obs.get('cognitive'):
+        factors.append({'name': 'Cognitive symptoms', 'points': 0.5, 'color': '#9b72cf'})
+    if obs.get('neurological'):
+        factors.append({'name': 'Neurological symptoms', 'points': 0.5, 'color': '#4a90d9'})
+    if obs.get('mucosal'):
+        factors.append({'name': 'Mucosal symptoms', 'points': 0.25, 'color': '#d4c4a0'})
+    
+    # Rheumatic
+    if obs.get('rheumatic'):
+        rheum_notes = (obs.get('rheumatic_notes') or '').lower()
+        if any(j in rheum_notes for j in ['hip', 'knee', 'shoulder', 'elbow', 'ankle', 'wrist', 'jaw']):
+            factors.append({'name': 'Major joint pain', 'points': 2, 'color': '#e85d9e'})
+        elif any(j in rheum_notes for j in ['finger', 'toe', 'hand']):
+            factors.append({'name': 'Minor joint pain', 'points': 1, 'color': '#e85d9e'})
+        else:
+            factors.append({'name': 'Rheumatic symptoms', 'points': 0.5, 'color': '#e85d9e'})
+    
+    # High fatigue
+    fatigue = obs.get('fatigue_scale') or 0
+    if fatigue >= 7:
+        factors.append({'name': 'Severe fatigue', 'points': 3, 'color': '#d4a054'})
+    elif fatigue > 5:
+        factors.append({'name': 'Moderate fatigue', 'points': 1, 'color': '#d4a054'})
+    
+    # High pain
+    pain = obs.get('pain_scale') or 0
+    if pain >= 7:
+        factors.append({'name': 'High pain', 'points': 1, 'color': '#c94040'})
+    
+    # Low emotional state
+    emotional = obs.get('emotional_state') or 5
+    if emotional <= 4:
+        factors.append({'name': 'Low emotional state', 'points': 2, 'color': '#7a8499'})
+    
+    return factors
+
+
+def get_recommendations(risk_level: str, factors: list) -> list:
+    """Generate actionable recommendations based on risk."""
+    recs = []
+    
+    if risk_level == 'Low Risk':
+        recs.append({'icon': '✓', 'text': 'Maintain current routine and rest schedule'})
+        recs.append({'icon': '☀', 'text': 'Continue with normal sun protection practices'})
+        recs.append({'icon': '💧', 'text': 'Stay hydrated and maintain balanced nutrition'})
+    
+    elif risk_level == 'Moderate Risk':
+        recs.append({'icon': '⚠', 'text': 'Reduce physical demands and pace activities'})
+        recs.append({'icon': '☀', 'text': 'Limit UV exposure, stay in shade during peak hours'})
+        recs.append({'icon': '😴', 'text': 'Prioritize 8+ hours of sleep tonight'})
+        recs.append({'icon': '🧊', 'text': 'Use cooling strategies if overheated'})
+    
+    elif risk_level == 'High Risk':
+        recs.append({'icon': '🛑', 'text': 'Avoid strenuous activity and sun exposure'})
+        recs.append({'icon': '😴', 'text': 'Rest is critical - cancel non-essential plans'})
+        recs.append({'icon': '💊', 'text': 'Have NSAIDs and comfort measures ready'})
+        recs.append({'icon': '🌡', 'text': 'Monitor temperature and symptoms closely'})
+    
+    else:  # Critical Risk
+        recs.append({'icon': '🚨', 'text': 'Take a full rest day - no exceptions'})
+        recs.append({'icon': '🏠', 'text': 'Stay indoors in cool, comfortable environment'})
+        recs.append({'icon': '💊', 'text': 'Use all available symptom management tools'})
+        recs.append({'icon': '📱', 'text': 'Consider contacting healthcare provider if symptoms worsen'})
+    
+    # Add specific recommendations based on factors
+    factor_names = [f['name'] for f in factors]
+    if any('UV' in name for name in factor_names):
+        recs.append({'icon': '🕶', 'text': 'Wear protective clothing and broad-spectrum sunscreen if going outside'})
+    if any('joint' in name.lower() for name in factor_names):
+        recs.append({'icon': '❄', 'text': 'Apply cold therapy to affected joints'})
+    
+    return recs[:5]  # Limit to 5 recommendations
+
+
+def get_score_breakdown(obs: dict) -> list:
+    """Break down score by category."""
+    breakdown = []
+    
+    # UV/Environmental
+    sun_min = obs.get('sun_exposure_min') or 0
+    uv_score = 3 if sun_min >= 100 else (1.25 if sun_min >= 70 else 0)
+    breakdown.append({
+        'name': 'UV Exposure',
+        'score': uv_score,
+        'color': '#d4b84a',
+        'description': f'{sun_min} minutes'
+    })
+    
+    # Physical Load
+    steps = obs.get('steps') or 0
+    hours_slept = obs.get('hours_slept') or 8
+    exertion = 0
+    if hours_slept > 0:
+        ratio = steps / hours_slept
+        if ratio >= 2000:
+            exertion = 2.0
+        elif ratio >= 1500:
+            exertion = 1.5
+    breakdown.append({
+        'name': 'Physical Load',
+        'score': exertion,
+        'color': '#d4a054',
+        'description': f'{int(ratio)} steps/hr slept' if hours_slept > 0 else 'N/A'
+    })
+    
+    # Temperature
+    basal_temp = obs.get('basal_temp_delta') or 0
+    temp_score = 0
+    if basal_temp >= 0.8:
+        temp_score = 3
+    elif basal_temp >= 0.5:
+        temp_score = 2
+    elif basal_temp >= 0.3:
+        temp_score = 1
+    breakdown.append({
+        'name': 'Temperature',
+        'score': temp_score,
+        'color': '#c94040',
+        'description': f'+{basal_temp:.1f}°F' if basal_temp > 0 else 'Normal'
+    })
+    
+    # Symptoms
+    symptom_score = 0
+    symptom_count = 0
+    for symptom in ['neurological', 'cognitive', 'musculature', 'migraine', 
+                    'pulmonary', 'dermatological', 'rheumatic', 'mucosal']:
+        if obs.get(symptom):
+            symptom_count += 1
+            if symptom == 'migraine' or symptom == 'musculature' or symptom == 'pulmonary':
+                symptom_score += 1
+            elif symptom == 'dermatological':
+                symptom_score += 0.75
+            elif symptom == 'cognitive' or symptom == 'neurological':
+                symptom_score += 0.5
+            elif symptom == 'mucosal':
+                symptom_score += 0.25
+    # Add rheumatic separately (parsed for joints)
+    if obs.get('rheumatic'):
+        rheum_notes = (obs.get('rheumatic_notes') or '').lower()
+        if any(j in rheum_notes for j in ['hip', 'knee', 'shoulder', 'elbow', 'ankle', 'wrist', 'jaw']):
+            symptom_score += 2
+        elif any(j in rheum_notes for j in ['finger', 'toe', 'hand']):
+            symptom_score += 1
+        else:
+            symptom_score += 0.5
+    
+    breakdown.append({
+        'name': 'Symptoms',
+        'score': round(symptom_score, 1),
+        'color': '#9b72cf',
+        'description': f'{symptom_count} active'
+    })
+    
+    # Pain/Fatigue
+    pain = obs.get('pain_scale') or 0
+    fatigue = obs.get('fatigue_scale') or 0
+    pf_score = 0
+    if pain >= 7:
+        pf_score += 1
+    if fatigue >= 7:
+        pf_score += 3
+    elif fatigue > 5:
+        pf_score += 1
+    elif fatigue > 3:
+        pf_score += 0.5
+    
+    breakdown.append({
+        'name': 'Pain & Fatigue',
+        'score': pf_score,
+        'color': '#e85d9e',
+        'description': f'P:{pain} F:{fatigue}'
+    })
+    
+    return breakdown
+
+
+def format_date_short(date_str: str) -> str:
+    """Format date as 'Mar 4' for chart labels."""
+    from datetime import datetime
+    dt = datetime.strptime(date_str, '%Y-%m-%d')
+    return dt.strftime('%b %d')
+
 
 # ============================================================
 # Search
