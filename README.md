@@ -415,7 +415,7 @@ cp biotracking.db biotracking_backup_$(date +%Y%m%d).db
 **Export options:**
 
 - In-app: export buttons for labs, medications, events, clinician list (CSV)
-- In-app UI delete function on search page (I have not actually tested the UI delete, but the full db export works)
+- In-app UI delete function on search page 
 - DB Browser for SQLite (GUI tool, free)
 - Command line: `sqlite3 biotracking.db .dump > backup.sql`
 
