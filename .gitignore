@@ -15,6 +15,7 @@ config.json
 Export.xml
 apple_health_export/
 *.zip
+*.numbers
 
 
 # ============================================================
