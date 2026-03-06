@@ -124,6 +124,8 @@ This is not a medical product. This is a tool for veracity: for people who need 
 - **Dark mode**: Easy on the eyes, just toggle the moon/sun in the header.
 - **Light mode**: Good for when you can't make out dark mode.
 
+# If you want to peek at what it looks like [go here]([url](https://github.com/alaricmoore/biotracking/issues/1)).
+
 ## Important Disclaimers
 
 ### Not Medical Advice
