@@ -235,9 +235,10 @@ def process_row(raw_row: dict, temp_baseline: float) -> Optional[dict]:
     record["cognitive"] = parse_bool(mapped.get("cognitive", ""))
     record["musculature"] = parse_bool(mapped.get("musculature", ""))
     record["migraine"] = parse_bool(mapped.get("migraine", ""))
-    record["air_hunger"] = parse_bool(mapped.get("air_hunger", ""))
+    record["pulmonary"] = parse_bool(mapped.get("pulmonary", ""))
     record["dermatological"] = parse_bool(mapped.get("dermatological", ""))
-    record["word_loss"] = parse_bool(mapped.get("word_loss", ""))
+    record["mucosal"] = parse_bool(mapped.get("mucosal", ""))
+    record["gastro"] = parse_bool(mapped.get("gastro", ""))
 
     # Flare flags
     record["strike_physical"] = parse_bool(mapped.get("strike_physical", ""))

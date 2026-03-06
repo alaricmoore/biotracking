@@ -52,7 +52,7 @@ def today():
 # daily_observations
 # ============================================================
 
-def upsert_daily_observation(data: dict) -> bool:
+def upsert_daily_observations(data: dict) -> bool:
     """Insert or update a daily observation row.
     
     Args:
@@ -100,7 +100,7 @@ def upsert_daily_observation(data: dict) -> bool:
     return True
 
 
-def get_daily_observation(date_str: str) -> Optional[dict]:
+def get_daily_observations(date_str: str) -> Optional[dict]:
     """Fetch a single daily observation by date."""
     with get_db() as conn:
         row = conn.execute(

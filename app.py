@@ -441,7 +441,7 @@ def daily_entry():
     uv = uv_fetcher.fetch_and_store_uv_for_date(entry_date_str)
     
     # Load any existing entry for this date
-    existing = db.get_daily_observation(entry_date_str)
+    existing = db.get_daily_observations(entry_date_str)
     
     # Load active medications for the sidebar
     active_meds = db.get_active_medications()
@@ -508,14 +508,14 @@ def daily_entry_submit():
         "notes": form.get("notes", "").strip() or None,
     }
 
-    db.upsert_daily_observation(data)
+    db.upsert_daily_observations(data)
     return redirect(url_for("daily_confirm", entry_date=data["date"]))
 
 
 @app.route("/daily/confirm/<entry_date>")
 def daily_confirm(entry_date):
     """Confirmation screen after daily entry submission."""
-    entry = db.get_daily_observation(entry_date)
+    entry = db.get_daily_observations(entry_date)
     uv = db.get_uv_data(entry_date)
     return render_template("daily_confirm.html", entry=entry, uv=uv)
 
