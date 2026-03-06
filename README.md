@@ -18,9 +18,9 @@ The sun was making me sick.
 
 At least that was my intuition, but that seemed insane. I had low vitamin D for years and was told to get more sun. But like clockwork, high UV index days would leave me sick the next day, or two, or three. A sunburn put me in bed for a week with what felt like the flu.
 
-I figured I was just getting older. Also I'm hella pale, maybe this was a white people thing.
+I figured I was just getting older. Also I'm hella pale, maybe this was a white people thing no one had mentioned to me.
 
-But coupled with a family history sprinkled with, and a genetic profile loaded for, SARDs and connective tissue disease associated alleles -- I decided to quantify it. Yes, it came to be seen by  me thorugh the data, that unfortunatley, very much so. The sun was making me sick.
+But coupled with a family history sprinkled with, and a genetic profile loaded for, SARDs and connective tissue disease associated alleles -- I decided to quantify it. Yes, it came to be seen by me through the data, that unfortunatley, very much so; The sun is making me sick.
 
 That's why I started a spreadsheet. But it was useless in clinic -- rows upon rows of entries with no succinct way to visually communicate what they meant in a 15-minute appointment. After 90+ days I gave up. I got depressed. I kept getting sick.
 
@@ -438,15 +438,15 @@ biotracking/
 
 ## Philosophy
 
-**Patients are the experts on their own bodies.** You know when something is wrong, even when tests are "normal."
+**Patients are the experts on their own bodies.** You know when something is wrong, even when tests are "normal." You also probably, for the most part, know the difference between normal and oh no this is no good now. Trust that instinct.
 
-**Correlation is worth investigating, even when causation isn't proven.** If UV exposure consistently precedes your symptoms, that pattern matters — regardless of whether a doctor believes you yet.
+**Correlation is worth investigating, even when causation isn't proven.** If UV exposure consistently precedes your symptoms, that pattern matters -- regardless of whether a doctor believes you yet. Or hell, you don't believe you yet.
 
 **Your data is yours.** No surveillance, no selling, no cloud lock-in. You can delete everything and walk away at any time.
 
 **Invisible illness deserves visible evidence.** When your symptoms are dismissed as anxiety or "borderline," a longitudinal graph can shift the conversation.
 
-**Diagnostic complexity is real.** Some conditions take years to name. The average diagnostic delay for lupus alone is four to seven years. Tools like this exist to help you survive that journey and shorten it where possible.
+**Diagnostic complexity is real.** Some conditions take years to name. The average diagnostic delay for lupus alone is four to seven years. Tools like this exist to help you survive that journey and shorten it where and when possible.
 
 **It's a you tracker.** Not a lupus tracker, not an autoimmune tracker. Whatever you've got going on.
 
@@ -454,11 +454,11 @@ biotracking/
 
 ## Acknowledgments
 
-Built by C. Alaric Moore, a USPS electronics technician and patient who got tired of being told her labs were normal.
+Built by C. Alaric Moore, a USPS technician and mechanic and patient who got tired of being told her labs were normal.
 
 Assisted by Claude Sonnet (Anthropic) for development support.
 
-Inspired by every patient who was told "your labs are normal" when they knew something was deeply wrong. Dedicated to the ones still waiting for someone to believe them.
+Inspired by every patient who was told "your labs are fine" when they knew something was deeply wrong. Dedicated to the ones still waiting for someone to believe them.
 
 ---
 
@@ -476,8 +476,8 @@ See the [LICENSE](LICENSE) file for full terms. For commercial licensing inquiri
 
 ## Support
 
-For bugs, feature requests, or questions, open an issue on GitHub. Check existing issues first — your question might already be answered.
+For bugs, feature requests, or questions, open an issue on GitHub. Check existing issues first -- your question might already be answered.
 
-This is a one-person project built between doctor appointments and overnight shifts. Response times may vary.
+This is currently a one-person project built between doctor appointments and strenous work shifts. Response times may vary.
 
 Take care of yourself. Trust your observations. Keep asking questions.
