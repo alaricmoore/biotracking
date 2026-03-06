@@ -2,7 +2,7 @@
 
 ## Read This First
 
-This document describes how to access biotracking from outside your local network — from your phone on cellular, from work, from anywhere.
+This document describes how to access biotracking from outside your local network - from your phone on cellular, from work, from anywhere.
 
 Before you do any of this, understand what you are doing:
 
@@ -10,7 +10,7 @@ Before you do any of this, understand what you are doing:
 
 The default biotracking setup runs on localhost. Nothing leaves your computer. Nobody can reach it but via physical access to that machine, *on* that machine, on *that* network. That is the safest possible configuration and it is sufficient for most people.
 
-This guide exists for people who understand the risk surface and want remote access anyway. If you are not comfortable with concepts like VPNs, reverse proxies, open ports, and what it means to expose a service to the internet -- stop here. Use the local setup. It is genuinely good enough; for the gap between the doctor's waiting room or the ER for four hours and getting home to your own network, travel with a notebook. Seriously, it's great therapy and also provides notes for future-you when you want to log the whole thing in the biotracker.
+This guide exists for people who understand the risk surface and want remote access anyway. If you are not comfortable with concepts like VPNs, reverse proxies, open ports, and what it means to expose a service to the internet, stop here. Use the local setup. It is genuinely good enough; for the gap between the doctor's waiting room or the ER for four hours and getting home to your own network, travel with a notebook. Seriously, it's great therapy and also provides notes for future-you when you want to log the whole thing in the biotracker.
 
 If you proceed, you accept that you are responsible for the security of your own data. The author of this software is not responsible for data exposure resulting from network configuration choices you make.
 
@@ -19,8 +19,6 @@ If you proceed, you accept that you are responsible for the security of your own
 ## What "Less Internet" Means and Doesn't Mean
 
 There is no such thing as "connected to the internet but safe." There is only a spectrum of exposure.
-
-A public URL with no authentication is maximally exposed. A Tailscale-routed connection through a private VPN is significantly less exposed -- but it is still internet. Your data is still traveling over networks you don't control, tubes we don't get many opprotunities to spy ourselves. The attack surface is smaller, not zero.
 
 The setup described in this guide is:
 
