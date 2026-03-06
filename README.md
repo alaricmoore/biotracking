@@ -24,6 +24,34 @@ This is not a medical product. This is a tool for veracity: for people who need 
 
 ---
 
+## Why This Exists
+
+It's easy to gaslight yourself into thinking you're having panic attacks and are lazy. And sometimes people have panic attacks and are lazy, and that's entirely normal.
+
+But when the shortness of breath is uncoupled from emotion, when the "laziness" is less sloth and more that you're stuck in a quagmire of quicksand despite wanting to do *so much* -- there's something making your body react that way.
+
+The sun was making me sick.
+
+At least that was my intuition, but that seemed insane. I had low vitamin D for years and was told to get more sun. But like clockwork, high UV index days would leave me sick the next day, or two, or three. A sunburn put me in bed for a week with what felt like the flu.
+
+I figured I was just getting older. Also I'm hella pale, maybe this was a white people thing no one had mentioned to me.
+
+But coupled with a family history sprinkled with, and a genetic profile loaded for, SARDs and connective tissue disease associated alleles -- I decided to quantify it. It became painfully clear to me by the data, that unfortunatley, The sun is making me sick.
+
+That's why I started a spreadsheet. But it was useless in clinic -- rows upon rows of entries with no succinct way to visually communicate what they meant in a 15-minute appointment ,while exhausted and in pain and anxious about being dismissed again. After 90+ days I gave up. I got depressed. I kept getting sick. My sick leave was running dry at work, and with out a diagnosis I didn't feel confident that I could get FMLA protection.
+
+Then I picked it back up. I can't remember exactly what the impetus was -- probably another rheumatologist doubting me while ER doctors were writing "I believe her condition to be rheumatic in nature", meanwhile my dermatologist was doing her damnedest to get the best biopsy shave for DIF this side of the Mississippi. Damn near the size of a mercury dime.
+
+Claude Sonnet helped me build it. I'm not a strong coder -- I can get around, and I know how to make infinity while loops, but I'm far from skilled. The LLM assisted me in building the stack, troubleshooting bugs, and providing the kind of cognitive support I could direct, debug, and reiterate. And if Claude can be annoyed, I most certainly annoyed that poor tireless machine.
+
+Meanwhile, I was in and out of doctors appointments and a few ER visits, and eventually arrived at a shiny new "cool, I was right" / "fuck, why do I have to be right about this?" diagnosis. Eight months from when I started aggressively seeking treatment to confirmed diagnosis. I beat the odds -- the average diagnostic delay is four to seven years. I'm lucky. A lot of people aren't.
+
+My current diagnosis is acute cutaneous lupus erythematosus with systemic involvement, confirmed by biopsy and with woefully unremarkable serology. But autoimmune disease evolves, & we are constantly learning new things about the human body. The differential will shift. The ICD codes may change. Whether we end up calling it lupus or the Hokey Pokey Disease, getting that process *started* -- having longitudinal evidence, having dates, having correlations -- matters enormously for health outcomes down the road.
+
+This tool isn't a lupus tracker, necessarily, though it is designed around an evolving case of predictably photosensitive lupus. It's a *you* tracker, the intent is you can change it to fit your case. Whatever you've got going on.
+
+---
+
 ## Features
 
 ### Daily Tracking
@@ -118,34 +146,6 @@ Always consult qualified healthcare providers for medical decisions. This app he
 - You own your data. The database is a standard SQLite file you can back up, export, or delete at any time.
 - This is a single-user, local application. One instance per person, one database per instance.
 - Do not use this application to track anyone's health data without their informed consent. Don't be creepy.
-
----
-
-## Why This Exists
-
-It's easy to gaslight yourself into thinking you're having panic attacks and are lazy. And sometimes people have panic attacks and are lazy, and that's entirely normal.
-
-But when the shortness of breath is uncoupled from emotion, when the "laziness" is less sloth and more that you're stuck in a quagmire of quicksand despite wanting to do *so much* -- there's something making your body react that way.
-
-The sun was making me sick.
-
-At least that was my intuition, but that seemed insane. I had low vitamin D for years and was told to get more sun. But like clockwork, high UV index days would leave me sick the next day, or two, or three. A sunburn put me in bed for a week with what felt like the flu.
-
-I figured I was just getting older. Also I'm hella pale, maybe this was a white people thing no one had mentioned to me.
-
-But coupled with a family history sprinkled with, and a genetic profile loaded for, SARDs and connective tissue disease associated alleles -- I decided to quantify it. It became painfully clear to me by the data, that unfortunatley, The sun is making me sick.
-
-That's why I started a spreadsheet. But it was useless in clinic -- rows upon rows of entries with no succinct way to visually communicate what they meant in a 15-minute appointment ,while exhausted and in pain and anxious about being dismissed again. After 90+ days I gave up. I got depressed. I kept getting sick. My sick leave was running dry at work, and with out a diagnosis I didn't feel confident that I could get FMLA protection.
-
-Then I picked it back up. I can't remember exactly what the impetus was -- probably another rheumatologist doubting me while ER doctors were writing "I believe her condition to be rheumatic in nature", meanwhile my dermatologist was doing her damnedest to get the best biopsy shave for DIF this side of the Mississippi. Damn near the size of a mercury dime.
-
-Claude Sonnet helped me build it. I'm not a strong coder -- I can get around, and I know how to make infinity while loops, but I'm far from skilled. The LLM assisted me in building the stack, troubleshooting bugs, and providing the kind of cognitive support I could direct, debug, and reiterate. And if Claude can be annoyed, I most certainly annoyed that poor tireless machine.
-
-Meanwhile, I was in and out of doctors appointments and a few ER visits, and eventually arrived at a shiny new "cool, I was right" / "fuck, why do I have to be right about this?" diagnosis. Eight months from when I started aggressively seeking treatment to confirmed diagnosis. I beat the odds -- the average diagnostic delay is four to seven years. I'm lucky. A lot of people aren't.
-
-My current diagnosis is acute cutaneous lupus erythematosus with systemic involvement, confirmed by biopsy and with woefully unremarkable serology. But autoimmune disease evolves, & we are constantly learning new things about the human body. The differential will shift. The ICD codes may change. Whether we end up calling it lupus or the Hokey Pokey Disease, getting that process *started* -- having longitudinal evidence, having dates, having correlations -- matters enormously for health outcomes down the road.
-
-This tool isn't a lupus tracker, necessarily, though it is designed around an evolving case of predictably photosensitive lupus. It's a *you* tracker, the intent is you can change it to fit your case. Whatever you've got going on.
 
 ---
 
