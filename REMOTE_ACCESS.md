@@ -66,7 +66,7 @@ Your database never leaves the Raspberry Pi. The Oracle VM sees only encrypted T
 
 ### Step 1: Set up biotracking on your Raspberry Pi
 
-Follow the standard installation instructions in the README. Verify it runs on `http://localhost:5000` from the Pi itself before touching any networking. If you don't have a keyboard or screen, install faceless debian onto the pi and ssh into it. You don't need the UI for any of this.
+Follow the standard installation instructions in the README. Verify it runs on `http://localhost:5000` from the Pi itself before touching any networking. If you don't have a keyboard or screen, install faceless debian onto the pi and ssh into it. You don't need a UI for any of this.
 
 ### Step 2: Install Tailscale on the Raspberry Pi
 
@@ -80,8 +80,8 @@ Follow the authentication link. The Pi will appear in your Tailscale admin conso
 ### Step 3: Set up an Oracle Cloud Free Tier VM
 
 1. Create an account at [cloud.oracle.com](https://cloud.oracle.com) — the always-free tier includes a small VM that is sufficient for this purpose
-2. Create a VM instance (Ubuntu 22.04 LTS is a reasonable choice, but I ended up with RedHat. Chose your own adventure.)
-3. Note the public IP assigned to your VM
+2. Create a VM instance (Ubuntu 22.04 LTS is a reasonable choice, but I ended up with RedHat. Choose your own adventure.)
+3. Note the public IP assigned to your VM, and dont forget to save your key!
 4. SSH into the VM and install Tailscale:
 
 ```bash
@@ -130,7 +130,7 @@ sudo systemctl reload nginx
 
 ### Step 5: Open the firewall on Oracle Cloud
 
-Oracle Cloud has two layers of firewall — the OS-level firewall and the cloud-level security list. You need to open port 80 (and 443 if you add HTTPS) in both.
+Oracle Cloud has two layers of firewall, the OS-level firewall and the cloud-level security list. You need to open port 80 (and 443 if you add HTTPS) in both.
 
 **OS firewall:**
 
@@ -210,7 +210,7 @@ Oracle Cloud provides basic monitoring. Check it occasionally. Unusual traffic p
 
 ## On Starlink Specifically
 
-Starlink uses carrier-grade NAT (CGNAT) which means you do not get a static public IP and cannot port-forward directly. This is exactly why the Oracle VM approach is useful —--it provides the stable public IP that Starlink doesn't give you. The Tailscale tunnel handles the rest.
+Starlink uses carrier-grade NAT (CGNAT) which means you do not get a static public IP and cannot port-forward directly. This is exactly why the Oracle VM approach is useful, it provides the stable public IP that Starlink doesn't give you. The Tailscale tunnel handles the rest.
 
 This setup will work on any ISP that uses CGNAT, not just Starlink.
 

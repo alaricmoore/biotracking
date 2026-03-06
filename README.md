@@ -22,9 +22,9 @@ I figured I was just getting older. Also I'm hella pale, maybe this was a white 
 
 But coupled with a family history sprinkled with, and a genetic profile loaded for, SARDs and connective tissue disease associated alleles -- I decided to quantify it. Yes, it came to be seen by me through the data, that unfortunatley, very much so; The sun is making me sick.
 
-That's why I started a spreadsheet. But it was useless in clinic -- rows upon rows of entries with no succinct way to visually communicate what they meant in a 15-minute appointment. After 90+ days I gave up. I got depressed. I kept getting sick.
+That's why I started a spreadsheet. But it was useless in clinic -- rows upon rows of entries with no succinct way to visually communicate what they meant in a 15-minute appointment ,while exhausted and in pain and anxious about being dismissed again. After 90+ days I gave up. I got depressed. I kept getting sick. My sick leave was running dry at work, and with out a diagnosis I didn't feel confident that I could get FMLA protection.
 
-Then I picked it back up. I can't remember exactly what the impetus was -- probably another rheumatologist doubting me while ER doctors were writing "I believe her condition to be rheumatic in nature", meanwhile my dermatologist was doing her damnedest to get the best DIF biopsy shave this side of the Mississippi.
+Then I picked it back up. I can't remember exactly what the impetus was -- probably another rheumatologist doubting me while ER doctors were writing "I believe her condition to be rheumatic in nature", meanwhile my dermatologist was doing her damnedest to get the best biopsy shave for DIF this side of the Mississippi. Damn near the size of a mercury dime.
 
 Claude Sonnet helped me build it. I'm not a strong coder -- I can get around, and I know how to make infinity while loops, but I'm far from skilled. An LLM assisted me in building the stack, troubleshooting bugs, and providing the kind of cognitive support I could direct, debug, and reiterate. And if Claude can be annoyed, I most certainly annoyed that poor tireless machine.
 
@@ -32,7 +32,7 @@ Meanwhile, I was in and out of doctors appointments and a few ER visits, and eve
 
 My current diagnosis is acute cutaneous lupus erythematosus with systemic involvement, confirmed by biopsy and with woefully unremarkable serology. But autoimmune disease evolves, & we are constantly learning new things about the human body. The differential will shift. The ICD codes may change. Whether we end up calling it lupus or the Hokey Pokey Disease, getting that process *started* -- having longitudinal evidence, having dates, having correlations -- matters enormously for health outcomes down the road.
 
-This tool isn't a lupus tracker. It's a *you* tracker. Whatever you've got going on.
+This tool isn't a lupus tracker, necessarily, though it is designed around an evolving case of predictably photosensitive lupus. It's a *you* tracker, the intent is you can change it to fit your case. Whatever you've got going on.
 
 ---
 
@@ -45,6 +45,7 @@ Biotracking helps you:
 - Generate clinical reports to bring to appointments (when you know damn well your brain is not going to remember everything, plus it has graphs!)
 - Keep a longitudinal record of labs, medications, & clinical events, as well a list of your clinicians
 - Run flare forecasting based on your own historical patterns
+- Visualize trends pre/post medical interventions such as hydroxychloriquine or steroids or biologics or what have you.
 - Keep all your data local -- nothing leaves your computer, if you don't want it to.
 
 This is not a medical product. This is a tool for veracity: for people who need to make their invisible patterns visible.
@@ -62,12 +63,12 @@ This application is a data tracking and visualization tool only. It is not:
 - A replacement for professional medical care
 - Approved, endorsed, or reviewed by any medical authority
 
-Always consult qualified healthcare providers for medical decisions. This app helps you organize your own observations — what you do with that information is between you and your doctors.
+Always consult qualified healthcare providers for medical decisions. This app helps you organize your own observations -- what you do with that information is between you and your clinicians.
 
 ### Privacy & Data Ethics
 
 - Your data never leaves your computer. No cloud storage, no third-party APIs for health data, no analytics, no tracking.
-- UV data comes from public weather APIs (Open-Meteo and Visual Crossing) using only your coordinates — no personal health information is transmitted.
+- UV data comes from public weather APIs (Open-Meteo and Visual Crossing) using only your coordinates —- no personal health information is transmitted.
 - You own your data. The database is a standard SQLite file you can back up, export, or delete at any time.
 - This is a single-user, local application. One instance per person, one database per instance.
 - Do not use this application to track anyone's health data without their informed consent. Don't be creepy.
@@ -101,9 +102,9 @@ Always consult qualified healthcare providers for medical decisions. This app he
 - Printable summaries with auto-generated findings, flagged labs, and event timelines
 - Export all data: labs, medications, events, clinician list
 
-### The Lab (Easter Egg)
+### The Lab
 
-There's a CLI hacker interface hidden in the app where you can manually adjust the weights of symptom classes in the prediction model. Get it to 100% accuracy with no false positives or false negatives and you unlock achievements. It's in there because sometimes you need to feel like you have some control over something that usually feels uncontrollable. Plus it's 1337 haxor green. That's fun. I don't care what you say about it.
+There's a CLI "interface" hidden in the app where you can manually adjust the weights of symptom classes in the prediction model. Get it to 100% accuracy with no false positives or false negatives and you unlock achievements. It's in there because sometimes you need to feel like you have some control over something that usually feels uncontrollable. Plus it's 1337 haxor green. That's fun. I don't care what you say about it.
 
 ---
 
@@ -112,7 +113,7 @@ There's a CLI hacker interface hidden in the app where you can manually adjust t
 - macOS, Linux, or Windows (tested primarily on macOS and Linux... actually not tested on Windows. Sorry.)
 - Python 3.9 or later (earlier veersions work, but watch your D's and d's)
 - A web browser (Brave, Firefox, Safari, Edge, Opera, Tor...)
-- Optional: iPhone with Apple Health for biometric import (I have an apple watch, because access to raw data for free and it's also a watch.)
+- Optional: iPhone with Apple Health for biometric import (I have an apple watch, because access to raw data for free and it's also a watch)
 
 ---
 
@@ -218,7 +219,7 @@ Bookmark it for easy access.
 
 ### From Apple Health
 
-Biotracking can import HRV, sleep hours, wrist temperature, and daylight exposure from Apple Health. Which provides free-of-cost raw data downloads.
+Biotracking can import HRV, sleep hours, wrist temperature, and daylight exposure from Apple Health, or whatever else you are tracking. Which provides free-of-cost raw data downloads.
 
 **Export from Apple Health:**
 
@@ -234,7 +235,7 @@ Biotracking can import HRV, sleep hours, wrist temperature, and daylight exposur
 2. Select: Heart Rate Variability, Sleep Analysis, Apple Sleeping Wrist Temperature, Time in Daylight
 3. Set your date range, export as CSV daily average
 4. Transfer the CSV to your computer
-5. Also download period tracking if you desire, I haven't been because steroids ruined my cycle, but I will add that funcitonality soon.
+5. Also download period tracking if you desire. I haven't been because steroids ruined my cycle, but I will add that funcitonality soon.
 
 **Import:**
 
@@ -299,7 +300,7 @@ Navigate to **today** in the top nav. Log:
 - Biometrics: sleep hours, HRV, basal temp delta, steps, sun exposure
 - Symptom toggles: click to enable, text field appears for notes
 - Scales: pain, fatigue, emotional state
-- Flare flags: physical/cognitive load, environmental triggers, flare occurrence
+- Flare flags: physical/cognitive load, environmental triggers, flare occurrence (these help the model confirm positive/negative predicitons)
 - General notes: free text
 
 Hit save. You can edit the same day multiple times.
@@ -322,7 +323,7 @@ HRV trend with 7-day rolling average, pre/post medication comparison, HRV vs pai
 
 ### Clinical Record
 
-Four tabs: Labs, ANA, Medications, Events, Clinicians. Everything dated, everything searchable, everything exportable.
+Five tabs: Labs, ANA, Medications, Events, Clinicians. Everything dated, everything searchable, everything exportable.
 
 ### Search
 
@@ -370,6 +371,7 @@ cp biotracking.db biotracking_backup_$(date +%Y%m%d).db
 **Export options:**
 
 - In-app: export buttons for labs, medications, events, clinician list (CSV)
+- In-app UI delete function on search page (I have not actually tested the UI delete, but the full db export works)
 - DB Browser for SQLite (GUI tool, free)
 - Command line: `sqlite3 biotracking.db .dump > backup.sql`
 
@@ -388,7 +390,9 @@ This deletes all your data. Back up first.
 
 ### Contributing
 
-This project welcomes contributions, especially from people with lived experience of diagnostic complexity. Areas where help is needed:
+This project welcomes contributions, especially from people with lived experience of diagnostic complexity. Whether as patients, clinicians, loved ones, or those for whom this is their special interest.
+
+Areas where help is needed:
 
 - Additional data import formats (Fitbit, Garmin, etc.)
 - More correlation analysis methods
@@ -413,10 +417,12 @@ biotracking/
 ├── requirements.txt    # Python dependencies
 ├── .gitignore          # Keeps sensitive data out of git
 ├── config.json         # User settings (gitignored)
-├── db.py
 ├── import_labs.py
-├── migrate symptoms 
-├── biotracking.db     # SQLite database (gitignored)
+├── import_tracker.py
+├── import_apple_health.py
+├── migrate_symptoms.py 
+├── backfill_uv.py
+├── biotracking.db      # SQLite database (gitignored)
 ├── templates/          # HTML templates
 │   ├── base.html
 │   ├── daily_entry.html
@@ -438,7 +444,7 @@ biotracking/
 
 ## Philosophy
 
-**Patients are the experts on their own bodies.** You know when something is wrong, even when tests are "normal." You also probably, for the most part, know the difference between normal and oh no this is no good now. Trust that instinct.
+**Patients are the experts on their own bodies.** You know when something is wrong, even when tests are "normal." You also probably, for the most part, know the difference between normal and "oh no this is no good now." Trust that instinct.
 
 **Correlation is worth investigating, even when causation isn't proven.** If UV exposure consistently precedes your symptoms, that pattern matters -- regardless of whether a doctor believes you yet. Or hell, you don't believe you yet.
 
@@ -446,9 +452,7 @@ biotracking/
 
 **Invisible illness deserves visible evidence.** When your symptoms are dismissed as anxiety or "borderline," a longitudinal graph can shift the conversation.
 
-**Diagnostic complexity is real.** Some conditions take years to name. The average diagnostic delay for lupus alone is four to seven years. Tools like this exist to help you survive that journey and shorten it where and when possible.
-
-**It's a you tracker.** Not a lupus tracker, not an autoimmune tracker. Whatever you've got going on.
+**Diagnostic complexity is real.** Some conditions take years to name. The average diagnostic delay for lupus alone is four to seven years, and it isn't even a particularly rare disease, merely uncommon. Tools like this exist to help you survive that journey and shorten it where and when possible.
 
 ---
 
@@ -456,9 +460,11 @@ biotracking/
 
 Built by C. Alaric Moore, a USPS technician and mechanic and patient who got tired of being told her labs were normal.
 
-Assisted by Claude Sonnet (Anthropic) for development support.
+Assisted by Claude Sonnet (Anthropic) for development support, h/t to Github's copilot for closing parentheses and other surprisningly convenient features.
 
 Inspired by every patient who was told "your labs are fine" when they knew something was deeply wrong. Dedicated to the ones still waiting for someone to believe them.
+
+Also inspired by the rheumatologist who fired me for being right about a lab interpretation. I might be sick, but I'm still a stubborn Okie.
 
 ---
 
