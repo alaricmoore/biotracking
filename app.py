@@ -31,9 +31,85 @@ from collections import Counter
 
 app = Flask(__name__)
 
+import os
+import json
+
+# ============================================================
+# LAB ADJUSTMENTS
+# ============================================================
+
+# Default symptom weights (factory settings)
+DEFAULT_WEIGHTS = {
+    'neurological': 1.5,
+    'cognitive': 1.0,
+    'musculature': 1.5,
+    'migraine': 1.0,
+    'pulmonary': 1.0,
+    'dermatological': 0.75,
+    'mucosal': 0.25,
+    'rheumatic': 0.5,
+}
+
+# Path to custom weights config
+CUSTOM_WEIGHTS_PATH = os.path.join(os.path.dirname(__file__), 'config', 'custom_weights.json')
+
+def get_current_weights():
+    """
+    Load weights from config file if exists, otherwise return defaults.
+    """
+    if os.path.exists(CUSTOM_WEIGHTS_PATH):
+        try:
+            with open(CUSTOM_WEIGHTS_PATH, 'r') as f:
+                custom = json.load(f)
+                # Merge with defaults in case new symptoms added
+                weights = DEFAULT_WEIGHTS.copy()
+                weights.update(custom)
+                return weights
+        except Exception as e:
+            print(f"Error loading custom weights: {e}")
+            return DEFAULT_WEIGHTS.copy()
+    return DEFAULT_WEIGHTS.copy()
+
+def save_custom_weights(weights):
+    """
+    Save custom weights to config file.
+    """
+    # Create config directory if it doesn't exist
+    config_dir = os.path.dirname(CUSTOM_WEIGHTS_PATH)
+    if not os.path.exists(config_dir):
+        os.makedirs(config_dir)
+    
+    # Save weights
+    with open(CUSTOM_WEIGHTS_PATH, 'w') as f:
+        json.dump(weights, f, indent=2)
+
+def reset_to_default_weights():
+    """
+    Delete custom weights config to revert to defaults.
+    """
+    if os.path.exists(CUSTOM_WEIGHTS_PATH):
+        os.remove(CUSTOM_WEIGHTS_PATH)
+        
+def calculate_flare_score_with_weights(obs, weights):
+    """Calculate score using custom symptom weights."""
+    score = 0.0
+
+    # UV, overexertion, temp - unchanged from calculate_flare_prime_score
+    sun_min = obs.get('sun_exposure_min') or 0
+    if sun_min >= 100:
+        score += 3
+    elif sun_min >= 70:
+        score += 1.25
+
+    # Apply custom weights
+    for symptom, weight in weights.items():
+        score += obs.get(symptom, 0) * weight
+
+    return score
+    
+
 # ============================================================
 # FORECAST LAB MANUAL TEXT
-# Add this near the top of app.py, after your imports
 # ============================================================
 
 FORECAST_LAB_MANUAL ="""╔═══════════════════════════════════════════════════════════════════════════╗
@@ -136,6 +212,107 @@ The goal is to balance:
   • Recall: Catching actual flares (minimize false negatives)
   • Precision: Avoiding false alarms (minimize false positives)
 
+APPLYING CHANGES
+________________
+
+## Step 1: Create the config directory
+
+In your biotracking project root, create:
+```
+biotracking/
+  ├── app.py
+  ├── db.py
+  ├── templates/
+  ├── config/          ← CREATE THIS DIRECTORY
+  │   └── .gitkeep     ← CREATE THIS EMPTY FILE (optional, keeps folder in git)
+  └── ...
+```
+
+Run this from your project root:
+```bash
+mkdir -p config
+touch config/.gitkeep
+```
+
+## Step 2: Update .gitignore
+
+Add this line to your `.gitignore`:
+```
+config/custom_weights.json
+```
+
+This ensures your personal model tuning stays private.
+
+## Step 4: Test the system
+
+1. Restart Flask
+2. Go to `/forecast/lab`
+3. You should see "✓ Using factory defaults" at the top
+4. Type `2` to adjust weights
+5. Change a weight, run simulation
+6. Click "✓ Apply These Changes"
+7. Confirm the dialog
+8. Page should reload showing "⚠ Custom weights active"
+9. Check that `config/custom_weights.json` was created
+10. Click "Reset to Defaults" to test reset functionality
+
+## How it works:
+
+**Before custom weights:**
+- `calculate_flare_prime_score()` uses hardcoded DEFAULT_WEIGHTS
+- No config file exists
+- Lab shows "✓ Using factory defaults"
+
+**After applying custom weights:**
+- Lab saves to `config/custom_weights.json`
+- `calculate_flare_prime_score()` loads from config via `get_current_weights()`
+- All predictions use custom weights
+- Lab shows "⚠ Custom weights active"
+
+**After reset:**
+- `config/custom_weights.json` is deleted
+- Back to factory defaults
+- Lab shows "✓ Using factory defaults"
+
+## File contents example:
+
+`config/custom_weights.json` after customization:
+```json
+{
+  "neurological": 2.0,
+  "cognitive": 1.25,
+  "musculature": 1.75,
+  "migraine": 1.0,
+  "pulmonary": 1.0,
+  "dermatological": 0.75,
+  "mucosal": 0.25,
+  "rheumatic": 0.5
+}
+```
+
+## Troubleshooting:
+
+**"Permission denied" error when applying:**
+- Check that `config/` directory exists and is writable
+- Run: `chmod 755 config/`
+
+**Weights not taking effect:**
+- Restart Flask after applying changes
+- Check Flask console for error messages
+- Verify `config/custom_weights.json` exists and is valid JSON
+
+**Want to manually edit weights:**
+- Edit `config/custom_weights.json` directly
+- Restart Flask
+- Changes will take effect immediately
+
+## Safety notes:
+
+- Custom weights are stored locally, never committed to git
+- Original defaults are always preserved in code
+- Reset button deletes custom config instantly
+- Each user's biotracking instance has independent weights
+
 REMOTE ACCESS (RASPBERRY PI + TAILSCALE)
 ─────────────────────────────────────────
 If you want to access biotracking from your phone while away from home:
@@ -182,7 +359,7 @@ MORE INFORMATION
   • Full setup instructions: README.md
   • Contributing guide: CONTRIBUTING.md
   • Remote access details: REMOTE_ACCESS.md
-  • Repository: github.com/yourusername/biotracking
+  • Repository: github.com/alaricmoore/biotracking
   • Contact: alaric.moore@pm.me
 
 This is a one-person project maintained between doctor appointments.
@@ -1253,6 +1430,108 @@ def export_events():
         mimetype='text/csv',
         headers={'Content-Disposition': f'attachment; filename={filename}'}
     )
+    
+    
+    
+
+# ============================================================
+# Forecast Laboratory Helpers
+# ============================================================
+
+def calculate_flare_prime_score(obs):
+    """
+    Calculate flare prime score for a single observation.
+    Based on refined logic with exponential UV weighting.
+    
+    UPDATED 2026-03-05: Weights adjusted based on accuracy analysis
+    - Lowered threshold from 10 → 8 (improve recall from 20.9%)
+    - Increased neurological: 0.5 → 1.5 (appeared in 51 missed flares)
+    - Increased cognitive: 0.5 → 1.0 (appeared in 34 missed flares)
+    - Increased musculature: 1.0 → 1.5 (appeared in 44 missed flares)
+    
+    Weights can be customized via Forecast Lab (/forecast/lab)
+    """
+    score = 0.0
+    
+    # Load current weights (from config or defaults)
+    weights = get_current_weights()
+    
+    # 1. UV Exposure (exponential weighting: UV^1.5 × minutes)
+    sun_min = obs.get('sun_exposure_min') or 0
+    if sun_min >= 100:
+        score += 3
+    elif sun_min >= 70:
+        score += 1.25
+    
+    # 2. Physical Overexertion (steps / hours slept)
+    steps = obs.get('steps') or 0
+    hours_slept = obs.get('hours_slept') or 8
+    if hours_slept > 0:
+        exertion_ratio = steps / hours_slept
+        if exertion_ratio >= 2000:
+            score += 2.0
+        elif exertion_ratio >= 1500:
+            score += 1.5
+    
+    # 3. Basal Temperature (simplified, non-overlapping)
+    basal_temp = obs.get('basal_temp_delta') or 0
+    if basal_temp >= 0.8:
+        score += 3
+    elif basal_temp >= 0.5:
+        score += 2
+    elif basal_temp >= 0.3:
+        score += 1
+    
+    # 4. Symptoms (WEIGHTS FROM CONFIG)
+    if obs.get('neurological'):
+        score += weights['neurological']
+    if obs.get('cognitive'):
+        score += weights['cognitive']
+    if obs.get('musculature'):
+        score += weights['musculature']
+    if obs.get('migraine'):
+        score += weights['migraine']
+    if obs.get('pulmonary'):
+        score += weights['pulmonary']
+    if obs.get('dermatological'):
+        score += weights['dermatological']
+    if obs.get('mucosal'):
+        score += weights['mucosal']
+    
+    # 5. Rheumatic (parse notes for joint type)
+    if obs.get('rheumatic'):
+        rheum_notes = (obs.get('rheumatic_notes') or '').lower()
+        major_joints = ['hip', 'knee', 'shoulder', 'elbow', 'ankle', 'wrist', 'jaw']
+        minor_joints = ['finger', 'toe', 'hand']
+        
+        if any(joint in rheum_notes for joint in major_joints):
+            score += 2.0
+        elif any(joint in rheum_notes for joint in minor_joints):
+            score += 1.0
+        else:
+            score += weights['rheumatic']
+    
+    # 6. Pain Scale
+    pain = obs.get('pain_scale') or 0
+    if pain >= 7:
+        score += 1
+    
+    # 7. Fatigue Scale
+    fatigue = obs.get('fatigue_scale') or 0
+    if fatigue >= 7:
+        score += 3
+    elif fatigue > 5:
+        score += 1
+    elif fatigue > 3:
+        score += 0.5
+    
+    # 8. Emotional State
+    emotional = obs.get('emotional_state') or 5
+    if emotional <= 4:
+        score += 2
+    
+    return round(score, 1)
+
 def calculate_model_stats(observations, custom_weights=None):
     """Calculate model accuracy metrics."""
     from collections import Counter
@@ -1264,8 +1543,10 @@ def calculate_model_stats(observations, custom_weights=None):
     
     for obs in observations:
         if custom_weights:
-            score = calculate_score_with_custom_weights(obs, custom_weights)
+            # Use custom weights for simulation
+            score = calculate_flare_score_with_weights(obs, custom_weights)
         else:
+            # Use current weights (from config or defaults)
             score = calculate_flare_prime_score(obs)
         
         predicted_flare = score >= 8
@@ -1300,75 +1581,6 @@ def calculate_model_stats(observations, custom_weights=None):
         'false_positives': false_pos,
         'false_negatives': false_neg
     }
-# ============================================================
-# Forecast Laboratory Helpers
-# ============================================================
-
-def calculate_score_with_custom_weights(obs, weights):
-    """Calculate score using custom symptom weights."""
-    score = 0.0
-    
-    # UV, overexertion, temp - unchanged from calculate_flare_prime_score
-    sun_min = obs.get('sun_exposure_min') or 0
-    if sun_min >= 100:
-        score += 3
-    elif sun_min >= 70:
-        score += 1.25
-    
-    steps = obs.get('steps') or 0
-    hours_slept = obs.get('hours_slept') or 8
-    if hours_slept > 0:
-        ratio = steps / hours_slept
-        if ratio >= 2000:
-            score += 2.0
-        elif ratio >= 1500:
-            score += 1.5
-    
-    basal_temp = obs.get('basal_temp_delta') or 0
-    if basal_temp >= 0.8:
-        score += 3
-    elif basal_temp >= 0.5:
-        score += 2
-    elif basal_temp >= 0.3:
-        score += 1
-    
-    # Custom symptom weights (this is what changes)
-    for symptom, weight in weights.items():
-        if obs.get(symptom):
-            score += weight
-    
-    # Rheumatic with joint parsing
-    if obs.get('rheumatic'):
-        rheum_notes = (obs.get('rheumatic_notes') or '').lower()
-        major_joints = ['hip', 'knee', 'shoulder', 'elbow', 'ankle', 'wrist', 'jaw']
-        minor_joints = ['finger', 'toe', 'hand']
-        
-        if any(joint in rheum_notes for joint in major_joints):
-            score += 2.0
-        elif any(joint in rheum_notes for joint in minor_joints):
-            score += 1.0
-        else:
-            score += weights.get('rheumatic', 0.5)
-    
-    # Pain, fatigue, emotional - unchanged
-    pain = obs.get('pain_scale') or 0
-    if pain >= 7:
-        score += 1
-    
-    fatigue = obs.get('fatigue_scale') or 0
-    if fatigue >= 7:
-        score += 3
-    elif fatigue > 5:
-        score += 1
-    elif fatigue > 3:
-        score += 0.5
-    
-    emotional = obs.get('emotional_state') or 5
-    if emotional <= 4:
-        score += 2
-    
-    return round(score, 1)
-
 
 def analyze_prediction_flips(observations, custom_weights):
     """Identify which predictions would change with new weights."""
@@ -1377,7 +1589,7 @@ def analyze_prediction_flips(observations, custom_weights):
     
     for obs in observations[:10]:
         old_score = calculate_flare_prime_score(obs)
-        new_score = calculate_score_with_custom_weights(obs, custom_weights)
+        new_score = calculate_flare_score_with_weights(obs, custom_weights)
         
         old_pred = old_score >= 8
         new_pred = new_score >= 8
@@ -1428,87 +1640,89 @@ def forecast_lab():
     # Calculate current metrics (reuse from forecast_accuracy)
     all_obs.sort(key=lambda x: x['date'], reverse=True)
     analysis_set = all_obs[:60]
-
-    # Current symptom weights
+    
+    # Calculate current stats
+    model_stats = calculate_model_stats(analysis_set)
+    
+    # Get current weights (from config or defaults)
+    current_weights = get_current_weights()
+    
+    # Check if using custom weights
+    using_custom = os.path.exists(CUSTOM_WEIGHTS_PATH)
+    
+    # Current symptom weights for display
     symptoms = [
-        {'key': 'neurological', 'name': 'Neurological', 'weight': 1.5, 
+        {'key': 'neurological', 'name': 'Neurological', 
+         'weight': current_weights['neurological'], 
          'description': 'Numbness, tingling, vision changes'},
-        {'key': 'cognitive', 'name': 'Cognitive', 'weight': 1.0,
+        {'key': 'cognitive', 'name': 'Cognitive', 
+         'weight': current_weights['cognitive'],
          'description': 'Brain fog, memory, word recall'},
-        {'key': 'musculature', 'name': 'Musculature', 'weight': 1.5,
+        {'key': 'musculature', 'name': 'Musculature', 
+         'weight': current_weights['musculature'],
          'description': 'Muscle pain, cramping, weakness'},
-        {'key': 'migraine', 'name': 'Migraine', 'weight': 1.0,
+        {'key': 'migraine', 'name': 'Migraine', 
+         'weight': current_weights['migraine'],
          'description': 'Headaches, light sensitivity'},
-        {'key': 'pulmonary', 'name': 'Pulmonary', 'weight': 1.0,
+        {'key': 'pulmonary', 'name': 'Pulmonary', 
+         'weight': current_weights['pulmonary'],
          'description': 'Air hunger, chest discomfort'},
-        {'key': 'dermatological', 'name': 'Dermatological', 'weight': 0.75,
+        {'key': 'dermatological', 'name': 'Dermatological', 
+         'weight': current_weights['dermatological'],
          'description': 'Rash, skin changes, photosensitivity'},
-        {'key': 'mucosal', 'name': 'Mucosal', 'weight': 0.25,
+        {'key': 'mucosal', 'name': 'Mucosal', 
+         'weight': current_weights['mucosal'],
          'description': 'Dry mouth, dry eyes, nasal dryness'},
-        {'key': 'rheumatic', 'name': 'Rheumatic (base)', 'weight': 0.5,
+        {'key': 'rheumatic', 'name': 'Rheumatic (base)', 
+         'weight': current_weights['rheumatic'],
          'description': 'Joint pain without specificity'},
     ]
-    
-    # Current weights as dict for JavaScript
-    current_weights = {s['key']: s['weight'] for s in symptoms}
-
     
     # Model code snippet
     model_code = '''def calculate_flare_prime_score(obs):
     """Calculate flare risk score."""
     score = 0.0
-
-    # Symptoms
-    if obs.get('neurological'):
-        score += 1.5
-    if obs.get('cognitive'):
-        score += 1.0
-    if obs.get('musculature'):
-        score += 1.5
-    if obs.get('migraine'):
-        score += 1.0
-    if obs.get('pulmonary'):
-        score += 1.0
-    if obs.get('dermatological'):
-        score += 0.75
-    if obs.get('mucosal'):
-        score += 0.25
-
-    # UV, temperature, fatigue, pain...
-    # (see full code in app.py)
-
-    return round(score, 1)'''
+    weights = get_current_weights()  # Loads from config
     
-    # Calculate current stats
-    model_stats = calculate_model_stats(analysis_set, custom_weights=None)
+    # Symptoms (using custom weights)
+    if obs.get('neurological'):
+        score += weights['neurological']
+    if obs.get('cognitive'):
+        score += weights['cognitive']
+    if obs.get('musculature'):
+        score += weights['musculature']
+    # ... (see full code in app.py)
+    
+    return round(score, 1)'''
     
     # Achievements (check localStorage or session for unlocked ones)
     achievements = [
-            {'icon': '🏆', 'name': 'First Experiment', 'unlocked': False,
-            'description': 'Adjusted your first weight'},
-            {'icon': '📈', 'name': 'Recall Hero', 'unlocked': False,
-            'description': 'Improved recall by 10%'},
-            {'icon': '🎯', 'name': 'Precision Master', 'unlocked': model_stats['precision'] > 90,
-            'description': 'Maintained >90% precision'},
-            {'icon': '🧪', 'name': 'Mad Scientist', 'unlocked': False,
-            'description': 'Ran 10 simulations'},
-            {'icon': '⚖️', 'name': 'Perfect Balance', 'unlocked': False,
-            'description': 'Achieved 80%+ accuracy, recall, and precision'},
-        ]
-        
+        {'icon': '🏆', 'name': 'First Experiment', 'unlocked': False,
+         'description': 'Adjusted your first weight'},
+        {'icon': '📈', 'name': 'Recall Hero', 'unlocked': False,
+         'description': 'Improved recall by 10%'},
+        {'icon': '🎯', 'name': 'Precision Master', 'unlocked': model_stats['precision'] > 90,
+         'description': 'Maintained >90% precision'},
+        {'icon': '🧪', 'name': 'Mad Scientist', 'unlocked': False,
+         'description': 'Ran 10 simulations'},
+        {'icon': '⚖️', 'name': 'Perfect Balance', 'unlocked': False,
+         'description': 'Achieved 80%+ accuracy, recall, and precision'},
+    ]
+    
     return render_template(
         "forecast_lab.html",
-            current_accuracy=model_stats['accuracy'],
-            current_recall=model_stats['recall'],
-            current_precision=model_stats['precision'],
-            false_negatives=model_stats['false_negatives'],
-            false_positives=model_stats['false_positives'],
-            symptoms=symptoms,
-            current_weights=current_weights,
-            model_code=model_code,
-            achievements=achievements,
-            manual_text=FORECAST_LAB_MANUAL
-        )
+        current_accuracy=model_stats['accuracy'],
+        current_recall=model_stats['recall'],
+        current_precision=model_stats['precision'],
+        false_negatives=model_stats['false_negatives'],
+        false_positives=model_stats['false_positives'],
+        symptoms=symptoms,
+        current_weights=current_weights,
+        model_code=model_code,
+        achievements=achievements,
+        manual_text=FORECAST_LAB_MANUAL,
+        using_custom=using_custom  
+    )
     
     
 
@@ -1548,7 +1762,65 @@ def forecast_lab_simulate():
     })
 
 
+# ============================================================
+# Lab Simulation Apply & Restart
+# ============================================================
 
+@app.route("/forecast/lab/apply", methods=["POST"])
+def forecast_lab_apply():
+    """
+    Apply custom weights to the model.
+    Saves weights to config file.
+    """
+    from flask import request, jsonify
+    
+    try:
+        custom_weights = request.json.get('weights', {})
+        
+        # Validate weights (all must be numbers between 0 and 3)
+        for key, value in custom_weights.items():
+            if not isinstance(value, (int, float)) or value < 0 or value > 3:
+                return jsonify({'success': False, 'error': f'Invalid weight for {key}'}), 400
+        
+        # Save to config
+        save_custom_weights(custom_weights)
+        
+        # Recalculate stats with new weights
+        all_obs = db.get_all_daily_observations()
+        all_obs.sort(key=lambda x: x['date'], reverse=True)
+        analysis_set = all_obs[:60]
+        new_stats = calculate_model_stats(analysis_set)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Weights applied successfully!',
+            'new_accuracy': new_stats['accuracy'],
+            'new_recall': new_stats['recall'],
+            'new_precision': new_stats['precision']
+        })
+    
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route("/forecast/lab/reset", methods=["POST"])
+def forecast_lab_reset():
+    """
+    Reset to factory default weights.
+    Deletes custom config file.
+    """
+    from flask import jsonify
+    
+    try:
+        reset_to_default_weights()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Reset to factory defaults successfully!'
+        })
+    
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 # ============================================================

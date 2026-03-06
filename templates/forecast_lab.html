@@ -115,7 +115,7 @@
 ┌─────────────────────────────────────────────────────────────┐
 │  FLARE PREDICTION LABORATORY v2.0                           │
 │  Experimental Model Tuning Interface                        │
-│  Type 'help' for model design                               │
+│  Type 'help' for manual                                     │
 └─────────────────────────────────────────────────────────────┘
         </pre>
     </div>
@@ -398,8 +398,37 @@ function formatChange(value) {
 }
 
 function applyChanges() {
-    // Generate code snippet to copy
-    alert('Feature coming soon! For now, manually edit app.py calculate_flare_prime_score()');
+    if (!confirm('Apply these weights to the model? This will affect all future predictions.')) {
+        return;
+    }
+    
+    // Show loading indicator
+    const btn = event.target;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '⏳ Applying...';
+    btn.disabled = true;
+    
+    fetch('/forecast/lab/apply', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({weights: currentWeights})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            alert(`✓ Weights applied successfully!\n\nNew model performance:\nAccuracy: ${data.new_accuracy}%\nRecall: ${data.new_recall}%\nPrecision: ${data.new_precision}%\n\nReload the page to see changes.`);
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            alert('Error: ' + data.error);
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    })
+    .catch(err => {
+        alert('Error applying changes: ' + err);
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    });
 }
 </script>
 {% endblock %}

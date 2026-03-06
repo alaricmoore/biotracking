@@ -85,3 +85,9 @@ Icon?
 # Doctor-facing PDF exports should not be committed
 exports/
 *.pdf
+
+# Custom model weights (personal tuning)
+config/custom_weights.json
+
+# This keeps your personal model tuning out of version control
+# while allowing the config/ directory structure to be tracked
