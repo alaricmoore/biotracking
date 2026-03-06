@@ -45,7 +45,7 @@ Nothing formal. Readable over clever. Comments where the logic isn't obvious. If
 
 ## A Note on Scope
 
-This tool was built for one specific use case and expanded from there. It is opinionated by design. Not every feature request will be the right fit, and that's okay. If your needs diverge significantly from the core use case, the AGPL-3.0 license means you can fork it and build your own thing. That's what it's there for.
+This tool was built for one specific use case and expanded from there. It is designed with my use case in mind primarily. Not every feature request will be the right fit, and that's okay. If your needs diverge significantly from the core use case, the AGPL-3.0 license means you can fork it and build your own thing. That's what it's there for.
 
 ## Contact
 
