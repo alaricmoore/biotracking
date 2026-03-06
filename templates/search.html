@@ -682,7 +682,7 @@ function confirmDelete() {
                     alert('All data has been deleted. Redirecting to home page...');
                     window.location.href = '/';
                 } else {
-                    alert('Error deleting data. Please try again or contact support.');
+                    alert('Error deleting data: ' + (await response.text()) + '\n\nCheck the Flask console for details.');
                     hideDeleteModal();
                 }
             })

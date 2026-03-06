@@ -2964,8 +2964,8 @@ def delete_all_data():
             db_path.unlink()
         
         # Recreate empty database with schema
-        from setup import initialize_database
-        initialize_database()
+        from setup import create_database
+        create_database()
         
         return jsonify({"success": True, "message": "All data deleted"}), 200
         
