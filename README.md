@@ -20,13 +20,13 @@ At least that was my intuition, but that seemed insane. I had low vitamin D for 
 
 I figured I was just getting older. Also I'm hella pale, maybe this was a white people thing no one had mentioned to me.
 
-But coupled with a family history sprinkled with, and a genetic profile loaded for, SARDs and connective tissue disease associated alleles -- I decided to quantify it. Yes, it came to be seen by me through the data, that unfortunatley, very much so; The sun is making me sick.
+But coupled with a family history sprinkled with, and a genetic profile loaded for, SARDs and connective tissue disease associated alleles -- I decided to quantify it. It became painfully clear to me by the data, that unfortunatley, The sun is making me sick.
 
 That's why I started a spreadsheet. But it was useless in clinic -- rows upon rows of entries with no succinct way to visually communicate what they meant in a 15-minute appointment ,while exhausted and in pain and anxious about being dismissed again. After 90+ days I gave up. I got depressed. I kept getting sick. My sick leave was running dry at work, and with out a diagnosis I didn't feel confident that I could get FMLA protection.
 
 Then I picked it back up. I can't remember exactly what the impetus was -- probably another rheumatologist doubting me while ER doctors were writing "I believe her condition to be rheumatic in nature", meanwhile my dermatologist was doing her damnedest to get the best biopsy shave for DIF this side of the Mississippi. Damn near the size of a mercury dime.
 
-Claude Sonnet helped me build it. I'm not a strong coder -- I can get around, and I know how to make infinity while loops, but I'm far from skilled. An LLM assisted me in building the stack, troubleshooting bugs, and providing the kind of cognitive support I could direct, debug, and reiterate. And if Claude can be annoyed, I most certainly annoyed that poor tireless machine.
+Claude Sonnet helped me build it. I'm not a strong coder -- I can get around, and I know how to make infinity while loops, but I'm far from skilled. The LLM assisted me in building the stack, troubleshooting bugs, and providing the kind of cognitive support I could direct, debug, and reiterate. And if Claude can be annoyed, I most certainly annoyed that poor tireless machine.
 
 Meanwhile, I was in and out of doctors appointments and a few ER visits, and eventually arrived at a shiny new "cool, I was right" / "fuck, why do I have to be right about this?" diagnosis. Eight months from when I started aggressively seeking treatment to confirmed diagnosis. I beat the odds -- the average diagnostic delay is four to seven years. I'm lucky. A lot of people aren't.
 
@@ -52,6 +52,78 @@ This is not a medical product. This is a tool for veracity: for people who need 
 
 ---
 
+## Features
+
+### Daily Tracking
+
+- **Symptom logging**: Track 9 symptom categories with detailed notes (neurological, cognitive, musculature, migraine, pulmonary, dermatological, mucosal, rheumatic, gastrointestinal)
+- **Environmental factors**: UV exposure (pulled from Open-Meteo and Visual Crossing), temperature, sleep quality
+- **Physical metrics**: Steps, basal body temperature, pain/fatigue scales (1-10)
+- **Flare documentation**: Mark flare days and track what actually happened
+
+### Data Visualization & Analysis
+
+- **Timeline view**: Multi-axis chart showing symptoms, sleep, temperature, and UV exposure over time
+- **UV lag analysis**: Statistical analysis of UV exposure patterns and flare correlation with configurable lag periods (same-day, 24h, 48h, 72h)
+- **HRV tracking**: Heart rate variability trends with intervention markers
+- **Intervention tracking**: Mark primary and secondary medical interventions, visualize pre/post effects
+
+### Flare Prediction Model
+
+- **Transparent statistical model**: See exactly how predictions are calculated
+- **Real-time risk assessment**: Daily flare risk score (0-25) with color-coded risk levels
+- **7-day trend visualization**: Track risk patterns over the past week
+- **Contributing factors breakdown**: See what's adding to your current risk score
+- **Personalized recommendations**: Context-aware suggestions based on current risk level
+
+### Forecast Lab (Experimental Model Tuning)
+
+- **Interactive weight adjustment**: Tune symptom weights using real-time sliders
+- **Live simulation**: See how weight changes affect model accuracy, recall, and precision
+- **Prediction flip analysis**: Identify which dates would change prediction with new weights
+- **Apply and revert**: Save custom weights or reset to factory defaults
+- **Built-in manual**: Complete documentation accessible via terminal interface (`?` command)
+- **Model transparency**: View the actual Python calculation code in the app
+
+### Model Performance Tracking
+
+- **Accuracy analysis**: Track model performance over 60/90/120/all day windows
+- **Confusion matrix**: See true positives, false positives, true negatives, false negatives
+- **Performance metrics**: Accuracy, recall (sensitivity), precision, F1 score
+- **Historical validation**: Compare predictions against actual flare outcomes
+- **Weight optimization**: Data-driven suggestions for improving model performance
+
+### Clinical Record Management
+
+- **Lab results**: Track test results with numeric values, qualitative results, reference ranges, and flags
+- **Medications**: Full medication history with doses, frequencies, start/end dates, and intervention markers
+- **Clinical events**: Document appointments, procedures, hospitalizations with provider and facility info
+- **Clinician directory**: Maintain contact info for your care team (specialty, clinic, network, notes)
+- **ANA tracking**: Specialized tracking for ANA titers, patterns, and screen results
+- **CSV export**: Export labs, medications, events, or clinician data for external analysis or records requests
+
+### Search & Navigation
+
+- **Full-text search**: Search across all daily entries, clinical notes, medications, and events
+- **Keyword shortcuts**: Type "help", "manual", "lab", "cli" in search to access Forecast Lab
+- **Recent note reference**: Access previous notes and events by keyword
+- **Quick filters**: Jump to specific symptom categories or date ranges
+
+### Data Privacy & Security
+
+- **Local-first**: All data stored in local SQLite database on your machine
+- **No cloud sync**: Data never leaves your computer by default
+- **Optional remote access**: Raspberry Pi + Tailscale + Oracle Cloud setup for secure mobile access (see REMOTE_ACCESS.md)
+- **Version control safe**: Comprehensive `.gitignore` protects health data from accidental commits
+- **Export control**: You decide what data leaves your system and when
+
+### Technical Features
+
+- **UV auto-backfill**: Automatically fetch historical UV data from Open-Meteo and Visual Crossing based on GPS coordinates
+- **Responsive design**: Works on desktop and mobile browsers
+- **Dark mode**: Easy on the eyes, just toggle the moon/sun in the header.
+- **Light mode**: Good for when you can't make out dark mode.
+
 ## Important Disclaimers
 
 ### Not Medical Advice
@@ -72,39 +144,6 @@ Always consult qualified healthcare providers for medical decisions. This app he
 - You own your data. The database is a standard SQLite file you can back up, export, or delete at any time.
 - This is a single-user, local application. One instance per person, one database per instance.
 - Do not use this application to track anyone's health data without their informed consent. Don't be creepy.
-
----
-
-## Features
-
-### Data Tracking
-
-- Daily observations: pain, fatigue, symptoms by category, biometrics (HRV, sleep, basal temp), sun exposure
-- Clinical record: lab results, ANA titers, medications, clinical events, clinician list
-- Auto-fetch UV data for photosensitivity tracking
-- Import from Apple Health: HRV, sleep hours, wrist temperature, daylight exposure
-- Import from any CSV file iffn it's configured correctly for the import function.
-
-### Analysis & Visualization
-
-- Timeline view: pain, fatigue, and UV index over time with symptom flags
-- UV lag correlation: statistical analysis of UV exposure vs symptom onset with configurable lag windows
-- Flare forecasting: risk assessment based on your historical patterns
-- HRV trends: heart rate variability with pre/post medication comparison
-- Symptom comparison charts: adjustable, overlayable, yours
-- Flare precursor analysis: what most commonly precedes your flares (UV? low HRV? poor sleep? all three?)
-- Model accuracy assessment: self-grading analysis so you know how well your own model is predicting
-
-### Reporting
-
-- Keyword search across all notes, labs, and events
-- Generate clinical reports from search results or date ranges
-- Printable summaries with auto-generated findings, flagged labs, and event timelines
-- Export all data: labs, medications, events, clinician list
-
-### The Lab
-
-There's a CLI "interface" hidden in the app where you can manually adjust the weights of symptom classes in the prediction model. Get it to 100% accuracy with no false positives or false negatives and you unlock achievements. It's in there because sometimes you need to feel like you have some control over something that usually feels uncontrollable. Plus it's 1337 haxor green. That's fun. I don't care what you say about it.
 
 ---
 
@@ -290,48 +329,53 @@ You'll need a free [Visual Crossing](https://visualcrossing.com) API key. Add it
 
 ---
 
-## Using the Application
+## Usage
 
-### Daily Entry
+### Daily Workflow
 
-Navigate to **today** in the top nav. Log:
+1. Open biotracking at `http://localhost:5000`
+2. Click "Daily Entry" to log today's data
+3. Fill in symptoms, environmental factors, and notes
+4. Check "Flare occurred today" if applicable
+5. Submit to save
 
-- UV strip (auto-fetched)
-- Biometrics: sleep hours, HRV, basal temp delta, steps, sun exposure
-- Symptom toggles: click to enable, text field appears for notes
-- Scales: pain, fatigue, emotional state
-- Flare flags: physical/cognitive load, environmental triggers, flare occurrence (these help the model confirm positive/negative predicitons)
-- General notes: free text
+### Checking Your Flare Risk
 
-Hit save. You can edit the same day multiple times.
+1. Navigate to "Forecast" from the main menu
+2. View your current risk score and 7-day trend
+3. Review contributing factors and recommendations
+4. Click "View History" to see past predictions vs. actuals
+5. Click "Model Accuracy" to see performance metrics
 
-### Timeline
+### Tuning the Model (Advanced)
 
-Pain, fatigue, and UV over time with symptom category flags, HRV and basal temp trends, and flare days marked. Use the date range picker to zoom in.
+1. Go to forecast page and click the green `>>` button (bottom-right)
+   - Or search for "lab", "help", or "manual"
+2. Type `?` for the user manual
+3. Type `2` to adjust symptom weights
+4. Move sliders to customize weights
+5. Click "Run Simulation" to preview changes
+6. Review accuracy/recall/precision impact
+7. Click "Apply These Changes" to save (or "Reset to Defaults" to revert)
 
-### Forecast
+### Managing Clinical Records
 
-A model that attempts to forecast low/medium/high flare risk for that day based on historical trends, weighting of symptoms and triggers. Also comes with a model analysis and forecast prediciton grade. If you want to fiddle with things via the UI and not risk mungling the source, there might be like a game or something in there. Poke around.
+1. Navigate to "Clinical" from the main menu
+2. Add lab results, medications, events, or clinician contacts
+3. Use the tabs to switch between record types
+4. Click "Export" to download CSV files for specific date ranges
+5. Edit or delete records using the action buttons
 
-### UV Lag Analysis
+### Searching Your Data
 
-Pearson correlation between UV exposure and each symptom category at 0h, 24h, 48h, and 72h lag windows. Asterisked bars are statistically significant. The darkest bar shows when UV is most predictive of that symptom for you specifically.
+1. Use the search bar in search tab
+2. Type any keyword to search across all entries
+3. Results are grouped by type (daily, labs, events, medications)
+4. Click any result to view full details
 
-### HRV & Autonomic
+### Remote Access (Optional)
 
-HRV trend with 7-day rolling average, pre/post medication comparison, HRV vs pain/fatigue overlays, sleep/basal temp/UV relationships. This is mainly because of my situation, but it's poorly studied so why not track it? (Requires wearable that can somewhat reliably report HRV/day)
-
-### Clinical Record
-
-Five tabs: Labs, ANA, Medications, Events, Clinicians. Everything dated, everything searchable, everything exportable.
-
-### Search
-
-Keyword search across all notes, labs, events, clinicians, and medications. Check boxes on results to generate a report from selected entries.
-
-### Report
-
-Standalone clinical summary with active medications, mean symptom burden, flagged lab abnormalities, clinical events timeline, and UV lag analysis chart. Hit **print / save PDF** to generate a document for appointments.
+See `REMOTE_ACCESS.md` for detailed instructions on setting up remote access via Raspberry Pi + Tailscale.
 
 ---
 
@@ -385,6 +429,53 @@ python setup.py
 This deletes all your data. Back up first.
 
 ---
+
+## How the Flare Prediction Model Works
+
+The flare prediction model is a transparent, statistical approach based on weighted symptom scoring. You can see exactly how it works and modify all you want.
+
+### Calculation
+
+Each day receives a score (0-25) based on:
+
+- **Symptoms** (weighted 0.25-2.0 based on severity and flare correlation)
+- **UV exposure** (exponential weighting by UV Index score, 24-hour lag has shown strongest correlation)
+- **Physical overexertion** (steps per hour slept ratio)
+- **Temperature elevation** (basal body temperature delta)
+- **Fatigue and pain scales**
+- **Emotional state**
+
+**Threshold**: Score ≥ 8.0 = flare risk
+
+### Current Weights (as of 2026-03-05)
+
+Adjusted based on accuracy analysis of 60 days of data:
+
+- Neurological: 1.5 (appeared in 51 missed flares)
+- Cognitive: 1.0 (appeared in 34 missed flares)
+- Musculature: 1.5 (appeared in 44 missed flares)
+- Migraine: 1.0
+- Pulmonary: 1.0
+- Dermatological: 0.75
+- Mucosal: 0.25
+- Rheumatic: 0.5 (base), 2.0 (major joints), 1.0 (minor joints)
+
+### Performance
+
+Current model accuracy: **85.8%** overall
+
+- Recall: 65.7% (catches 2/3 of actual flares)
+- Precision: 79.2% (4/5 predictions are correct)
+- Improved from initial 76% accuracy / 20.9% recall
+
+### Customization
+
+Use the Forecast Lab (`/forecast/lab`) to:
+
+- Adjust weights based on your personal patterns
+- Run simulations to see impact on accuracy
+- Apply changes or reset to defaults
+- View the actual Python calculation code inside the app
 
 ## For Developers
 
@@ -484,6 +575,6 @@ See the [LICENSE](LICENSE) file for full terms. For commercial licensing inquiri
 
 For bugs, feature requests, or questions, open an issue on GitHub. Check existing issues first -- your question might already be answered.
 
-This is currently a one-person project built between doctor appointments and strenous work shifts. Response times may vary.
+This is currently a one-person project built between doctor appointments and fixing machines and building terrariums. Response times may vary.
 
 Take care of yourself. Trust your observations. Keep asking questions.
