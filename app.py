@@ -2092,9 +2092,9 @@ def forecast_accuracy():
 @app.route("/search", methods=["GET", "POST"])
 def search():
     """Search through observations and clinical notes."""
-    # ... existing code ...
     
-    query = request.form.get("query", "").strip()
+    # Get query from either GET or POST
+    query = request.args.get("q", "").strip() or request.form.get("query", "").strip()
     
     # Easter egg: redirect to lab for help queries
     if query.lower() in ['help', 'user manual', 'cli', 'lab', 'code', 'weights', 'tune', 'manual']:
