@@ -160,6 +160,15 @@ host='0.0.0.0'
 
 Restart the app. You should now be able to reach it from your Oracle VM's public IP. And if you dig around the tailscale options you can even give a nifty easy-remember-name.
 
+**Keep it running:**
+Use systemd, screen, or tmux so the app doesn't die when you close SSH:
+
+```bash
+screen -S biotracking
+python3 app.py
+# Ctrl+A, D to detach
+```
+
 ---
 
 ## Security Notes — Please Read These

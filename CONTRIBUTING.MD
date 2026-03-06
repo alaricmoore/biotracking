@@ -37,6 +37,7 @@ For bugs, open an issue with:
 3. Make your changes
 4. Test them — actually run the app, add some data, make sure nothing broke
 5. Submit a pull request with a clear description of what you changed and why
+6. **Note:** Don't commit `config/custom_weights.json` - it's in `.gitignore` for privacy
 
 ## Code Style
 

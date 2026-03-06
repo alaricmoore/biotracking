@@ -23,7 +23,7 @@ A commercial license is required if you are:
 
 - A for-profit company or commercial entity using biotracking in any product or service
 - Deploying biotracking as a hosted or SaaS service for users outside your organization
-- Integrating biotracking into proprietary software where you cannot or do not wish to comply with AGPL-3.0 source disclosure requirements
+- Integrating biotracking into proprietary software where you do not wish to release your modified source code under AGPL-3.0
 - Using biotracking in a clinical, enterprise, or institutional context for commercial purposes
 
 If you are unsure whether your use requires a commercial license, assume that it does and reach out.
@@ -35,7 +35,7 @@ If you are unsure whether your use requires a commercial license, assume that it
 - The right to use, modify, and deploy biotracking in proprietary or commercial contexts
 - Relief from the AGPL-3.0 source disclosure requirement for your modifications
 - Permission to integrate biotracking into closed-source products or services
-- A direct relationship with the author for support, feature development, or custom licensing terms
+- A direct relationship with the author for best-effort email support, no SLA
 
 ---
 
