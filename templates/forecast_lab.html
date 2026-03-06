@@ -115,7 +115,7 @@
 ┌─────────────────────────────────────────────────────────────┐
 │  FLARE PREDICTION LABORATORY v2.0                           │
 │  Experimental Model Tuning Interface                        │
-│  Type 'help' for commands                                   │
+│  Type 'help' for model design                               │
 └─────────────────────────────────────────────────────────────┘
         </pre>
     </div>
@@ -140,11 +140,25 @@
             <div class="terminal-line">[X] Exit Lab</div>
         </div>
         
-        <div style="margin-top:1rem;">
-            <span class="terminal-prompt">> </span>
-            <input type="text" class="terminal-input" id="command-input" 
-                   placeholder="Enter command..." autofocus
-                   onkeypress="if(event.key==='Enter') executeCommand()">
+            <div style="margin-top:1rem;">
+                <span class="terminal-prompt">> </span>
+                <input type="text" class="terminal-input" id="command-input" 
+                    placeholder="Enter command..." autofocus
+                    onkeypress="if(event.key==='Enter') executeCommand()">
+            </div>
+            <div id="manual-view" style="display:none; margin-top:2rem;">
+            <div class="terminal-line" style="font-size:1.2rem; margin-bottom:1rem;">
+                 USER MANUAL
+            </div>
+            <pre style="background:#1a1a1a; padding:var(--space-md); border-radius:4px; 
+                        overflow-x:auto; font-size:0.8rem; line-height:1.4; 
+                        white-space:pre-wrap; word-wrap:break-word; color:#4ade80;">{{ manual_text }}</pre>
+            <button onclick="showMenu()" 
+                    style="background:transparent; color:#666; border:1px solid #666; 
+                        padding:0.75rem 1.5rem; border-radius:4px; margin-top:1rem;
+                        font-family:'Courier New'; cursor:pointer;">
+                ← Back
+            </button>
         </div>
     </div>
     
@@ -285,6 +299,7 @@
 </div>
 
 <script>
+
 let currentWeights = {{ current_weights | tojson }};
 
 function executeCommand() {
@@ -302,10 +317,10 @@ function executeCommand() {
         showCode();
     } else if (cmd === '6' || cmd === 'achievements') {
         showAchievements();
+    } else if (cmd === '?' || cmd === 'help' || cmd === 'manual') {
+        showManual();
     } else if (cmd === 'x' || cmd === 'exit') {
         window.location.href = '{{ url_for("forecast") }}';
-    } else if (cmd === '?' || cmd === 'help') {
-        alert('Commands:\n1 - View weights\n2 - Adjust weights\n3 - Run simulation\n4 - View code\n6 - Achievements\nX - Exit');
     } else {
         alert('Unknown command. Type ? for help.');
     }
@@ -316,6 +331,7 @@ function showMenu() {
     document.getElementById('simulation-results').style.display = 'none';
     document.getElementById('code-view').style.display = 'none';
     document.getElementById('achievements-view').style.display = 'none';
+    document.getElementById('manual-view').style.display = 'none';
 }
 
 function showWeights() {
@@ -331,6 +347,11 @@ function showCode() {
 function showAchievements() {
     showMenu();
     document.getElementById('achievements-view').style.display = 'block';
+}
+
+function showManual() {
+    showMenu();
+    document.getElementById('manual-view').style.display = 'block';
 }
 
 function updateWeight(key, value) {

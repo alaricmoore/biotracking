@@ -31,6 +31,169 @@ from collections import Counter
 
 app = Flask(__name__)
 
+# ============================================================
+# FORECAST LAB MANUAL TEXT
+# Add this near the top of app.py, after your imports
+# ============================================================
+
+FORECAST_LAB_MANUAL ="""╔═══════════════════════════════════════════════════════════════════════════╗
+║                    FLARE PREDICTION MODEL — USER MANUAL                   ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+WHAT THIS IS
+────────────
+A transparent, statistical model for predicting lupus flare risk based on 
+daily observations. Unlike black-box AI, you can see exactly how it works 
+and tune it yourself.
+
+CURRENT WEIGHTS (as of 2026-03-05)
+───────────────────────────────────
+These weights were adjusted based on accuracy analysis:
+
+  Symptom Weights:
+  • Neurological: 1.5 (numbness, tingling, vision changes)
+  • Cognitive: 1.0 (brain fog, memory, word recall)
+  • Musculature: 1.5 (muscle pain, cramping, weakness)
+  • Migraine: 1.0 (headaches, light sensitivity)
+  • Pulmonary: 1.0 (air hunger, chest discomfort)
+  • Dermatological: 0.75 (rash, photosensitivity)
+  • Mucosal: 0.25 (dry mouth, dry eyes)
+  • Rheumatic (base): 0.5 (joint pain without specificity)
+    └─ Major joints: 2.0 (hip, knee, shoulder, elbow, ankle, wrist, jaw)
+    └─ Minor joints: 1.0 (finger, toe, hand)
+
+  Environmental Factors:
+  • High UV (100+ min): 3.0
+  • Moderate UV (70-99 min): 1.25
+  • High temperature (0.8°F+): 3.0
+  • Moderate temperature (0.5-0.8°F): 2.0
+  • Mild temperature (0.3-0.5°F): 1.0
+
+  Physical Load:
+  • Severe overexertion (2000+ steps/hr slept): 2.0
+  • Moderate overexertion (1500-2000 steps/hr slept): 1.5
+
+  Other:
+  • Severe fatigue (7+): 3.0
+  • Moderate fatigue (5-7): 1.0
+  • Mild fatigue (3-5): 0.5
+  • High pain (7+): 1.0
+  • Low emotional state (≤4): 2.0
+
+  Threshold: 8.0 points = flare risk
+  (Lowered from 10.0 to improve recall from 20.9% to 65.7%)
+
+WHY THESE WEIGHTS
+─────────────────
+Analysis of 60 days of data with known flare outcomes showed:
+  - Neurological symptoms appeared in 51 missed flares
+  - Cognitive symptoms appeared in 34 missed flares  
+  - Musculature symptoms appeared in 44 missed flares
+
+Weights were increased to catch more true flares (recall) while maintaining
+accuracy. Current model: 85.8% accuracy, 65.7% recall, 79.2% precision.
+
+UV LAG ANALYSIS — HOW IT WORKS
+───────────────────────────────
+UV exposure doesn't cause immediate flares. The effect is delayed.
+
+The model tests different lag periods:
+  • Same-day UV (no lag)
+  • 24-hour lag (yesterday's UV affects today)
+  • 48-hour lag (UV from 2 days ago)
+  • 72-hour lag (UV from 3 days ago)
+
+For each lag period, it:
+  1. Pairs UV data with flare days
+  2. Runs statistical tests (t-test, Cohen's d)
+  3. Measures correlation strength
+  4. Requires 30+ days of data for reliability
+
+Currently, 24-hour lag shows the strongest correlation for this dataset.
+
+Plain English: If you get too much sun today, you're more likely to feel it
+tomorrow. The model learns your specific lag pattern from your own data.
+
+USING THE LAB
+─────────────
+Commands:
+  [1] weights   — View current symptom weights
+  [2] adjust    — Adjust weights with sliders
+  [3] simulate  — Run simulation to see how changes affect accuracy
+  [4] code      — View the actual Python calculation code
+  [6] achievements — See your tuning achievements
+  [?] help      — Show this manual
+  [X] exit      — Return to forecast page
+
+Workflow:
+  1. Adjust weights using sliders
+  2. Run simulation to see impact on accuracy/recall/precision
+  3. Review which predictions would flip
+  4. Apply changes (currently manual — copy weights to app.py)
+
+The goal is to balance:
+  • Accuracy: Overall correctness
+  • Recall: Catching actual flares (minimize false negatives)
+  • Precision: Avoiding false alarms (minimize false positives)
+
+REMOTE ACCESS (RASPBERRY PI + TAILSCALE)
+─────────────────────────────────────────
+If you want to access biotracking from your phone while away from home:
+
+Setup Overview:
+  Phone/Laptop (anywhere)
+       ↓ (Tailscale encrypted tunnel)
+  Oracle Cloud VM (public IP, exit node)
+       ↓ (Tailscale encrypted tunnel)  
+  Raspberry Pi (your home, running biotracking)
+       ↓ (localhost)
+  SQLite database (never leaves the Pi)
+
+Why this works:
+  • Starlink uses CGNAT — no static public IP, can't port forward
+  • Tailscale creates encrypted mesh network between devices
+  • Oracle VM provides stable public IP as exit node
+  • Database stays on Pi, Oracle VM only sees encrypted traffic
+
+Quick Setup:
+  1. Install biotracking on Raspberry Pi (see README)
+  2. Install Tailscale on Pi: curl -fsSL https://tailscale.com/install.sh | sh
+  3. Create Oracle Cloud free tier VM
+  4. Install Tailscale on VM
+  5. Configure nginx reverse proxy on VM
+  6. Open Oracle firewall (ports 80/443)
+  7. Add HTTPS with Let's Encrypt (recommended)
+  8. Add basic auth to nginx (required for security)
+
+Full instructions: See REMOTE_ACCESS.md in the repository
+
+Security Notes:
+  ⚠ Always use HTTPS (Let's Encrypt is free)
+  ⚠ Always use authentication (nginx basic auth minimum)
+  ⚠ Keep software updated on Oracle VM
+  ⚠ Review Tailscale ACLs to restrict access
+  ⚠ Understand: anything on the internet has risk
+
+The most secure setup is local-only. Remote access is a trade-off.
+If you're in an unsafe situation, local-only may be the right choice.
+
+MORE INFORMATION
+────────────────
+  • Full setup instructions: README.md
+  • Contributing guide: CONTRIBUTING.md
+  • Remote access details: REMOTE_ACCESS.md
+  • Repository: github.com/yourusername/biotracking
+  • Contact: alaric.moore@pm.me
+
+This is a one-person project maintained between doctor appointments.
+Response times may vary.
+
+Take care of yourself out there.
+
+────────────────────────────────────────────────────────────────────────────
+Press any key to return to main menu
+"""
+
 
 # ============================================================
 # Config loading
@@ -1343,8 +1506,11 @@ def forecast_lab():
             symptoms=symptoms,
             current_weights=current_weights,
             model_code=model_code,
-            achievements=achievements
+            achievements=achievements,
+            manual_text=FORECAST_LAB_MANUAL
         )
+    
+    
 
 @app.route("/forecast/lab/simulate", methods=["POST"])
 def forecast_lab_simulate():
