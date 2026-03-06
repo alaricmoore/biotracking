@@ -1704,7 +1704,7 @@ def get_recommendations(risk_level: str, factors: list) -> list:
     # Add specific recommendations based on factors
     factor_names = [f['name'] for f in factors]
     if any('UV' in name for name in factor_names):
-        recs.append({'icon': '🕶', 'text': 'Wear protective clothing and broad-spectrum sunscreen if going outside'})
+        recs.append({'icon': '♛', 'text': 'Wear protective clothing and broad-spectrum sunscreen if going outside'})
     if any('joint' in name.lower() for name in factor_names):
         recs.append({'icon': '❄', 'text': 'Apply cold therapy to affected joints'})
     
