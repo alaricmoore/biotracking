@@ -51,6 +51,7 @@ DEFAULT_WEIGHTS = {
     'dermatological': 0.75,
     'mucosal': 0.25,
     'rheumatic': 0.5,
+    'cycle_phase': 1.0,
 }
 
 # Path to custom weights config
@@ -106,7 +107,11 @@ def calculate_flare_score_with_weights(obs, weights):
 
     # Apply custom weights
     for symptom, weight in weights.items():
-        score += obs.get(symptom, 0) * weight
+        if symptom == 'cycle_phase':
+            if obs.get('cycle_in_high_risk_phase'):
+                score += weight
+        else:
+            score += obs.get(symptom, 0) * weight
 
     return score
     
@@ -1804,6 +1809,72 @@ def export_events():
 # Forecast Laboratory Helpers
 # ============================================================
 
+def _compute_phase_by_date_from_obs(all_obs: list) -> dict:
+    """Build {date_str: 'pms'|'luteal'} from obs list using same logic as cycle_view.
+    Returns {} if track_cycle is False or insufficient cycle data.
+    """
+    if not CONFIG.get('track_cycle'):
+        return {}
+
+    sorted_obs = sorted(all_obs, key=lambda r: r['date'])
+    bbt_by_date = {
+        r['date']: r['basal_temp_delta']
+        for r in sorted_obs
+        if r.get('basal_temp_delta') is not None
+    }
+
+    # Detect period starts (exclude spotting, same as cycle_view)
+    period_starts: list = []
+    in_period = False
+    for row in sorted_obs:
+        has_flow = bool(row.get('period_flow') and row['period_flow'] != 'spotting')
+        if has_flow and not in_period:
+            period_starts.append(row['date'])
+            in_period = True
+        elif not has_flow:
+            in_period = False
+
+    if len(period_starts) < 2:
+        return {}
+
+    lengths_raw = [
+        (date.fromisoformat(period_starts[i + 1]) - date.fromisoformat(period_starts[i])).days
+        for i in range(len(period_starts) - 1)
+    ]
+    lengths = [l for l in lengths_raw if l <= 90]
+    recent = lengths[-6:] if lengths else []
+    avg_cycle = round(sum(recent) / len(recent)) if recent else 28
+
+    phase_by_date: dict = {}
+    for i, start_str in enumerate(period_starts):
+        cycle_start = date.fromisoformat(start_str)
+        cycle_end = (
+            date.fromisoformat(period_starts[i + 1])
+            if i + 1 < len(period_starts)
+            else cycle_start + timedelta(days=avg_cycle)
+        )
+        detected_ov = _detect_ovulation_bbt(bbt_by_date, cycle_start, cycle_end)
+        lut = detected_ov if detected_ov else cycle_end - timedelta(days=14)
+        pms = lut + timedelta(days=7)
+        d = lut
+        while d < cycle_end:
+            phase_by_date[d.isoformat()] = 'pms' if d >= pms else 'luteal'
+            d += timedelta(days=1)
+
+    return phase_by_date
+
+
+def _inject_cycle_phase(obs_list: list) -> None:
+    """Annotate obs dicts in-place with cycle_in_high_risk_phase and cycle_phase_name."""
+    if not CONFIG.get('track_cycle'):
+        return
+    phase_by_date = _compute_phase_by_date_from_obs(obs_list)
+    for obs in obs_list:
+        phase = phase_by_date.get(obs['date'])
+        obs['cycle_in_high_risk_phase'] = phase in ('pms', 'luteal')
+        obs['cycle_phase_name'] = phase
+
+
 def calculate_flare_prime_score(obs):
     """
     Calculate flare prime score for a single observation.
@@ -2005,8 +2076,9 @@ def forecast_lab():
     
     # Calculate current metrics (reuse from forecast_accuracy)
     all_obs.sort(key=lambda x: x['date'], reverse=True)
+    _inject_cycle_phase(all_obs)
     analysis_set = all_obs[:60]
-    
+
     # Calculate current stats
     model_stats = calculate_model_stats(analysis_set)
     
@@ -2039,10 +2111,18 @@ def forecast_lab():
         {'key': 'mucosal', 'name': 'Mucosal', 
          'weight': current_weights['mucosal'],
          'description': 'Dry mouth, dry eyes, nasal dryness'},
-        {'key': 'rheumatic', 'name': 'Rheumatic (base)', 
+        {'key': 'rheumatic', 'name': 'Rheumatic (base)',
          'weight': current_weights['rheumatic'],
          'description': 'Joint pain without specificity'},
     ]
+
+    if CONFIG.get('track_cycle'):
+        symptoms.append({
+            'key': 'cycle_phase',
+            'name': 'Cycle Phase (PMS/Luteal)',
+            'weight': current_weights.get('cycle_phase', 1.0),
+            'description': 'Elevated risk during luteal and PMS phases of cycle'
+        })
     
     # Model code snippet
     model_code = '''def calculate_flare_prime_score(obs):
@@ -2105,8 +2185,9 @@ def forecast_lab_simulate():
     # Get data
     all_obs = db.get_all_daily_observations()
     all_obs.sort(key=lambda x: x['date'], reverse=True)
+    _inject_cycle_phase(all_obs)
     analysis_set = all_obs[:60]
-    
+
     # Calculate stats with custom weights
     new_stats = calculate_model_stats(analysis_set, custom_weights)
     
@@ -2154,6 +2235,7 @@ def forecast_lab_apply():
         # Recalculate stats with new weights
         all_obs = db.get_all_daily_observations()
         all_obs.sort(key=lambda x: x['date'], reverse=True)
+        _inject_cycle_phase(all_obs)
         analysis_set = all_obs[:60]
         new_stats = calculate_model_stats(analysis_set)
         
@@ -2207,7 +2289,8 @@ def forecast():
     
     # Sort by date
     all_obs.sort(key=lambda x: x['date'], reverse=True)
-    
+    _inject_cycle_phase(all_obs)
+
     # Need at least 7 days
     if len(all_obs) < 7:
         return render_template("forecast.html", has_data=False)
@@ -2362,9 +2445,13 @@ def calculate_flare_prime_score(obs):
     emotional = obs.get('emotional_state') or 5
     if emotional <= 4:
         score += 2
-    
+
+    # 9. Cycle phase (PMS/luteal risk elevation)
+    if obs.get('cycle_in_high_risk_phase'):
+        score += get_current_weights().get('cycle_phase', 1.0)
+
     return round(score, 1)
-    
+
 
 
 def get_risk_level(score):
@@ -2475,7 +2562,13 @@ def get_contributing_factors(obs: dict) -> list:
         emotional = obs.get('emotional_state') or 5
         if emotional <= 3:
             factors.append({'name': 'Low emotional state', 'points': 2, 'color': '#7a8499'})
-        
+
+        # Cycle phase
+        if obs.get('cycle_in_high_risk_phase'):
+            phase_label = 'PMS phase' if obs.get('cycle_phase_name') == 'pms' else 'Luteal phase'
+            cycle_weight = get_current_weights().get('cycle_phase', 1.0)
+            factors.append({'name': phase_label, 'points': cycle_weight, 'color': '#9563ec'})
+
         return factors
     
 def get_recommendations(risk_level: str, factors: list) -> list:
@@ -2614,7 +2707,18 @@ def get_score_breakdown(obs: dict) -> list:
         'color': '#e85d9e',
         'description': f'P:{pain} F:{fatigue}'
     })
-    
+
+    # Cycle phase (only when tracking enabled)
+    if CONFIG.get('track_cycle'):
+        cw = get_current_weights()
+        cycle_score = cw.get('cycle_phase', 1.0) if obs.get('cycle_in_high_risk_phase') else 0
+        breakdown.append({
+            'name': 'Cycle Phase',
+            'score': cycle_score,
+            'color': '#9563ec',
+            'description': obs.get('cycle_phase_name') or 'follicular/period'
+        })
+
     return breakdown
 
 
@@ -2638,8 +2742,9 @@ def forecast_history():
         return redirect(url_for('forecast'))
     
     all_obs.sort(key=lambda x: x['date'], reverse=True)
+    _inject_cycle_phase(all_obs)
     last_30 = all_obs[:30]
-    
+
     history = []
     correct = 0
     false_pos = 0
@@ -2720,7 +2825,8 @@ def forecast_accuracy():
         return redirect(url_for('forecast'))
     
     all_obs.sort(key=lambda x: x['date'], reverse=True)
-    
+    _inject_cycle_phase(all_obs)
+
     # Select analysis window
     if days_param == 'all':
         analysis_set = all_obs
