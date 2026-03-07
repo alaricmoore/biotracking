@@ -101,6 +101,8 @@ This tool isn't a lupus tracker, necessarily, though it is designed around an ev
 - **Clinician directory**: Maintain contact info for your care team (specialty, clinic, network, notes)
 - **ANA tracking**: Specialized tracking for ANA titers, patterns, and screen results
 - **CSV export**: Export labs, medications, events, or clinician data for external analysis or records requests
+- **Steroid taper wizard**: Pre-filled 6-day Medrol dose pack schedule with adjustable times and doses; schedules push notifications for each dose via ntfy
+- **Dose checklist**: Today's scheduled doses appear on the daily entry page with one-tap "mark taken" tracking
 
 ### Search & Navigation
 
@@ -378,6 +380,51 @@ You'll need a free [Visual Crossing](https://visualcrossing.com) API key. Add it
 ### Remote Access (Optional)
 
 See `REMOTE_ACCESS.md` for detailed instructions on setting up remote access via Raspberry Pi + Tailscale.
+
+---
+
+## Medication Reminders (Optional)
+
+Biotracking can send push notifications to your phone for scheduled medication doses. This is useful for steroid tapers and anything else where timing actually matters.
+
+This uses [ntfy](https://ntfy.sh), a dead-simple open-source notification service. No account required. The Pi sends an HTTP POST; your phone receives a push notification. That's it.
+
+### Set up ntfy
+
+1. Install the **ntfy** app on your phone (App Store or Google Play, free, by Philipp Heckel)
+2. Open the app and tap **Subscribe**
+3. Enter a topic name — make it long and unguessable, like `biotracking-k7x9qm3p`
+   (ntfy topics are public: anyone who knows the name can read and send to it, so don't use your name, your pet's name, or anything else obvious)
+4. Add two keys to your `config.json` on the machine running biotracking:
+
+```json
+"ntfy_topic": "biotracking-k7x9qm3p",
+"ntfy_server": "https://ntfy.sh"
+```
+
+1. Test it from your terminal before trusting your medication schedule to it:
+
+```bash
+curl -d "test notification" https://ntfy.sh/biotracking-k7x9qm3p
+```
+
+Your phone should buzz within a few seconds. If it doesn't, check that the topic name matches exactly and that notifications are enabled for the ntfy app in your phone's settings.
+
+### Use the taper wizard
+
+1. Go to **Clinical** → **Medications** tab
+2. Add your steroid (e.g. methylprednisolone 4mg)
+3. Click **set reminders** on that medication's row
+4. The wizard pre-fills a standard 6-day Medrol dose pack schedule (18 doses, tapering from 6 tablets on day 1 to 1 tablet on day 6). Adjust the start date, times, and amounts as needed.
+5. Click **activate reminders** — doses are saved and notifications will fire at the scheduled times as long as the app is running
+6. Today's pending doses appear in a checklist on the **Daily Entry** page. Mark them taken as you go.
+
+### Notes
+
+- Notifications only fire if the app is running. If you're on the Raspberry Pi setup described in `REMOTE_ACCESS.md`, the service runs continuously and this works reliably.
+- Running locally on a Mac that sleeps? The scheduler pauses when the machine sleeps and resumes when it wakes. You may miss a notification if your laptop was closed at dose time.
+- ntfy.sh is a public service run by one person. For higher reliability or privacy, you can self-host ntfy — change `ntfy_server` in `config.json` to your self-hosted URL.
+- The wizard defaults to a standard Medrol 4mg dose pack. For other tapers, adjust the times and quantities in place or clear them and enter your own schedule.
 
 ---
 
