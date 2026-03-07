@@ -73,6 +73,17 @@
             --radius-sm: 4px;
             --radius-md: 8px;
             --radius-lg: 12px;
+
+            /* Cycle tracker */
+            --cycle-flow-heavy:    #be185d;
+            --cycle-flow-medium:   #ec4899;
+            --cycle-flow-light:    #f472b6;
+            --cycle-flow-spotting: #c084fc;
+            --cycle-pms-bg:        rgba(149, 99, 236, 0.18);
+            --cycle-luteal-bg:     rgba(114, 109, 123, 0.12);
+            --cycle-bbt-line:      rgba(74, 158, 110, 0.65);
+            --cycle-bbt-dot:       rgba(74, 158, 110, 0.85);
+            --cycle-bbt-low:       rgba(100, 150, 220, 0.55);
         }
 
         /* Light theme */
@@ -116,6 +127,17 @@
             --color-warning:  #d99d43ff;
             --color-danger:   #ce3b3bff;
             --color-accent:   #7a8de0;
+
+            /* Cycle tracker */
+            --cycle-flow-heavy:    #be185d;
+            --cycle-flow-medium:   #ec4899;
+            --cycle-flow-light:    #f472b6;
+            --cycle-flow-spotting: #c084fc;
+            --cycle-pms-bg:        rgba(149, 99, 236, 0.18);
+            --cycle-luteal-bg:     rgba(114, 109, 123, 0.12);
+            --cycle-bbt-line:      rgba(74, 158, 110, 0.65);
+            --cycle-bbt-dot:       rgba(74, 158, 110, 0.85);
+            --cycle-bbt-low:       rgba(100, 150, 220, 0.55);
         }
 
 
@@ -737,6 +759,11 @@
                         {% if request.endpoint == 'forecast' %}class="active"{% endif %}>
                         forecast
                     </a></li>
+                    {% if track_cycle %}
+                    <li><a href="{{ url_for('cycle_view') }}"
+                        {% if request.endpoint == 'cycle_view' %}class="active"{% endif %}>
+                        cycle
+                    </a></li>
                     <li><a href="{{ url_for('timeline') }}"
                         {% if request.endpoint == 'timeline' %}class="active"{% endif %}>
                         timeline
@@ -761,6 +788,7 @@
                         {% if request.endpoint == 'search' %}class="active"{% endif %}>
                         search
                     </a></li>
+                    {% endif %}
                     <li style="margin-left: auto; display: flex; align-items: center; gap: 0.25rem;">
                         <button id="theme-toggle" 
                                 style="background: var(--bg-elevated); 

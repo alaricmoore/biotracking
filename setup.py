@@ -151,6 +151,21 @@ def create_database():
     except:
         pass  # Column already exists
 
+    try:
+        c.execute("ALTER TABLE daily_observations ADD COLUMN period_flow TEXT")
+    except:
+        pass  # Column already exists
+
+    try:
+        c.execute("ALTER TABLE daily_observations ADD COLUMN cramping TEXT")
+    except:
+        pass  # Column already exists
+
+    try:
+        c.execute("ALTER TABLE daily_observations ADD COLUMN cycle_notes TEXT")
+    except:
+        pass  # Column already exists
+
     # --------------------------------------------------------
     # uv_data
     # UV index by date, pulled from API or entered manually

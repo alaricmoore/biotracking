@@ -12,6 +12,7 @@ Access locally:    http://localhost:5000
 Access from phone: http://<your-mac-ip>:5000
 """
 
+import calendar
 import json
 import os
 from datetime import date, datetime, timedelta
@@ -452,6 +453,7 @@ def inject_globals():
         "patient_name": CONFIG.get("patient_name", ""),
         "today": date.today().isoformat(),
         "app_version": CONFIG.get("app_version", "2.0.0"),
+        "track_cycle": CONFIG.get("track_cycle", False),
     }
 
 
@@ -562,6 +564,9 @@ def daily_entry_submit():
         "strike_environmental": get_bool("strike_environmental"),
         "flare_occurred": get_bool("flare_occurred"),
         "notes": form.get("notes", "").strip() or None,
+        "period_flow": form.get("period_flow") or None,
+        "cramping": form.get("cramping") or None,
+        "cycle_notes": form.get("cycle_notes", "").strip() or None,
     }
 
     db.upsert_daily_observations(data)
@@ -876,6 +881,226 @@ def compute_sleep_bbt_uv(observations: list) -> dict:
         "bbt":        bbt_vals,
         "uv_lag1":    uv_lag1,
     }
+
+
+def _detect_ovulation_bbt(bbt_by_date: dict, cycle_start: date, cycle_end: date):
+    """Detect ovulation from biphasic BBT shift within a cycle window.
+
+    Collects non-null BBT readings in [cycle_start, cycle_end), requires >=8 data points.
+    Computes a follicular-phase average from the first 5 readings, then finds the first
+    date of a 3-consecutive-day sustained rise >= 0.1 deg F above that average.
+    Returns the first day of the sustained rise, or None if pattern not found.
+    """
+    readings = []
+    d = cycle_start
+    while d < cycle_end:
+        bbt = bbt_by_date.get(d.isoformat())
+        if bbt is not None:
+            readings.append((d, bbt))
+        d += timedelta(days=1)
+
+    if len(readings) < 8:
+        return None
+
+    follicular_avg = sum(v for _, v in readings[:5]) / 5
+    threshold = follicular_avg + 0.1
+
+    consecutive = 0
+    first_high = None
+    for d, bbt in readings[5:]:
+        if bbt >= threshold:
+            consecutive += 1
+            if first_high is None:
+                first_high = d
+            if consecutive >= 3:
+                return first_high
+        else:
+            consecutive = 0
+            first_high = None
+    return None
+
+
+@app.route("/cycle")
+def cycle_view():
+    """Menstrual cycle calendar — opt-in via config track_cycle=true."""
+    if not CONFIG.get("track_cycle"):
+        return redirect(url_for("daily_entry"))
+
+    year  = request.args.get("year",  type=int, default=date.today().year)
+    month = request.args.get("month", type=int, default=date.today().month)
+
+    # Fetch 12 months of history for cycle-length calculation, plus the current month
+    history_start = (date(year, month, 1) - timedelta(days=365)).isoformat()
+    month_last_day = calendar.monthrange(year, month)[1]
+    month_end = date(year, month, month_last_day).isoformat()
+    all_data = db.get_cycle_data(history_start, month_end)
+
+    # Build BBT lookup for the entire history window
+    bbt_by_date = {
+        row["date"]: row["basal_temp_delta"]
+        for row in all_data
+        if row.get("basal_temp_delta") is not None
+    }
+
+    # Detect period start days (first day of non-spotting flow after a gap)
+    period_starts = []
+    prev_had_period = False
+    for row in all_data:
+        has_period = bool(row.get("period_flow") and row.get("period_flow") != "spotting")
+        if has_period and not prev_had_period:
+            period_starts.append(row["date"])
+        prev_had_period = has_period
+
+    # Average cycle length — use last 6 cycles, discard gaps > 90 days (data holes, not cycles)
+    lengths_raw: list[int] = []
+    avg_cycle = 28
+    if len(period_starts) >= 2:
+        lengths_raw = [
+            (date.fromisoformat(period_starts[i + 1]) -
+             date.fromisoformat(period_starts[i])).days
+            for i in range(len(period_starts) - 1)
+        ]
+        lengths = [l for l in lengths_raw if l <= 90]
+        recent = lengths[-6:] if lengths else []
+        avg_cycle = round(sum(recent) / len(recent)) if recent else 28
+
+    # Build phase lookup for ALL historical cycles using BBT-detected ovulation where available
+    phase_by_date: dict[str, str] = {}
+    bbt_ovulations: dict[str, date] = {}  # period_start_str -> detected ovulation date
+
+    for i, start_str in enumerate(period_starts):
+        cycle_start = date.fromisoformat(start_str)
+        cycle_end = (date.fromisoformat(period_starts[i + 1])
+                     if i + 1 < len(period_starts)
+                     else cycle_start + timedelta(days=avg_cycle))
+
+        detected_ov = _detect_ovulation_bbt(bbt_by_date, cycle_start, cycle_end)
+        if detected_ov:
+            bbt_ovulations[start_str] = detected_ov
+            lut = detected_ov
+        else:
+            lut = cycle_end - timedelta(days=14)
+
+        pms = lut + timedelta(days=7)
+        d = lut
+        while d < cycle_end:
+            phase_by_date[d.isoformat()] = "pms" if d >= pms else "luteal"
+            d += timedelta(days=1)
+
+    # Forward prediction for current (open) cycle — prefer BBT-detected ovulation
+    next_period = pms_start = ovulation = luteal_start = None
+    ovulation_source = "predicted"
+    if period_starts:
+        last_start = date.fromisoformat(period_starts[-1])
+        detected_ov = _detect_ovulation_bbt(
+            bbt_by_date, last_start, date.today() + timedelta(days=1)
+        )
+        if detected_ov:
+            ovulation = detected_ov
+            luteal_start = detected_ov
+            next_period = detected_ov + timedelta(days=14)
+            ovulation_source = "detected"
+        else:
+            next_period = last_start + timedelta(days=avg_cycle)
+            ovulation = next_period - timedelta(days=14)
+            luteal_start = ovulation
+
+        pms_start = next_period - timedelta(days=7)
+
+        # Extend phase_by_date forward into the predicted future
+        d = luteal_start
+        while d < next_period:
+            if d.isoformat() not in phase_by_date:
+                phase_by_date[d.isoformat()] = "pms" if d >= pms_start else "luteal"
+            d += timedelta(days=1)
+
+    # Filter observation data to current month for the display grid
+    month_start_str = date(year, month, 1).isoformat()
+    month_data = {
+        row["date"]: row for row in all_data
+        if row["date"] >= month_start_str
+    }
+
+    # BBT data points for the current month in calendar order (None if no data)
+    bbt_points = []
+    for d_num in range(1, month_last_day + 1):
+        ds = date(year, month, d_num).isoformat()
+        obs = month_data.get(ds)
+        bbt = obs["basal_temp_delta"] if obs and obs.get("basal_temp_delta") is not None else None
+        bbt_points.append((d_num, bbt))
+
+    # Intervention markers: (drug_name, 'start') for new starts this month,
+    # (drug_name, 'active') on day-1 for meds active from a prior month
+    all_meds = db.get_all_medications()
+    intervention_dates: dict = {}
+    for m in all_meds:
+        if not (m.get("is_primary_intervention") or m.get("is_secondary_intervention")):
+            continue
+        s = m["start_date"]
+        e = m.get("end_date")
+        if month_start_str <= s <= month_end:
+            intervention_dates[s] = (m["drug_name"], "start")
+        elif s < month_start_str and (e is None or e >= month_start_str):
+            if month_start_str not in intervention_dates:
+                intervention_dates[month_start_str] = (m["drug_name"], "active")
+
+    # Flare counts by cycle phase (across all history)
+    phase_day_counts: dict[str, int] = {"pms": 0, "luteal": 0, "follicular": 0, "period": 0}
+    flare_phase_counts: dict[str, int] = {"pms": 0, "luteal": 0, "follicular": 0, "period": 0}
+    for row in all_data:
+        ds = row["date"]
+        if bool(row.get("period_flow") and row["period_flow"] != "spotting"):
+            ph = "period"
+        else:
+            ph = phase_by_date.get(ds, "follicular")
+        phase_day_counts[ph] = phase_day_counts.get(ph, 0) + 1
+        if row.get("flare_occurred"):
+            flare_phase_counts[ph] = flare_phase_counts.get(ph, 0) + 1
+
+    # Intervention cycle-length effects (up to 3 cycles before/after each intervention)
+    intervention_effects = []
+    for m in all_meds:
+        if not (m.get("is_primary_intervention") or m.get("is_secondary_intervention")):
+            continue
+        s = m["start_date"]
+        before = [l for ps, l in zip(period_starts, lengths_raw) if ps < s][-3:]
+        after  = [l for ps, l in zip(period_starts[1:], lengths_raw) if ps > s][:3]
+        if before or after:
+            intervention_effects.append({
+                "drug":       m["drug_name"],
+                "start":      s,
+                "before_avg": round(sum(before) / len(before)) if before else None,
+                "after_avg":  round(sum(after)  / len(after))  if after  else None,
+            })
+
+    # Month navigation
+    prev_year,  prev_month  = (year - 1, 12) if month == 1  else (year, month - 1)
+    next_year,  next_month  = (year + 1, 1)  if month == 12 else (year, month + 1)
+
+    return render_template(
+        "cycle.html",
+        year=year, month=month,
+        month_name=date(year, month, 1).strftime("%B %Y"),
+        month_data=month_data,
+        month_last_day=month_last_day,
+        phase_by_date=phase_by_date,
+        avg_cycle=avg_cycle,
+        next_period=next_period,
+        pms_start=pms_start,
+        ovulation=ovulation,
+        ovulation_source=ovulation_source,
+        luteal_start=luteal_start,
+        period_starts=period_starts,
+        bbt_points=bbt_points,
+        bbt_ovulations=bbt_ovulations,
+        intervention_dates=intervention_dates,
+        flare_phase_counts=flare_phase_counts,
+        phase_day_counts=phase_day_counts,
+        intervention_effects=intervention_effects,
+        prev_year=prev_year, prev_month=prev_month,
+        next_year=next_year, next_month=next_month,
+        cal=calendar,
+    )
 
 
 @app.route("/hrv")

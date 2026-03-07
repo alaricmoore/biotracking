@@ -1,0 +1,396 @@
+{% extends "base.html" %}
+
+{% block title %}cycle — {{ month_name }} — biotracking{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>cycle</h1>
+    <p class="page-subtitle">{{ month_name }}</p>
+</div>
+
+<!-- Month navigation -->
+<div class="date-nav" style="margin-bottom: var(--space-lg);">
+    <a href="{{ url_for('cycle_view', year=prev_year, month=prev_month) }}" class="date-nav-btn">
+        ← previous
+    </a>
+    <div class="date-nav-center">
+        <span style="color: var(--text-secondary); font-size: 1rem;">{{ month_name }}</span>
+    </div>
+    <a href="{{ url_for('cycle_view', year=next_year, month=next_month) }}" class="date-nav-btn">
+        next →
+    </a>
+</div>
+
+<!-- Summary stats -->
+<div class="card" style="margin-bottom: var(--space-lg);">
+    <div style="display: flex; gap: var(--space-xl); flex-wrap: wrap; align-items: flex-start;">
+        <div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 2px;">avg cycle length</div>
+            <div style="font-size: 1.4rem; font-family: var(--font-mono); color: var(--text-primary);">
+                {{ avg_cycle }} days
+                {% if period_starts|length < 2 %}
+                <span style="font-size: 0.7rem; color: var(--text-muted); font-family: var(--font-body);">(default — log more cycles to refine)</span>
+                {% endif %}
+            </div>
+        </div>
+        {% if next_period %}
+        <div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 2px;">next period predicted</div>
+            <div style="font-size: 1.4rem; font-family: var(--font-mono); color: var(--text-primary);">
+                {{ next_period.strftime('%b %-d') }}
+            </div>
+        </div>
+        {% if pms_start %}
+        <div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 2px;">pms window</div>
+            <div style="font-size: 1rem; font-family: var(--font-mono); color: var(--text-muted);">
+                {{ pms_start.strftime('%b %-d') }} to {{ next_period.strftime('%b %-d') }}
+            </div>
+        </div>
+        {% endif %}
+        {% if ovulation %}
+        <div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 2px;">
+                ovulation {{ ovulation_source }}
+            </div>
+            <div style="font-size: 1rem; font-family: var(--font-mono);
+                        color: {% if ovulation_source == 'detected' %}var(--cycle-bbt-dot){% else %}var(--text-muted){% endif %};">
+                {% if ovulation_source == 'predicted' %}~{% endif %}{{ ovulation.strftime('%b %-d') }}
+            </div>
+        </div>
+        {% endif %}
+        {% endif %}
+        <div style="margin-left: auto;">
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 2px;">cycles recorded</div>
+            <div style="font-size: 1.4rem; font-family: var(--font-mono); color: var(--text-primary);">
+                {{ period_starts|length }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Calendar grid -->
+<div class="card">
+
+    <!-- Day-of-week headers -->
+    <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: var(--space-sm);">
+        {% for day_name in ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] %}
+        <div style="text-align: center; font-size: 0.7rem; color: var(--text-muted);
+                    font-weight: 600; padding: var(--space-xs) 0;">
+            {{ day_name }}
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Calendar days -->
+    {% set first_weekday = cal.monthrange(year, month)[0] %}
+    {# monthrange returns 0=Monday; shift so 0=Sunday #}
+    {% set start_offset = (first_weekday + 1) % 7 %}
+    {% set days_in_month = cal.monthrange(year, month)[1] %}
+
+    <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;">
+
+        {# Empty cells before the 1st #}
+        {% for _ in range(start_offset) %}
+        <div style="min-height: 80px;"></div>
+        {% endfor %}
+
+        {# Day cells #}
+        {% for day_num in range(1, days_in_month + 1) %}
+        {% set day_str = '%04d-%02d-%02d' | format(year, month, day_num) %}
+        {% set obs = month_data.get(day_str) %}
+        {% set flow = obs.period_flow if obs else None %}
+        {% set phase = phase_by_date.get(day_str) %}
+        {% set is_flare = obs.flare_occurred if obs else False %}
+        {% set bbt = obs.basal_temp_delta if obs else None %}
+        {% set intervention = intervention_dates.get(day_str) %}
+        {% set is_predicted_period = next_period and next_period.isoformat() == day_str %}
+
+        {# Cell background by phase #}
+        {% if is_predicted_period %}
+            {% set cell_bg = 'background: repeating-linear-gradient(45deg, var(--bg-surface), var(--bg-surface) 4px, var(--bg-elevated) 4px, var(--bg-elevated) 8px);' %}
+        {% elif phase == 'pms' %}
+            {% set cell_bg = 'background: var(--cycle-pms-bg);' %}
+        {% elif phase == 'luteal' %}
+            {% set cell_bg = 'background: var(--cycle-luteal-bg);' %}
+        {% else %}
+            {% set cell_bg = '' %}
+        {% endif %}
+
+        {# Flow dot color #}
+        {% if flow == 'heavy' %}
+            {% set flow_color = 'var(--cycle-flow-heavy)' %}
+        {% elif flow == 'medium' %}
+            {% set flow_color = 'var(--cycle-flow-medium)' %}
+        {% elif flow == 'light' %}
+            {% set flow_color = 'var(--cycle-flow-light)' %}
+        {% elif flow == 'spotting' %}
+            {% set flow_color = 'var(--cycle-flow-spotting)' %}
+        {% else %}
+            {% set flow_color = None %}
+        {% endif %}
+
+        {# BBT bottom heat bar — green for elevated (post-ovulation), blue for low (follicular) #}
+        {% if bbt is not none %}
+            {% if bbt >= 0.2 %}{% set bbt_border = 'var(--cycle-bbt-dot)' %}
+            {% elif bbt >= 0.1 %}{% set bbt_border = 'var(--cycle-bbt-line)' %}
+            {% elif bbt <= -0.1 %}{% set bbt_border = 'var(--cycle-bbt-low)' %}
+            {% else %}{% set bbt_border = none %}{% endif %}
+        {% else %}{% set bbt_border = none %}{% endif %}
+
+        <a href="{{ url_for('daily_entry', date=day_str) }}"
+           style="min-height: 80px; border-radius: var(--radius-sm);
+                  border: 1px solid var(--border-subtle);
+                  padding: var(--space-xs);
+                  text-decoration: none;
+                  display: flex; flex-direction: column;
+                  position: relative;
+                  {{ cell_bg }}
+                  {% if flow_color %}border-top: 3px solid {{ flow_color }};{% endif %}
+                  {% if bbt_border %}border-bottom: 3px solid {{ bbt_border }};{% endif %}">
+
+            {# Day number #}
+            <div style="font-size: 0.75rem;
+                        font-family: var(--font-mono);
+                        color: {% if day_str == today %}var(--color-accent){% else %}var(--text-muted){% endif %};
+                        font-weight: {% if day_str == today %}700{% else %}400{% endif %};">
+                {{ day_num }}
+            </div>
+
+            {# Flow label #}
+            {% if flow %}
+            <div style="font-size: 0.65rem; color: {{ flow_color }}; margin-top: 2px; font-weight: 600;">
+                {{ flow }}
+            </div>
+            {% endif %}
+
+            {# Cramping indicator #}
+            {% if obs and obs.cramping and obs.cramping != 'none' %}
+            <div style="font-size: 0.6rem; color: var(--text-muted); margin-top: 1px;">
+                cramp: {{ obs.cramping }}
+            </div>
+            {% endif %}
+
+            {# BBT delta — color-coded to match bottom border #}
+            {% if bbt is not none and bbt != 0 %}
+            <div style="font-size: 0.6rem; color: {{ bbt_border if bbt_border else 'var(--text-muted)' }}; margin-top: auto;">
+                {{ '+' if bbt > 0 else '' }}{{ '%.1f' | format(bbt) }}°
+            </div>
+            {% endif %}
+
+            {# Markers row at bottom #}
+            <div style="display: flex; gap: 3px; margin-top: auto; flex-wrap: wrap;">
+                {% if is_flare %}
+                <span title="flare day"
+                      style="font-size: 0.6rem; background: var(--badge-migraine-bg, #7f1d1d33);
+                             color: #fca5a5; border-radius: 3px; padding: 0 3px;">
+                    flare
+                </span>
+                {% endif %}
+                {% if intervention %}
+                <span title="{{ intervention[0] }} {% if intervention[1] == 'start' %}started{% else %}active{% endif %}"
+                      style="font-size: 0.6rem; background: var(--bg-elevated);
+                             color: {% if intervention[1] == 'start' %}var(--color-accent){% else %}var(--text-muted){% endif %};
+                             border-radius: 3px; padding: 0 3px;">
+                    Rx
+                </span>
+                {% endif %}
+                {% if is_predicted_period %}
+                <span style="font-size: 0.6rem; color: var(--text-muted); border-radius: 3px; padding: 0 3px;">
+                    predicted
+                </span>
+                {% endif %}
+            </div>
+        </a>
+        {% endfor %}
+
+    </div><!-- /grid -->
+</div><!-- /card -->
+
+<!-- BBT wave graph -->
+{% set has_bbt = bbt_points | selectattr(1) | list | length > 0 %}
+{% if has_bbt %}
+<div class="card" style="margin-top: var(--space-sm);">
+    <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: var(--space-xs);">basal temperature delta (&deg;)</div>
+    <div style="position: relative;">
+        <svg width="100%" viewBox="0 0 700 56" preserveAspectRatio="none"
+             style="display: block; height: 56px; overflow: visible;">
+            {# Y labels #}
+            <text x="0" y="8" font-size="7" fill="var(--text-muted)" font-family="monospace">+1.0</text>
+            <text x="0" y="30" font-size="7" fill="var(--text-muted)" font-family="monospace">0</text>
+            <text x="0" y="52" font-size="7" fill="var(--text-muted)" font-family="monospace">-1.0</text>
+            {# Zero line #}
+            <line x1="18" y1="28" x2="700" y2="28"
+                  stroke="var(--border-subtle)" stroke-width="0.6" stroke-dasharray="3,3"/>
+            {# +0.5 and -0.5 guide lines #}
+            <line x1="18" y1="14" x2="700" y2="14"
+                  stroke="var(--border-subtle)" stroke-width="0.3"/>
+            <line x1="18" y1="42" x2="700" y2="42"
+                  stroke="var(--border-subtle)" stroke-width="0.3"/>
+            {# Data line: connect consecutive non-null points #}
+            {% set ns = namespace(prev_x=none, prev_y=none) %}
+            {% for day_num, bbt in bbt_points %}
+                {% if bbt is not none %}
+                    {% set x = (18 + (day_num - 0.5) / month_last_day * 682) | round(1) %}
+                    {% set y = (28 - bbt * 14) | round(1) %}
+                    {% if ns.prev_x is not none %}
+                        <line x1="{{ ns.prev_x }}" y1="{{ ns.prev_y }}"
+                              x2="{{ x }}" y2="{{ y }}"
+                              stroke="var(--cycle-bbt-line)" stroke-width="1.5"
+                              stroke-linecap="round"/>
+                    {% endif %}
+                    <circle cx="{{ x }}" cy="{{ y }}" r="2.2"
+                            fill="var(--cycle-bbt-dot)"/>
+                    {% set ns.prev_x = x %}
+                    {% set ns.prev_y = y %}
+                {% else %}
+                    {% set ns.prev_x = none %}
+                    {% set ns.prev_y = none %}
+                {% endif %}
+            {% endfor %}
+        </svg>
+    </div>
+</div>
+{% endif %}
+
+<!-- Patterns / correlation card -->
+{% set total_flares = flare_phase_counts.values()|sum %}
+{% if period_starts|length >= 3 %}
+<div class="card" style="margin-top: var(--space-lg);">
+    <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-sm);">patterns</div>
+
+    {% if total_flares > 0 %}
+    <div style="margin-bottom: var(--space-md);">
+        <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: var(--space-xs);">
+            flare distribution by cycle phase ({{ total_flares }} total flares across {{ period_starts|length }} cycles)
+        </div>
+        <div style="display: flex; gap: var(--space-lg); flex-wrap: wrap;">
+            {% for phase_key, label in [('pms','pms'), ('luteal','luteal'), ('follicular','follicular'), ('period','period')] %}
+            {% set count = flare_phase_counts.get(phase_key, 0) %}
+            {% set days  = phase_day_counts.get(phase_key, 1) %}
+            <div>
+                <div style="font-size: 0.65rem; color: var(--text-muted);">{{ label }}</div>
+                <div style="font-size: 1.1rem; font-family: var(--font-mono); color: var(--text-primary);">
+                    {{ count }}
+                    <span style="font-size: 0.65rem; color: var(--text-muted);">
+                        / {{ phase_day_counts.get(phase_key, 0) }}d
+                        ({{ ((count / days * 100)|round(0)|int) }}%)
+                    </span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: var(--space-md);">
+        no flares recorded in this history window.
+    </div>
+    {% endif %}
+
+    {% if intervention_effects %}
+    <div style="border-top: 1px solid var(--border-subtle); padding-top: var(--space-sm);">
+        <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: var(--space-xs);">intervention effects on cycle length</div>
+        {% for eff in intervention_effects %}
+        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 4px; font-family: var(--font-mono);">
+            {{ eff.drug }}
+            <span style="font-size: 0.65rem; color: var(--text-muted);">({{ eff.start }})</span>
+            <span style="color: var(--text-muted);">
+                {% if eff.before_avg %}{{ eff.before_avg }}d before{% endif %}
+                {% if eff.before_avg and eff.after_avg %} &#8594; {% endif %}
+                {% if eff.after_avg %}{{ eff.after_avg }}d after{% endif %}
+                {% if not eff.before_avg and not eff.after_avg %}insufficient cycle data{% endif %}
+            </span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <p style="font-size: 0.65rem; color: var(--text-muted); margin-top: var(--space-sm); margin-bottom: 0;">
+        Based on {{ period_starts|length }} cycles in the last 12 months.
+        Percentages are flares per day in each phase.
+    </p>
+</div>
+{% endif %}
+
+<!-- Legend -->
+<div class="card" style="margin-top: var(--space-lg);">
+    <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-sm);">legend</div>
+    <div style="display: flex; gap: var(--space-lg); flex-wrap: wrap; align-items: center; font-size: 0.8rem;">
+
+        <div style="display: flex; gap: var(--space-md); align-items: center;">
+            <div style="display: flex; gap: var(--space-sm); align-items: center;">
+                <div style="width: 14px; height: 4px; background: var(--cycle-flow-heavy); border-radius: 2px;"></div>
+                <span style="color: var(--text-muted);">heavy</span>
+            </div>
+            <div style="display: flex; gap: var(--space-sm); align-items: center;">
+                <div style="width: 14px; height: 4px; background: var(--cycle-flow-medium); border-radius: 2px;"></div>
+                <span style="color: var(--text-muted);">medium</span>
+            </div>
+            <div style="display: flex; gap: var(--space-sm); align-items: center;">
+                <div style="width: 14px; height: 4px; background: var(--cycle-flow-light); border-radius: 2px;"></div>
+                <span style="color: var(--text-muted);">light</span>
+            </div>
+            <div style="display: flex; gap: var(--space-sm); align-items: center;">
+                <div style="width: 14px; height: 4px; background: var(--cycle-flow-spotting); border-radius: 2px;"></div>
+                <span style="color: var(--text-muted);">spotting</span>
+            </div>
+        </div>
+
+        <div style="width: 1px; height: 16px; background: var(--border-subtle);"></div>
+
+        <div style="display: flex; gap: var(--space-md); align-items: center;">
+            <div style="display: flex; gap: var(--space-sm); align-items: center;">
+                <div style="width: 14px; height: 14px; border-radius: 2px;
+                            background: var(--cycle-pms-bg);
+                            border: 1px solid var(--border-subtle);"></div>
+                <span style="color: var(--text-muted);">pms window</span>
+            </div>
+            <div style="display: flex; gap: var(--space-sm); align-items: center;">
+                <div style="width: 14px; height: 14px; border-radius: 2px;
+                            background: var(--cycle-luteal-bg);
+                            border: 1px solid var(--border-subtle);"></div>
+                <span style="color: var(--text-muted);">luteal phase</span>
+            </div>
+        </div>
+
+        <div style="width: 1px; height: 16px; background: var(--border-subtle);"></div>
+
+        <div style="display: flex; gap: var(--space-md); align-items: center;">
+            <span style="font-size: 0.6rem; background: var(--badge-migraine-bg, #7f1d1d33);
+                         color: #fca5a5; border-radius: 3px; padding: 0 4px;">flare</span>
+            <span style="color: var(--text-muted);">flare day</span>
+        </div>
+        <div style="display: flex; gap: var(--space-sm); align-items: center;">
+            <span style="font-size: 0.6rem; background: var(--bg-elevated);
+                         color: var(--color-accent); border-radius: 3px; padding: 0 4px;">Rx</span>
+            <span style="color: var(--text-muted);">intervention start</span>
+        </div>
+        <div style="display: flex; gap: var(--space-sm); align-items: center;">
+            <span style="font-size: 0.6rem; background: var(--bg-elevated);
+                         color: var(--text-muted); border-radius: 3px; padding: 0 4px;">Rx</span>
+            <span style="color: var(--text-muted);">intervention ongoing</span>
+        </div>
+
+
+        <div style="width: 1px; height: 16px; background: var(--border-subtle);"></div>
+
+        <div style="display: flex; gap: var(--space-md); align-items: center;">
+            <div style="display: flex; gap: var(--space-sm); align-items: center;">
+                <div style="width: 14px; height: 4px; background: var(--cycle-bbt-dot); border-radius: 2px;"></div>
+                <span style="color: var(--text-muted);">bbt high (+0.2°+)</span>
+            </div>
+            <div style="display: flex; gap: var(--space-sm); align-items: center;">
+                <div style="width: 14px; height: 4px; background: var(--cycle-bbt-low); border-radius: 2px;"></div>
+                <span style="color: var(--text-muted);">bbt low</span>
+            </div>
+        </div>
+
+    </div>
+    <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: var(--space-md); margin-bottom: 0;">
+        Phase bands use BBT-detected ovulation where available, otherwise date arithmetic.
+        Click any day to view or edit that entry.
+        BBT shown as delta from your configured baseline (colored border at cell bottom).
+    </p>
+</div>
+
+{% endblock %}

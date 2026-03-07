@@ -335,6 +335,52 @@
             >{{ existing.notes if existing and existing.notes else '' }}</textarea>
     </div>
 
+    {% if track_cycle %}
+    <div class="card">
+        <div class="card-title">cycle</div>
+        <div class="form-grid" style="grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));">
+            <div class="form-group">
+                <label>period today</label>
+                <select name="period_flow">
+                    <option value="">— none —</option>
+                    <option value="spotting"
+                        {% if existing and existing.period_flow == 'spotting' %}selected{% endif %}>
+                        spotting</option>
+                    <option value="light"
+                        {% if existing and existing.period_flow == 'light' %}selected{% endif %}>
+                        light</option>
+                    <option value="medium"
+                        {% if existing and existing.period_flow == 'medium' %}selected{% endif %}>
+                        medium</option>
+                    <option value="heavy"
+                        {% if existing and existing.period_flow == 'heavy' %}selected{% endif %}>
+                        heavy</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>cramping</label>
+                <select name="cramping">
+                    <option value="">— none —</option>
+                    <option value="mild"
+                        {% if existing and existing.cramping == 'mild' %}selected{% endif %}>
+                        mild</option>
+                    <option value="moderate"
+                        {% if existing and existing.cramping == 'moderate' %}selected{% endif %}>
+                        moderate</option>
+                    <option value="severe"
+                        {% if existing and existing.cramping == 'severe' %}selected{% endif %}>
+                        severe</option>
+                </select>
+            </div>
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label>cycle notes</label>
+                <textarea name="cycle_notes" placeholder="anything worth noting…"
+                    >{{ existing.cycle_notes if existing and existing.cycle_notes else '' }}</textarea>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <button type="submit" class="btn btn-primary btn-full">
         save entry
     </button>

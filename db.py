@@ -79,7 +79,8 @@ def upsert_daily_observations(data: dict) -> bool:
         "mucosal", "mucosal_notes",
         "gastro", "gastro_notes",
         "strike_physical", "strike_environmental", "flare_occurred",
-        "notes"
+        "notes",
+        "period_flow", "cramping", "cycle_notes",
     ]
 
     # Only include fields present in data
@@ -120,6 +121,20 @@ def get_daily_observations_range(start_date: str, end_date: str) -> list[dict]:
             (start_date, end_date)
         ).fetchall()
     return [dict(row) for row in rows]
+
+
+def get_cycle_data(start_date: str, end_date: str) -> list[dict]:
+    """Fetch observations for the cycle calendar (period, BBT, flare, cramping)."""
+    with get_db() as conn:
+        rows = conn.execute(
+            """SELECT date, period_flow, cramping, cycle_notes,
+                      basal_temp_delta, flare_occurred
+               FROM daily_observations
+               WHERE date BETWEEN ? AND ?
+               ORDER BY date""",
+            (start_date, end_date)
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def get_all_daily_observations() -> list[dict]:

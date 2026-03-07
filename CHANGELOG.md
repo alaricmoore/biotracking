@@ -19,3 +19,8 @@ Clinical report generation with PDF export
 Full data export and deletion
 Apple Health import
 Raspberry Pi remote access support via Tailscale
+
+[1.1.0] - 2026-03-07
+Added
+
+Steroid taper wizard with ntfy notifications
