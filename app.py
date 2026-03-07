@@ -16,17 +16,19 @@ import json
 import os
 from datetime import date, datetime, timedelta
 
-from flask import Flask, jsonify, render_template, request, redirect, url_for, Response 
+from flask import Flask, jsonify, render_template, request, redirect, url_for, Response
 
 import db
 import uv_fetcher
 import zipfile
 import shutil
 from pathlib import Path
-from flask import send_file 
+from flask import send_file
 
-from typing import Optional, Dict, List, Any 
+from typing import Optional, Dict, List, Any
 from collections import Counter
+
+from apscheduler.schedulers.background import BackgroundScheduler
 
 
 app = Flask(__name__)
@@ -390,6 +392,56 @@ CONFIG = load_config()
 
 
 # ============================================================
+# Medication reminder notifications (ntfy)
+# ============================================================
+
+def _send_ntfy(message: str) -> None:
+    """Send a push notification via ntfy.sh (or self-hosted ntfy server)."""
+    import requests as _requests
+    topic = CONFIG.get("ntfy_topic")
+    server = CONFIG.get("ntfy_server", "https://ntfy.sh")
+    if not topic:
+        return
+    try:
+        _requests.post(
+            f"{server}/{topic}",
+            data=message.encode("utf-8"),
+            headers={
+                "Title": "Medication Reminder",
+                "Priority": "high",
+                "Tags": "pill",
+            },
+            timeout=5,
+        )
+    except Exception as e:
+        print(f"[reminder] ntfy send failed: {e}")
+
+
+def _check_and_send_reminders() -> None:
+    """Background job: send ntfy notifications for doses due in the next minute."""
+    now = datetime.now()
+    window_end = now + timedelta(minutes=1)
+    try:
+        pending = db.get_pending_doses(
+            now.strftime("%Y-%m-%d %H:%M"),
+            window_end.strftime("%Y-%m-%d %H:%M"),
+        )
+        for dose in pending:
+            _send_ntfy(dose["dose_label"])
+            db.mark_dose_notified(dose["id"])
+    except Exception as e:
+        print(f"[reminder] scheduler error: {e}")
+
+
+# Start scheduler — guard against Flask debug-mode double-start
+if not app.debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+    _tz = CONFIG.get("timezone", "UTC")
+    _scheduler = BackgroundScheduler(timezone=_tz)
+    _scheduler.add_job(_check_and_send_reminders, "interval", minutes=1)
+    _scheduler.start()
+
+
+# ============================================================
 # Template context - available in every template
 # ============================================================
 
@@ -445,13 +497,17 @@ def daily_entry():
     
     # Load active medications for the sidebar
     active_meds = db.get_active_medications()
-    
+
+    # Load today's scheduled doses for the reminder checklist
+    todays_doses = db.get_todays_doses(entry_date_str)
+
     return render_template(
         "daily_entry.html",
         entry_date=entry_date_str,
         existing=existing,
         uv=uv,
         active_meds=active_meds,
+        todays_doses=todays_doses,
         prev_date=prev_date,
         next_date=next_date,
         is_today=is_today,
@@ -873,17 +929,26 @@ def clinical_record():
     ana = db.get_ana_results()
     meds = db.get_all_medications()
     events = db.get_clinical_events()
-    clinicians = db.get_all_clinicians()  
+    clinicians = db.get_all_clinicians()
     test_names = db.get_lab_test_names()
-    
+
     # Split active/inactive meds
     today_str = date.today().isoformat()
-    active = [m for m in meds 
+    active = [m for m in meds
               if m["start_date"] <= today_str and
                  (m.get("end_date") is None or m["end_date"] >= today_str)]
-    inactive = [m for m in meds 
+    inactive = [m for m in meds
                 if m.get("end_date") and m["end_date"] < today_str]
-    
+
+    # Build taper schedule lookup keyed by medication_id
+    taper_by_med = {}
+    for med in active:
+        t = db.get_active_taper_for_medication(med["id"])
+        if t:
+            taper_by_med[med["id"]] = t
+
+    ntfy_configured = bool(CONFIG.get("ntfy_topic"))
+
     return render_template(
         "clinical_record.html",
         labs=labs,
@@ -892,9 +957,11 @@ def clinical_record():
         active=active,
         inactive=inactive,
         events=events,
-        clinicians=clinicians,  
+        clinicians=clinicians,
         test_names=test_names,
         today=date.today().isoformat(),
+        taper_by_med=taper_by_med,
+        ntfy_configured=ntfy_configured,
     )
     
 @app.route("/medication/update/<int:med_id>", methods=["POST"])
@@ -925,6 +992,80 @@ def delete_medication(med_id):
     """Delete a medication."""
     db.delete_medication(med_id)
     return redirect(url_for("clinical_record") + "#medications")
+
+
+# ============================================================
+# Taper schedules and dose reminders
+# ============================================================
+
+@app.route("/taper/create", methods=["POST"])
+def taper_create():
+    """Create a taper schedule with individual dose rows from the wizard form."""
+    med_id = int(request.form.get("medication_id"))
+    start_date = request.form.get("start_date")
+    drug_name = request.form.get("drug_name", "medication")
+    unit = request.form.get("unit", "tablet(s)")
+
+    # Build dose rows from form fields: dose_label_N, dose_time_N, dose_amount_N
+    doses_raw = {}
+    for key, val in request.form.items():
+        if key.startswith("dose_label_"):
+            idx = key[len("dose_label_"):]
+            doses_raw.setdefault(idx, {})["label"] = val
+        elif key.startswith("dose_time_"):
+            idx = key[len("dose_time_"):]
+            doses_raw.setdefault(idx, {})["time"] = val
+        elif key.startswith("dose_amount_"):
+            idx = key[len("dose_amount_"):]
+            doses_raw.setdefault(idx, {})["amount"] = val
+
+    schedule_id = db.create_taper_schedule(med_id, start_date)
+
+    dose_rows = []
+    for idx in sorted(doses_raw.keys(), key=lambda x: int(x)):
+        entry = doses_raw[idx]
+        label = entry.get("label", "")
+        time_str = entry.get("time", "08:00")
+        amount = entry.get("amount")
+        # datetime-local inputs submit as 'YYYY-MM-DDTHH:MM'; normalize to 'YYYY-MM-DD HH:MM'
+        normalized_dt = time_str.replace("T", " ")[:16]
+        dose_rows.append({
+            "taper_schedule_id": schedule_id,
+            "medication_id": med_id,
+            "scheduled_datetime": normalized_dt,
+            "dose_label": label,
+            "dose_amount": float(amount) if amount else None,
+            "dose_unit": unit,
+        })
+
+    db.insert_scheduled_doses(dose_rows)
+    return redirect(url_for("clinical_record") + "#medications")
+
+
+@app.route("/taper/delete/<int:schedule_id>", methods=["POST"])
+def taper_delete(schedule_id):
+    """Delete a taper schedule and all its doses."""
+    db.delete_taper_schedule(schedule_id)
+    return redirect(url_for("clinical_record") + "#medications")
+
+
+@app.route("/dose/take/<int:dose_id>", methods=["POST"])
+def dose_take(dose_id):
+    """Mark a dose as taken."""
+    taken_at = datetime.now().strftime("%Y-%m-%d %H:%M")
+    db.mark_dose_taken(dose_id, taken_at)
+    # Redirect back to wherever the user came from (daily entry or clinical)
+    return_url = request.form.get("return_url", url_for("daily_entry"))
+    return redirect(return_url)
+
+
+@app.route("/doses/today")
+def doses_today():
+    """JSON endpoint: today's scheduled doses."""
+    today_str = date.today().isoformat()
+    doses = db.get_todays_doses(today_str)
+    return jsonify(doses)
+
 
 #============================================================
 # Clinician management

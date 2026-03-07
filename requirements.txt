@@ -13,3 +13,6 @@ requests>=2.31.0
 # Statistical analysis for lag correlation
 scipy>=1.11.0
 numpy>=1.24.0
+
+# Background scheduler for medication reminders
+apscheduler>=3.10

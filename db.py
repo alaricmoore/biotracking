@@ -702,3 +702,115 @@ def close_all_connections():
     # If you're using connection pooling, close the pool here
     # For basic sqlite3, this may not be necessary
     pass
+
+
+# ============================================================
+# Taper schedule and dose reminder functions
+# ============================================================
+
+def create_taper_schedule(medication_id: int, start_date: str) -> int:
+    """Create a new taper schedule for a medication. Returns the new schedule ID."""
+    with get_db() as conn:
+        cursor = conn.execute(
+            "INSERT INTO taper_schedules (medication_id, start_date, active) VALUES (?, ?, 1)",
+            (medication_id, start_date)
+        )
+        return cursor.lastrowid
+
+
+def insert_scheduled_doses(doses: list) -> None:
+    """Bulk insert scheduled dose rows."""
+    with get_db() as conn:
+        conn.executemany(
+            """INSERT INTO scheduled_doses
+               (taper_schedule_id, medication_id, scheduled_datetime, dose_label, dose_amount, dose_unit)
+               VALUES (:taper_schedule_id, :medication_id, :scheduled_datetime, :dose_label, :dose_amount, :dose_unit)""",
+            doses
+        )
+
+
+def get_pending_doses(window_start: str, window_end: str) -> list:
+    """Return doses scheduled between window_start and window_end that haven't been notified or taken."""
+    with get_db() as conn:
+        rows = conn.execute(
+            """SELECT sd.*, m.drug_name
+               FROM scheduled_doses sd
+               JOIN medications m ON m.id = sd.medication_id
+               WHERE sd.scheduled_datetime >= ?
+                 AND sd.scheduled_datetime < ?
+                 AND sd.notified = 0
+                 AND sd.taken = 0
+               ORDER BY sd.scheduled_datetime""",
+            (window_start, window_end)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def mark_dose_notified(dose_id: int) -> None:
+    """Mark a dose as having had its notification sent."""
+    with get_db() as conn:
+        conn.execute("UPDATE scheduled_doses SET notified = 1 WHERE id = ?", (dose_id,))
+
+
+def mark_dose_taken(dose_id: int, taken_at: str) -> None:
+    """Mark a dose as taken."""
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE scheduled_doses SET taken = 1, taken_at = ? WHERE id = ?",
+            (taken_at, dose_id)
+        )
+
+
+def get_todays_doses(date_str: str) -> list:
+    """Return all scheduled doses for a given date, with taken status."""
+    with get_db() as conn:
+        rows = conn.execute(
+            """SELECT sd.*, m.drug_name
+               FROM scheduled_doses sd
+               JOIN medications m ON m.id = sd.medication_id
+               WHERE sd.scheduled_datetime LIKE ?
+               ORDER BY sd.scheduled_datetime""",
+            (date_str + "%",)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_active_taper_for_medication(medication_id: int) -> Optional[dict]:
+    """Return the active taper schedule for a medication, or None."""
+    with get_db() as conn:
+        row = conn.execute(
+            """SELECT ts.*, COUNT(sd.id) as dose_count
+               FROM taper_schedules ts
+               LEFT JOIN scheduled_doses sd ON sd.taper_schedule_id = ts.id
+               WHERE ts.medication_id = ? AND ts.active = 1
+               GROUP BY ts.id
+               ORDER BY ts.created_at DESC
+               LIMIT 1""",
+            (medication_id,)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def get_active_tapers_with_doses(date_str: str) -> list:
+    """Return all active taper schedules with dose summary for a date (for templates)."""
+    with get_db() as conn:
+        rows = conn.execute(
+            """SELECT ts.id as schedule_id, ts.medication_id, ts.start_date,
+                      m.drug_name,
+                      COUNT(sd.id) as total_doses,
+                      SUM(sd.taken) as taken_doses
+               FROM taper_schedules ts
+               JOIN medications m ON m.id = ts.medication_id
+               LEFT JOIN scheduled_doses sd ON sd.taper_schedule_id = ts.id
+                                            AND sd.scheduled_datetime LIKE ?
+               WHERE ts.active = 1
+               GROUP BY ts.id""",
+            (date_str + "%",)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_taper_schedule(schedule_id: int) -> None:
+    """Delete a taper schedule and all its doses (cascade)."""
+    with get_db() as conn:
+        conn.execute("DELETE FROM taper_schedules WHERE id = ?", (schedule_id,))

@@ -249,6 +249,39 @@ def create_database():
         pass  # Column already exists
 
     # --------------------------------------------------------
+    # taper_schedules
+    # One row per configured taper course linked to a medication
+    # --------------------------------------------------------
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS taper_schedules (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            medication_id INTEGER NOT NULL REFERENCES medications(id) ON DELETE CASCADE,
+            start_date   TEXT NOT NULL,   -- YYYY-MM-DD
+            active       INTEGER DEFAULT 1,
+            created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+
+    # --------------------------------------------------------
+    # scheduled_doses
+    # Individual dose events for a taper schedule
+    # --------------------------------------------------------
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS scheduled_doses (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            taper_schedule_id   INTEGER NOT NULL REFERENCES taper_schedules(id) ON DELETE CASCADE,
+            medication_id       INTEGER NOT NULL REFERENCES medications(id) ON DELETE CASCADE,
+            scheduled_datetime  TEXT NOT NULL,  -- 'YYYY-MM-DD HH:MM'
+            dose_label          TEXT NOT NULL,  -- e.g. 'Day 1 - Morning (2 tablets)'
+            dose_amount         REAL,
+            dose_unit           TEXT,
+            taken               INTEGER DEFAULT 0,
+            taken_at            TEXT,           -- ISO datetime when marked taken
+            notified            INTEGER DEFAULT 0
+        )
+    """)
+
+    # --------------------------------------------------------
     # FTS5 virtual table for keyword search across note fields
     # --------------------------------------------------------
     c.execute("""
@@ -299,6 +332,8 @@ def verify_setup():
         "ana_results",
         "clinical_events",
         "medications",
+        "taper_schedules",
+        "scheduled_doses",
         "notes_search"
     ]
 

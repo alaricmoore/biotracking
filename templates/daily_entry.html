@@ -340,6 +340,45 @@
     </button>
 
 </form>
+
+{% if todays_doses %}
+<div class="card" style="margin-top: var(--space-lg);">
+    <div class="card-title">today's doses</div>
+    <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:var(--space-md);">
+        scheduled medication reminders for {{ entry_date }}
+    </p>
+    {% for dose in todays_doses %}
+    <div style="display:flex; align-items:center; gap:var(--space-md); padding:var(--space-sm) 0;
+                border-bottom:1px solid var(--border-subtle);
+                {% if dose.taken %}opacity:0.5;{% endif %}">
+        <div style="flex:0 0 auto; min-width:80px; font-family:var(--font-mono); font-size:0.85rem; color:var(--text-muted);">
+            {{ dose.scheduled_datetime[11:16] }}
+        </div>
+        <div style="flex:1;">
+            <div style="{% if dose.taken %}text-decoration:line-through; color:var(--text-muted);{% else %}color:var(--text-primary);{% endif %} font-size:0.9rem;">
+                {{ dose.dose_label }}
+            </div>
+            <div style="font-size:0.75rem; color:var(--text-muted);">{{ dose.drug_name }}</div>
+        </div>
+        <div style="flex:0 0 auto;">
+            {% if dose.taken %}
+            <span style="font-size:0.8rem; color:var(--color-accent);">
+                ✓ taken {{ dose.taken_at[11:16] if dose.taken_at else '' }}
+            </span>
+            {% else %}
+            <form method="POST" action="{{ url_for('dose_take', dose_id=dose.id) }}" style="display:inline;">
+                <input type="hidden" name="return_url" value="{{ request.url }}">
+                <button type="submit" class="btn btn-secondary"
+                        style="padding:3px 12px; font-size:0.8rem;">
+                    mark taken
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
