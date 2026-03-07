@@ -60,6 +60,19 @@ This tool isn't a lupus tracker, necessarily, though it is designed around an ev
 - **Environmental factors**: UV exposure (pulled from Open-Meteo and Visual Crossing), temperature, sleep quality
 - **Physical metrics**: Steps, basal body temperature, pain/fatigue scales (1-10)
 - **Flare documentation**: Mark flare days and track what actually happened
+- **Quick entry mode**: Stripped-down form (`?mode=quick`) showing only the fields that feed the prediction model — for days when filling a full form is too much
+
+### Menstrual Cycle Tracking (Optional)
+
+Enabled via `track_cycle: true` in setup. Designed for patients where steroids, biologics, or disease activity disrupt menstrual regularity.
+
+- **Month-grid calendar**: Color-coded period flow (heavy/medium/light/spotting) with phase overlays
+- **BBT-anchored phase detection**: Uses basal body temperature biphasic shift (rule of three: 3 consecutive days ≥ 0.1°F above follicular average) to detect actual ovulation rather than relying on fixed calendar math — critical when steroids compress or extend cycle length unpredictably
+- **Cycle phase overlays**: Luteal and PMS windows calculated from detected ovulation, not assumed 14-day countdown
+- **BBT heat visualization**: Per-day colored border on calendar cells indicating BBT elevation, colored SVG wave graph per month
+- **Flare/phase correlation**: Patterns card showing flare distribution by cycle phase across all historical data
+- **Intervention effects on cycle**: Before/after average cycle length for each medication intervention
+- **Apple Health import**: `import_cycle.py` imports Menstrual Flow and Intermenstrual Bleeding records from Apple Health export CSV
 
 ### Data Visualization & Analysis
 
@@ -278,7 +291,7 @@ Biotracking can import HRV, sleep hours, wrist temperature, and daylight exposur
 2. Select: Heart Rate Variability, Sleep Analysis, Apple Sleeping Wrist Temperature, Time in Daylight
 3. Set your date range, export as CSV daily average
 4. Transfer the CSV to your computer
-5. Also download period tracking if you desire. I haven't been because steroids ruined my cycle, but I will add that funcitonality soon.
+5. Also download Menstrual Cycle data if you're using cycle tracking — see below.
 
 **Import:**
 
@@ -291,6 +304,24 @@ python import_apple_health.py ~/Downloads/health_export.csv --dry-run
 # Create new rows for dates that don't exist yet:
 python import_apple_health.py ~/Downloads/health_export.csv --create-new
 ```
+
+### From Apple Health — Menstrual Cycle Data
+
+If you enabled cycle tracking during setup, import your cycle history from an Apple Health XML export:
+
+1. Export from Health app (see above)
+2. Use the [Health Export app](https://apps.apple.com/app/health-export/id1477722520) — select **Menstrual Flow** and **Intermenstrual Bleeding**, export as CSV
+3. Import:
+
+```bash
+# Preview first:
+python import_cycle.py --csv your_cycle_export.csv --dry-run
+
+# Import:
+python import_cycle.py --csv your_cycle_export.csv
+```
+
+Flow priority when multiple records exist for the same day: heavy > medium > light > spotting. Intermenstrual Bleeding is imported as spotting. Sexual Activity and Persistent Menstrual Bleeding records are skipped.
 
 ### From Your Own Symptom Tracker
 
@@ -383,11 +414,14 @@ See `REMOTE_ACCESS.md` for detailed instructions on setting up remote access via
 
 ---
 
-## Medication Reminders (Optional)
+## Push Notifications via ntfy (Optional)
 
-Biotracking can send push notifications to your phone for scheduled medication doses. This is useful for steroid tapers and anything else where timing actually matters.
+Biotracking uses [ntfy](https://ntfy.sh) for two kinds of phone notifications:
 
-This uses [ntfy](https://ntfy.sh), a dead-simple open-source notification service. No account required. The Pi sends an HTTP POST; your phone receives a push notification. That's it.
+1. **Medication dose reminders** — fires at the scheduled time for each dose in your taper
+2. **Proactive flare risk alerts** — fires once daily (default 8am) when your weighted risk score crosses the moderate threshold (≥ 5.0) or when you're about to enter a PMS/luteal phase. The alert includes your score, top contributing factors, and current cycle phase if relevant. High-risk alerts (≥ 8.0) use higher priority and a different tag so they stand out.
+
+ntfy is a dead-simple open-source notification service. No account required. The Pi sends an HTTP POST; your phone receives a push notification. That's it.
 
 ### Set up ntfy
 
@@ -419,12 +453,24 @@ Your phone should buzz within a few seconds. If it doesn't, check that the topic
 5. Click **activate reminders** — doses are saved and notifications will fire at the scheduled times as long as the app is running
 6. Today's pending doses appear in a checklist on the **Daily Entry** page. Mark them taken as you go.
 
+### Flare alert timing
+
+The flare risk alert fires at 8am by default. To change the hour, add this to your `config.json`:
+
+```json
+"flare_alert_hour": 7
+```
+
+Then restart the app. The scheduler will pick it up. The alert rate-limits itself to once per calendar day — if risk drops below threshold later in the day, no second alert fires. If it fires and you want to reset it manually (e.g. to test), delete `config/flare_alert_state.json` and restart.
+
+To disable flare alerts entirely without removing ntfy, just don't add `flare_alert_hour` — it won't suppress them. Instead, you can set `ntfy_topic` to an empty string in `config.json`, which disables all notifications.
+
 ### Notes
 
 - Notifications only fire if the app is running. If you're on the Raspberry Pi setup described in `REMOTE_ACCESS.md`, the service runs continuously and this works reliably.
-- Running locally on a Mac that sleeps? The scheduler pauses when the machine sleeps and resumes when it wakes. You may miss a notification if your laptop was closed at dose time.
+- Running locally on a Mac that sleeps? The scheduler pauses when the machine sleeps and resumes when it wakes. You may miss a dose notification or morning alert if the lid was closed.
 - ntfy.sh is a public service run by one person. For higher reliability or privacy, you can self-host ntfy — change `ntfy_server` in `config.json` to your self-hosted URL.
-- The wizard defaults to a standard Medrol 4mg dose pack. For other tapers, adjust the times and quantities in place or clear them and enter your own schedule.
+- The taper wizard defaults to a standard Medrol 4mg dose pack. For other tapers, adjust the times and quantities in place or clear them and enter your own schedule.
 
 ---
 
@@ -464,7 +510,7 @@ cp biotracking.db biotracking_backup_$(date +%Y%m%d).db
 **Export options:**
 
 - In-app: export buttons for labs, medications, events, clinician list (CSV)
-- In-app UI delete function on search page 
+- In-app UI delete function on search page
 - DB Browser for SQLite (GUI tool, free)
 - Command line: `sqlite3 biotracking.db .dump > backup.sql`
 
@@ -508,13 +554,17 @@ Adjusted based on accuracy analysis of 60 days of data:
 - Dermatological: 0.75
 - Mucosal: 0.25
 - Rheumatic: 0.5 (base), 2.0 (major joints), 1.0 (minor joints)
+- Cycle phase (PMS/Luteal): 1.0 — only active when `track_cycle: true`
+
+The cycle phase weight was added after observing that across 11 cycles of real data (69 total flares), PMS and luteal phases carried roughly double the flare rate of other phases: PMS 38%, Luteal 39% vs. Follicular 19%, Period 19%. Adding the default +1.0 weight for these phases improved recall from 36.7% to 45.5% and reduced false positives from 20% to 16.7%. The weight is adjustable in the Forecast Lab like all others, and has no effect if cycle tracking is disabled.
 
 ### Performance
 
 Current model accuracy: **85.8%** overall
 
-- Recall: 65.7% (catches 2/3 of actual flares)
+- Recall: 45.5% with cycle phase weighting (was 36.7% without)
 - Precision: 79.2% (4/5 predictions are correct)
+- False positives: 16.7% (was 20% before cycle phase weighting)
 - Improved from initial 76% accuracy / 20.9% recall
 
 ### Customization
@@ -560,15 +610,20 @@ biotracking/
 ├── import_labs.py
 ├── import_tracker.py
 ├── import_apple_health.py
-├── migrate_symptoms.py 
+├── import_cycle.py     # Apple Health menstrual cycle CSV import
+├── migrate_symptoms.py
 ├── backfill_uv.py
 ├── biotracking.db      # SQLite database (gitignored)
+├── config/
+│   ├── custom_weights.json     # Forecast Lab overrides (gitignored)
+│   └── flare_alert_state.json  # Daily alert rate-limit state (gitignored)
 ├── templates/          # HTML templates
 │   ├── base.html
 │   ├── daily_entry.html
 │   ├── timeline.html
 │   ├── uv_lag.html
 │   ├── hrv.html
+│   ├── cycle.html
 │   ├── forecast_history.html
 │   ├── forecast_accuracy.html
 │   ├── forecast_lab.html
