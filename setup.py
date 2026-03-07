@@ -65,6 +65,12 @@ def create_config():
     else:
         config["primary_intervention"] = None
 
+    print("\nOptional: menstrual cycle tracking")
+    print("Adds a cycle card to daily entries and a month-grid calendar at /cycle.")
+    print("Includes BBT-based ovulation detection and flare/intervention correlation.")
+    track_cycle = prompt("Track menstrual cycle? (y/n)", default="n").lower()
+    config["track_cycle"] = track_cycle == "y"
+
     config["app_version"] = "2.0.0"
 
     with open(CONFIG_FILE, "w") as f:
