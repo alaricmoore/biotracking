@@ -8,6 +8,22 @@ Built for people who need to see patterns in their own data when the medical sys
 
 ---
 
+## What It Does
+
+Biotracking helps you:
+
+- Track daily symptoms, biometrics, and environmental factors (including UV exposure, in fact especially UV exposure)
+- Visualize correlations over time (does UV exposure predict your symptom flares? does low HRV precede bad days?)
+- Generate clinical reports to bring to appointments (when you know damn well your brain is not going to remember everything, plus it has graphs!)
+- Keep a longitudinal record of labs, medications, & clinical events, as well a list of your clinicians
+- Run flare forecasting based on your own historical patterns
+- Visualize trends pre/post medical interventions such as hydroxychloriquine or steroids or biologics or what have you.
+- Keep all your data local -- nothing leaves your computer, if you don't want it to.
+
+This is not a medical product. This is a tool for veracity: for people who need to make their invisible patterns visible.
+
+---
+
 ## Why This Exists
 
 It's easy to gaslight yourself into thinking you're having panic attacks and are lazy. And sometimes people have panic attacks and are lazy, and that's entirely normal.
@@ -33,22 +49,6 @@ Meanwhile, I was in and out of doctors appointments and a few ER visits, and eve
 My current diagnosis is acute cutaneous lupus erythematosus with systemic involvement, confirmed by biopsy and with woefully unremarkable serology. But autoimmune disease evolves, & we are constantly learning new things about the human body. The differential will shift. The ICD codes may change. Whether we end up calling it lupus or the Hokey Pokey Disease, getting that process *started* -- having longitudinal evidence, having dates, having correlations -- matters enormously for health outcomes down the road.
 
 This tool isn't a lupus tracker, necessarily, though it is designed around an evolving case of predictably photosensitive lupus. It's a *you* tracker, the intent is you can change it to fit your case. Whatever you've got going on.
-
----
-
-## What It Does
-
-Biotracking helps you:
-
-- Track daily symptoms, biometrics, and environmental factors (including UV exposure, in fact especially UV exposure)
-- Visualize correlations over time (does UV exposure predict your symptom flares? does low HRV precede bad days?)
-- Generate clinical reports to bring to appointments (when you know damn well your brain is not going to remember everything, plus it has graphs!)
-- Keep a longitudinal record of labs, medications, & clinical events, as well a list of your clinicians
-- Run flare forecasting based on your own historical patterns
-- Visualize trends pre/post medical interventions such as hydroxychloriquine or steroids or biologics or what have you.
-- Keep all your data local -- nothing leaves your computer, if you don't want it to.
-
-This is not a medical product. This is a tool for veracity: for people who need to make their invisible patterns visible.
 
 ---
 
@@ -123,6 +123,8 @@ This is not a medical product. This is a tool for veracity: for people who need 
 - **Responsive design**: Works on desktop and mobile browsers
 - **Dark mode**: Easy on the eyes, just toggle the moon/sun in the header.
 - **Light mode**: Good for when you can't make out dark mode.
+
+If you want to peek at what it looks like [see screenshots here](https://github.com/alaricmoore/biotracking/issues/1).
 
 ## Important Disclaimers
 
@@ -415,7 +417,7 @@ cp biotracking.db biotracking_backup_$(date +%Y%m%d).db
 **Export options:**
 
 - In-app: export buttons for labs, medications, events, clinician list (CSV)
-- In-app UI delete function on search page (I have not actually tested the UI delete, but the full db export works)
+- In-app UI delete function on search page 
 - DB Browser for SQLite (GUI tool, free)
 - Command line: `sqlite3 biotracking.db .dump > backup.sql`
 
