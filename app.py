@@ -608,6 +608,8 @@ def daily_entry():
     # Load today's scheduled doses for the reminder checklist
     todays_doses = db.get_todays_doses(entry_date_str)
 
+    quick_mode = request.args.get("mode") == "quick"
+
     return render_template(
         "daily_entry.html",
         entry_date=entry_date_str,
@@ -618,6 +620,7 @@ def daily_entry():
         prev_date=prev_date,
         next_date=next_date,
         is_today=is_today,
+        quick_mode=quick_mode,
     )
 
 

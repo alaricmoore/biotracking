@@ -6,11 +6,22 @@
 <div class="page-header">
     <h1>{{ entry_date }}</h1>
     <p class="page-subtitle">daily entry</p>
+    <p style="font-size:0.75rem; margin-top:var(--space-xs);">
+        {% if quick_mode %}
+        <a href="{{ url_for('daily_entry', date=entry_date) }}" style="color:var(--text-muted);">full entry</a>
+        <span style="color:var(--color-accent); margin-left:var(--space-sm);">quick entry</span>
+        {% else %}
+        <span style="color:var(--color-accent);">full entry</span>
+        <a href="{{ url_for('daily_entry', date=entry_date, mode='quick') }}"
+           style="color:var(--text-muted); margin-left:var(--space-sm);">quick entry</a>
+        {% endif %}
+    </p>
 </div>
 
 <!-- Date navigation -->
+{% set nav_mode = 'quick' if quick_mode else none %}
 <div class="date-nav">
-    <a href="{{ url_for('daily_entry', date=prev_date) }}" class="date-nav-btn">
+    <a href="{{ url_for('daily_entry', date=prev_date, mode=nav_mode) }}" class="date-nav-btn">
         ← previous day
     </a>
     
@@ -29,7 +40,7 @@
         {% endif %}
     </div>
     
-    <a href="{{ url_for('daily_entry', date=next_date) }}" 
+    <a href="{{ url_for('daily_entry', date=next_date, mode=nav_mode) }}"
        class="date-nav-btn {{ 'disabled' if is_today else '' }}"
        {% if is_today %}onclick="return false;"{% endif %}>
         next day →
@@ -71,6 +82,7 @@
     <input type="hidden" name="date" value="{{ entry_date }}">
 
     <!-- Biometrics -->
+    {% if not quick_mode %}
     <div class="card">
         <div class="card-title">biometrics</div>
 
@@ -114,14 +126,66 @@
                 value="{{ existing.sun_exposure_min if existing and existing.sun_exposure_min else '' }}">
         </div>
     </div>
+    {% else %}
+    <input type="hidden" name="hours_slept"
+        value="{{ existing.hours_slept if existing and existing.hours_slept is not none else 7 }}">
+    <input type="hidden" name="hrv"
+        value="{{ existing.hrv if existing and existing.hrv is not none else '' }}">
+    <input type="hidden" name="basal_temp_delta"
+        value="{{ existing.basal_temp_delta if existing and existing.basal_temp_delta is not none else '' }}">
+    <input type="hidden" name="steps"
+        value="{{ existing.steps if existing and existing.steps is not none else '' }}">
+    <input type="hidden" name="sun_exposure_min"
+        value="{{ existing.sun_exposure_min if existing and existing.sun_exposure_min is not none else '' }}">
+    {% endif %}
 
     <!-- Symptom flags -->
     <div class="card">
         <div class="card-title">symptoms</div>
+
+        {% if quick_mode %}
+        <div class="toggle-group">
+            {% for sym_key, sym_label, sym_id, sym_class in [
+                ('neurological', 'neurological', 'tog-neuro',     'neuro'),
+                ('cognitive',    'cognitive',    'tog-cognitive',  'cognitive'),
+                ('musculature',  'musculature',  'tog-muscle',     'muscle'),
+                ('migraine',     'migraine',     'tog-migraine',   'migraine'),
+                ('pulmonary',    'pulmonary',    'tog-pulmonary',  'pulmonary'),
+                ('rheumatic',    'rheumatic',    'tog-rheum',      'rheum'),
+                ('dermatological','dermatological','tog-derm',     'derm'),
+                ('gastro',       'gastro',       'tog-gastro',     'gastro'),
+                ('mucosal',      'mucosal',      'tog-mucosal',    'mucosal'),
+            ] %}
+            <div class="toggle-item {{ sym_class }}">
+                <input type="checkbox" name="{{ sym_key }}" id="{{ sym_id }}"
+                    {% if existing and existing[sym_key] %}checked{% endif %}>
+                <label class="toggle-label" for="{{ sym_id }}"><span>{{ sym_label }}</span></label>
+            </div>
+            {% endfor %}
+        </div>
+        <input type="hidden" name="neuro_notes"
+            value="{{ existing.neuro_notes if existing and existing.neuro_notes else '' }}">
+        <input type="hidden" name="cognitive_notes"
+            value="{{ existing.cognitive_notes if existing and existing.cognitive_notes else '' }}">
+        <input type="hidden" name="musculature_notes"
+            value="{{ existing.musculature_notes if existing and existing.musculature_notes else '' }}">
+        <input type="hidden" name="migraine_notes"
+            value="{{ existing.migraine_notes if existing and existing.migraine_notes else '' }}">
+        <input type="hidden" name="pulmonary_notes"
+            value="{{ existing.pulmonary_notes if existing and existing.pulmonary_notes else '' }}">
+        <input type="hidden" name="rheumatic_notes"
+            value="{{ existing.rheumatic_notes if existing and existing.rheumatic_notes else '' }}">
+        <input type="hidden" name="derm_notes"
+            value="{{ existing.derm_notes if existing and existing.derm_notes else '' }}">
+        <input type="hidden" name="gastro_notes"
+            value="{{ existing.gastro_notes if existing and existing.gastro_notes else '' }}">
+        <input type="hidden" name="mucosal_notes"
+            value="{{ existing.mucosal_notes if existing and existing.mucosal_notes else '' }}">
+
+        {% else %}
         <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:var(--space-md);">
             tap to flag — note fields appear when flagged
         </p>
-
         <div class="toggle-group">
 
             <div class="toggle-item neuro">
@@ -249,6 +313,7 @@
                 </div>
             </div>
         </div>
+        {% endif %}
     </div>
 
     <!-- Scales -->
@@ -289,10 +354,15 @@
                     {{ existing.emotional_state if existing and existing.emotional_state is not none else 5 }}
                 </span>
             </div>
+            {% if not quick_mode %}
             <div class="notes-expand visible" style="margin-top: var(--space-sm);">
                 <textarea name="emotional_notes" placeholder="context for the number…"
                     >{{ existing.emotional_notes if existing and existing.emotional_notes else '' }}</textarea>
             </div>
+            {% else %}
+            <input type="hidden" name="emotional_notes"
+                value="{{ existing.emotional_notes if existing and existing.emotional_notes else '' }}">
+            {% endif %}
         </div>
     </div>
 
@@ -328,16 +398,45 @@
     </div>
 
     <!-- General notes -->
+    {% if not quick_mode %}
     <div class="card">
         <div class="card-title">notes</div>
         <textarea name="notes" placeholder="anything else worth recording…"
             style="min-height: 120px;"
             >{{ existing.notes if existing and existing.notes else '' }}</textarea>
     </div>
+    {% else %}
+    <input type="hidden" name="notes"
+        value="{{ existing.notes if existing and existing.notes else '' }}">
+    {% endif %}
 
     {% if track_cycle %}
     <div class="card">
         <div class="card-title">cycle</div>
+        {% if quick_mode %}
+        <div class="form-group">
+            <label>period today</label>
+            <select name="period_flow">
+                <option value="">— none —</option>
+                <option value="spotting"
+                    {% if existing and existing.period_flow == 'spotting' %}selected{% endif %}>
+                    spotting</option>
+                <option value="light"
+                    {% if existing and existing.period_flow == 'light' %}selected{% endif %}>
+                    light</option>
+                <option value="medium"
+                    {% if existing and existing.period_flow == 'medium' %}selected{% endif %}>
+                    medium</option>
+                <option value="heavy"
+                    {% if existing and existing.period_flow == 'heavy' %}selected{% endif %}>
+                    heavy</option>
+            </select>
+        </div>
+        <input type="hidden" name="cramping"
+            value="{{ existing.cramping if existing and existing.cramping else '' }}">
+        <input type="hidden" name="cycle_notes"
+            value="{{ existing.cycle_notes if existing and existing.cycle_notes else '' }}">
+        {% else %}
         <div class="form-grid" style="grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));">
             <div class="form-group">
                 <label>period today</label>
@@ -378,6 +477,7 @@
                     >{{ existing.cycle_notes if existing and existing.cycle_notes else '' }}</textarea>
             </div>
         </div>
+        {% endif %}
     </div>
     {% endif %}
 
