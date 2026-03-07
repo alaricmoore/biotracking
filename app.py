@@ -423,6 +423,104 @@ def _send_ntfy(message: str) -> None:
         print(f"[reminder] ntfy send failed: {e}")
 
 
+def _send_ntfy_alert(message: str, title: str, priority: str = "default", tags: str = "warning") -> None:
+    """Send a push notification with custom title, priority, and tags."""
+    import requests as _requests
+    topic = CONFIG.get("ntfy_topic")
+    server = CONFIG.get("ntfy_server", "https://ntfy.sh")
+    if not topic:
+        return
+    try:
+        _requests.post(
+            f"{server}/{topic}",
+            data=message.encode("utf-8"),
+            headers={
+                "Title": title,
+                "Priority": priority,
+                "Tags": tags,
+            },
+            timeout=5,
+        )
+    except Exception as e:
+        print(f"[flare-alert] ntfy send failed: {e}")
+
+
+FLARE_ALERT_STATE_PATH = os.path.join(os.path.dirname(__file__), "config", "flare_alert_state.json")
+
+
+def _check_flare_risk_alert() -> None:
+    """Daily cron job: send ntfy flare warning when risk is elevated or cycle phase is changing."""
+    if not CONFIG.get("ntfy_topic"):
+        return
+
+    today_str = date.today().isoformat()
+
+    # Rate limit: only one alert per calendar day
+    if os.path.exists(FLARE_ALERT_STATE_PATH):
+        try:
+            with open(FLARE_ALERT_STATE_PATH) as f:
+                state = json.load(f)
+            if state.get("last_alert_date") == today_str:
+                return
+        except Exception:
+            pass
+
+    # Load observations and inject cycle phase
+    all_obs = db.get_all_daily_observations()
+    if not all_obs or len(all_obs) < 3:
+        return
+    all_obs.sort(key=lambda x: x["date"], reverse=True)
+    _inject_cycle_phase(all_obs)
+
+    # 3-day weighted average score
+    scores = [calculate_flare_prime_score(obs) for obs in all_obs[:3]]
+    w3 = [1.0, 0.75, 0.5]
+    weighted_score = sum(s * w for s, w in zip(scores, w3)) / sum(w3)
+
+    # Tomorrow's cycle phase (forward-looking)
+    tomorrow_str = (date.today() + timedelta(days=1)).isoformat()
+    phase_by_date = _compute_phase_by_date_from_obs(all_obs)
+    tomorrow_phase = phase_by_date.get(tomorrow_str)
+    entering_high_risk_tomorrow = tomorrow_phase in ("pms", "luteal")
+    today_phase = all_obs[0].get("cycle_phase_name") if all_obs else None
+
+    MODERATE_THRESHOLD = 5.0
+    HIGH_THRESHOLD = 8.0
+
+    should_alert = weighted_score >= MODERATE_THRESHOLD or entering_high_risk_tomorrow
+    if not should_alert:
+        return
+
+    # Build message body
+    risk_info = get_risk_level(weighted_score)
+    risk_label = risk_info["level"]
+
+    factors = get_contributing_factors(all_obs[0])
+    top_factors = ", ".join(f["name"] for f in factors[:3]) if factors else ""
+
+    lines = [f"Score: {weighted_score:.1f}  |  {risk_label}"]
+    if top_factors:
+        lines.append(f"Factors: {top_factors}")
+    if entering_high_risk_tomorrow and today_phase not in ("pms", "luteal"):
+        lines.append(f"Entering {tomorrow_phase} phase tomorrow.")
+    elif today_phase in ("pms", "luteal"):
+        lines.append(f"Currently in {today_phase} phase.")
+
+    message = "\n".join(lines)
+    priority = "high" if weighted_score >= HIGH_THRESHOLD else "default"
+    tags = "rotating_light" if weighted_score >= HIGH_THRESHOLD else "warning"
+
+    _send_ntfy_alert(message, title=f"Flare risk: {risk_label}", priority=priority, tags=tags)
+
+    # Persist state so we don't double-alert today
+    try:
+        os.makedirs(os.path.dirname(FLARE_ALERT_STATE_PATH), exist_ok=True)
+        with open(FLARE_ALERT_STATE_PATH, "w") as f:
+            json.dump({"last_alert_date": today_str, "last_score": round(weighted_score, 1)}, f)
+    except Exception as e:
+        print(f"[flare-alert] state save failed: {e}")
+
+
 def _check_and_send_reminders() -> None:
     """Background job: send ntfy notifications for doses due in the next minute."""
     now = datetime.now()
@@ -444,6 +542,8 @@ if not app.debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
     _tz = CONFIG.get("timezone", "UTC")
     _scheduler = BackgroundScheduler(timezone=_tz)
     _scheduler.add_job(_check_and_send_reminders, "interval", minutes=1)
+    _alert_hour = CONFIG.get("flare_alert_hour", 8)
+    _scheduler.add_job(_check_flare_risk_alert, "cron", hour=_alert_hour, minute=0)
     _scheduler.start()
 
 

@@ -89,5 +89,8 @@ exports/
 # Custom model weights (personal tuning)
 config/custom_weights.json
 
+# Flare alert state (daily send tracking)
+config/flare_alert_state.json
+
 # This keeps your personal model tuning out of version control
 # while allowing the config/ directory structure to be tracked
