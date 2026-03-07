@@ -3373,23 +3373,24 @@ def write_csv(filepath: Path, data: list, columns: list):
 # Clinical Report
 # ============================================================
 
-def generate_findings(observations, uv_data, start_date, end_date):
+def generate_findings(observations, uv_data, start_date, end_date, n_obs=None):
     """Auto-generate clinical findings from data."""
     import numpy as np
     from scipy import stats
-    
+
     findings = []
-    
+    if n_obs is None:
+        n_obs = len(observations)
+
     # UV lag correlation for period
     if len(observations) >= 10 and len(uv_data) >= 10:
         obs_by_date = {o["date"]: o for o in observations}
         uv_by_date  = {u["date"]: u for u in uv_data}
-        
-        dates_with_both = [d for d in obs_by_date 
+
+        dates_with_both = [d for d in obs_by_date
                            if d in uv_by_date and uv_by_date[d].get("uv_noon")]
-        
+
         if len(dates_with_both) >= 10:
-            # Same-day musculature correlation
             uv_vals = []
             muscle_vals = []
             for d in dates_with_both:
@@ -3398,7 +3399,7 @@ def generate_findings(observations, uv_data, start_date, end_date):
                 if uv is not None and muscle is not None:
                     uv_vals.append(float(uv))
                     muscle_vals.append(float(muscle))
-            
+
             if len(uv_vals) >= 8:
                 r, p = stats.pearsonr(np.array(uv_vals), np.array(muscle_vals))
                 if p < 0.01 and abs(r) >= 0.15:
@@ -3406,7 +3407,67 @@ def generate_findings(observations, uv_data, start_date, end_date):
                         "type": "uv_correlation",
                         "text": f"UV exposure shows significant same-day correlation with musculature symptoms (r={r:.3f}, p={p:.4f}, n={len(uv_vals)})."
                     })
-    
+
+    # Flare frequency
+    if observations:
+        flare_n = sum(1 for o in observations if o.get('flare_occurred') == 1)
+        period_days = max(
+            (date.fromisoformat(end_date) - date.fromisoformat(start_date)).days, 1
+        )
+        per_month = round(flare_n / period_days * 30, 1)
+        if flare_n > 0:
+            findings.append({
+                'type': 'flare_frequency',
+                'text': f'{flare_n} flare{"s" if flare_n != 1 else ""} recorded in this period '
+                        f'({per_month}/month over {period_days} days).'
+            })
+        else:
+            findings.append({'type': 'flare_frequency', 'text': 'No flares recorded in this period.'})
+
+    # Highest-burden symptom category
+    if observations and n_obs:
+        sym_counts = {
+            key: sum(1 for o in observations if o.get(key))
+            for key in ['neurological', 'cognitive', 'musculature', 'migraine',
+                        'pulmonary', 'dermatological', 'rheumatic', 'gastro', 'mucosal']
+        }
+        labels = {
+            'neurological': 'Neurological', 'cognitive': 'Cognitive',
+            'musculature': 'Musculature', 'migraine': 'Migraine',
+            'pulmonary': 'Pulmonary', 'dermatological': 'Dermatological',
+            'rheumatic': 'Rheumatic', 'gastro': 'Gastrointestinal', 'mucosal': 'Mucosal'
+        }
+        top = max(sym_counts, key=sym_counts.get)
+        top_pct = round(sym_counts[top] / n_obs * 100)
+        if sym_counts[top] > 0:
+            findings.append({
+                'type': 'symptom_burden',
+                'text': f'{labels[top]} symptoms were the most frequently reported category, '
+                        f'present on {sym_counts[top]} of {n_obs} days ({top_pct}%).'
+            })
+
+        # Neurological involvement — flag for rheumatology
+        neuro_n = sym_counts.get('neurological', 0)
+        neuro_pct = round(neuro_n / n_obs * 100)
+        if neuro_pct >= 10:
+            findings.append({
+                'type': 'neurological',
+                'text': f'Neurological symptoms present on {neuro_n} of {n_obs} days ({neuro_pct}%). '
+                        f'This may warrant neurology consultation or expanded ANA panel.'
+            })
+
+    # Medications started during this period
+    all_meds = db.get_all_medications()
+    meds_started = [m for m in all_meds if start_date <= m['start_date'] <= end_date]
+    for med in meds_started:
+        dose_str = f"{med.get('dose', '') or ''} {med.get('unit', '') or ''}".strip()
+        indication = f" — {med['indication']}" if med.get('indication') else ''
+        findings.append({
+            'type': 'medication_change',
+            'text': f"{med['drug_name']}{(' ' + dose_str) if dose_str else ''} "
+                    f"started {med['start_date']}{indication}."
+        })
+
     return findings
 
 # ============================================================
@@ -3456,9 +3517,47 @@ def clinical_report():
     
     mean_pain = round(sum(pain_vals) / len(pain_vals), 1) if pain_vals else None
     mean_fatigue = round(sum(fatigue_vals) / len(fatigue_vals), 1) if fatigue_vals else None
-    
+
+    # Flare summary
+    flare_days = [o for o in observations if o.get('flare_occurred') == 1]
+    flare_count = len(flare_days)
+    flare_dates = sorted(o['date'] for o in flare_days)
+    recent_flare = flare_dates[-1] if flare_dates else None
+
+    # Symptom frequency (only categories present at least once)
+    SYMPTOM_KEYS = [
+        ('neurological',   'Neurological'),
+        ('cognitive',      'Cognitive'),
+        ('musculature',    'Musculature'),
+        ('migraine',       'Migraine'),
+        ('pulmonary',      'Pulmonary'),
+        ('dermatological', 'Dermatological'),
+        ('rheumatic',      'Rheumatic'),
+        ('gastro',         'Gastrointestinal'),
+        ('mucosal',        'Mucosal'),
+    ]
+    n_obs = len(observations)
+    symptom_freq = sorted(
+        [
+            {'name': label, 'count': count,
+             'percent': round(count / n_obs * 100) if n_obs else 0}
+            for key, label in SYMPTOM_KEYS
+            if (count := sum(1 for o in observations if o.get(key)))
+        ],
+        key=lambda x: x['count'], reverse=True
+    )
+
+    # ANA — all-time positive results only (negatives excluded; ANA fluctuates in early disease)
+    all_ana = db.get_ana_results() if hasattr(db, 'get_ana_results') else []
+    positive_ana = sorted(
+        [a for a in all_ana
+         if (a.get('screen_result') or '').lower().strip()
+            not in ('negative', 'neg', 'nonreactive', '')],
+        key=lambda a: a['date']
+    )
+
     # Auto-generated findings
-    findings = generate_findings(observations, uv_data, start_date, end_date)
+    findings = generate_findings(observations, uv_data, start_date, end_date, n_obs)
     
     # UV lag correlations for this period
     correlations = compute_lag_correlations(observations, uv_data) if observations and uv_data else {}
@@ -3488,8 +3587,14 @@ def clinical_report():
         events=events,
         mean_pain=mean_pain,
         mean_fatigue=mean_fatigue,
+        flare_count=flare_count,
+        flare_dates=flare_dates,
+        recent_flare=recent_flare,
+        symptom_freq=symptom_freq,
+        n_obs=n_obs,
+        positive_ana=positive_ana,
         findings=findings,
-        correlations_json=json.dumps(correlations),  # Added for UV lag chart
+        correlations_json=json.dumps(correlations),
         today=date.today().strftime("%B %d, %Y"),
     )
 # ============================================================

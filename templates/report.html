@@ -9,7 +9,10 @@
     nav, .no-print { display: none !important; }
     .page-break { page-break-before: always; }
     body { background: white; color: black; }
+    .print-header { display: block !important; margin-bottom: 1.5rem;
+                    padding-bottom: 0.75rem; border-bottom: 2px solid #000; }
 }
+.print-header { display: none; }
 .report-section {
     margin-bottom: var(--space-xl);
     padding-bottom: var(--space-lg);
@@ -27,6 +30,22 @@
 {% endblock %}
 
 {% block content %}
+<!-- Print-only header (hidden on screen) -->
+<div class="print-header">
+    <h1 style="margin:0 0 0.25rem 0; font-size:1.3rem;">
+        {{ patient_name or 'Patient' }} — Health Tracking Report
+    </h1>
+    <div style="font-size:0.85rem; color:#444; line-height:1.8;">
+        Period: {{ start_date }} to {{ end_date }}
+        ({{ observations|length }} observation days) &nbsp;|&nbsp;
+        Generated: {{ today }}
+        {% if primary_intervention_name %}
+        &nbsp;|&nbsp; Primary intervention: {{ primary_intervention_name }}
+        {% if primary_intervention_date %}(started {{ primary_intervention_date }}){% endif %}
+        {% endif %}
+    </div>
+</div>
+
 <div class="page-header no-print">
     <h1>Generated report</h1>
     <p class="page-subtitle">{{ start_date }} — {{ end_date }}</p>
@@ -85,6 +104,15 @@
             {{ tracking_start or '—' }} to {{ tracking_end or '—' }}
         </div>
         <div style="margin-bottom:var(--space-xs);">
+            <strong style="color:var(--text-primary);">Flares in this period:</strong>
+            {{ flare_count }}
+            {% if flare_count > 0 %}
+            <span style="color:var(--text-muted); font-size:0.9rem;">
+                — most recent {{ recent_flare }}
+            </span>
+            {% endif %}
+        </div>
+        <div style="margin-bottom:var(--space-xs);">
             <strong style="color:var(--text-primary);">Generated:</strong>
             {{ today }}
         </div>
@@ -141,6 +169,44 @@
     </div>
     {% endif %}
 </div>
+
+<!-- ============================================================
+     SYMPTOM FREQUENCY
+     ============================================================ -->
+{% if symptom_freq %}
+<div class="report-section">
+    <h2 style="margin:0 0 var(--space-md) 0; font-size:1.3rem; color:var(--text-primary);">
+        Symptom Frequency
+    </h2>
+    <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:var(--space-sm);">
+        Days each category was flagged out of {{ n_obs }} tracked days in this period.
+    </p>
+    <div style="overflow-x:auto;">
+        <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+            <thead>
+                <tr style="border-bottom:1px solid var(--border-medium);">
+                    <th style="text-align:left; padding:var(--space-xs); color:var(--text-muted);">Symptom</th>
+                    <th style="text-align:right; padding:var(--space-xs); color:var(--text-muted);">Days</th>
+                    <th style="text-align:right; padding:var(--space-xs); color:var(--text-muted);">% of period</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sym in symptom_freq %}
+                <tr style="border-bottom:1px solid var(--border-subtle);">
+                    <td style="padding:var(--space-xs); color:var(--text-primary);">{{ sym.name }}</td>
+                    <td style="padding:var(--space-xs); text-align:right; font-family:var(--font-mono);
+                               color:var(--text-secondary);">{{ sym.count }}</td>
+                    <td style="padding:var(--space-xs); text-align:right; font-family:var(--font-mono);
+                               color:{% if sym.percent >= 30 %}var(--color-accent){% else %}var(--text-muted){% endif %};">
+                        {{ sym.percent }}%
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
 
 <!-- ============================================================
      KEY FINDINGS
@@ -226,12 +292,58 @@
 {% endif %}
 
 <!-- ============================================================
-     ENCOUNTER'S & EVENTS
+     ANA POSITIVE HISTORY
+     ============================================================ -->
+{% if positive_ana %}
+<div class="report-section">
+    <h2 style="margin:0 0 var(--space-md) 0; font-size:1.3rem; color:var(--text-primary);">
+        ANA — Positive Results (All Time)
+    </h2>
+    <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:var(--space-sm); line-height:1.6;">
+        ANA may fluctuate to negative during quiescent disease periods. Negative results are not shown.
+        Prior positive results remain clinically significant.
+    </p>
+    <div style="overflow-x:auto;">
+        <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+            <thead>
+                <tr style="border-bottom:1px solid var(--border-medium);">
+                    <th style="text-align:left; padding:var(--space-xs); color:var(--text-muted);">Date</th>
+                    <th style="text-align:left; padding:var(--space-xs); color:var(--text-muted);">Screen</th>
+                    <th style="text-align:left; padding:var(--space-xs); color:var(--text-muted);">Titer</th>
+                    <th style="text-align:left; padding:var(--space-xs); color:var(--text-muted);">Pattern(s)</th>
+                    <th style="text-align:left; padding:var(--space-xs); color:var(--text-muted);">Provider</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ana in positive_ana %}
+                <tr style="border-bottom:1px solid var(--border-subtle);">
+                    <td style="padding:var(--space-xs); font-family:var(--font-mono);
+                               font-size:0.85rem; color:var(--text-muted);">{{ ana.date }}</td>
+                    <td style="padding:var(--space-xs); color:var(--text-primary);">{{ ana.screen_result or '—' }}</td>
+                    <td style="padding:var(--space-xs); font-family:var(--font-mono);">
+                        {% if ana.titer_integer %}1:{{ ana.titer_integer }}{% else %}—{% endif %}
+                    </td>
+                    <td style="padding:var(--space-xs); color:var(--text-secondary);">
+                        {% if ana.patterns %}{{ ana.patterns | join(', ') }}{% else %}—{% endif %}
+                    </td>
+                    <td style="padding:var(--space-xs); color:var(--text-muted); font-size:0.85rem;">
+                        {{ ana.provider or '—' }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- ============================================================
+     ENCOUNTERS & EVENTS
      ============================================================ -->
 {% if events %}
 <div class="report-section">
     <h2 style="margin:0 0 var(--space-md) 0; font-size:1.3rem; color:var(--text-primary);">
-        Encounter's & Events
+        Encounters & Events
     </h2>
     {% for event in events %}
     <div style="margin-bottom:var(--space-md); padding-left:var(--space-md);
