@@ -74,8 +74,8 @@
         <p>Clinic notes, pathology, imaging — the original PDFs, openable in place.</p>
       </a>
       <a class="scard" href="{{ url_for('portal_section', token=link.token, section='medications') }}">
-        <div class="row"><span class="t">Medications</span><span class="n">{{ counts.meds_active }} current · {{ counts.meds_past }} past</span></div>
-        <p>Current regimen with doses, indications, and start dates, plus discontinued drugs.</p>
+        <div class="row"><span class="t">Medications</span><span class="n">{{ counts.meds_active }} current · {{ counts.meds_past }} past{% if counts.reactions %} · {{ counts.reactions }} reaction{{ 's' if counts.reactions != 1 }}{% endif %}</span></div>
+        <p>Current regimen with doses, indications, and start dates, plus reactions logged on primary therapy.</p>
       </a>
       <a class="scard" href="{{ url_for('portal_section', token=link.token, section='labs') }}">
         <div class="row"><span class="t">Lab results</span><span class="n">{{ counts.labs }} results</span></div>

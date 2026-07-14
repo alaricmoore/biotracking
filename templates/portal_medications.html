@@ -1,6 +1,37 @@
 {% extends "portal_base.html" %}
 
 {% block portal_content %}
+  {% if interventions %}
+  <section class="report-section">
+    <h2>Reactions on primary therapy</h2>
+    <p class="section-note">Symptoms the patient reported while on each disease-modifying drug, most recent first. These are patient-logged observations during the treatment window, not a clinical attribution of cause.</p>
+    {% for iv in interventions %}
+    <div class="ivblock">
+      <div class="medrow">
+        <span class="nm">{{ iv.med.drug_name }}</span>
+        <span class="badge badge-accent">primary</span>
+        <span class="meta">{% if iv.med.dose %}{{ iv.med.dose }}{{ iv.med.unit or '' }} {% endif %}{{ iv.med.frequency or '' }}{% if iv.med.start_date %} · since {{ iv.med.start_date }}{% endif %}</span>
+      </div>
+      {% if iv.reactions %}
+      <div class="reactions">
+        {% for r in iv.reactions %}
+        <div class="evt">
+          <div class="head">
+            <span class="d">{{ r.event_date }}</span>
+            {% if r.severity is not none %}<span class="badge {{ 'badge-high' if r.severity >= 7 else 'badge-low' }}">severity {{ r.severity }}/10</span>{% endif %}
+          </div>
+          {% if r.note %}<p>{{ r.note }}</p>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="empty-state">No reactions reported.</p>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
   <section class="report-section">
     <h2>Current medications</h2>
     <p class="section-note">Everything active today, disease-modifying therapy first.</p>

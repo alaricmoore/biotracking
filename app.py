@@ -3957,6 +3957,27 @@ def _portal_meds(owner_id: int):
     return active, inactive
 
 
+def _portal_intervention_reactions(owner_id: int):
+    """Primary interventions (HCQ, MMF) each with their logged side-effect
+    events, newest first. 'Reactions' here means symptoms reported *while on*
+    the drug — the patient's own logs, not an assertion of drug causation. Only
+    side_effect events are surfaced; dose changes and efficacy notes are not
+    reactions."""
+    meds = db.get_all_medications(owner_id)
+    primary = sorted([m for m in meds if m.get("is_primary_intervention")],
+                     key=lambda m: m.get("start_date") or "")
+    return [{"med": m,
+             "reactions": [e for e in db.get_medication_events(owner_id, m["id"])
+                           if e.get("event_type") == "side_effect"]}
+            for m in primary]
+
+
+def _portal_medications_ctx(owner_id: int) -> dict:
+    active, inactive = _portal_meds(owner_id)
+    return {"active_meds": active, "inactive_meds": inactive,
+            "interventions": _portal_intervention_reactions(owner_id)}
+
+
 def _portal_labs(owner_id: int) -> dict:
     all_labs = db.get_lab_results(owner_id)
     return {
@@ -3999,8 +4020,7 @@ PORTAL_SECTIONS = {
     "documents":   ("Documents",
                     lambda owner_id, prefs: {"documents": db.get_clinical_documents(owner_id)}),
     "medications": ("Medications",
-                    lambda owner_id, prefs: dict(zip(("active_meds", "inactive_meds"),
-                                                     _portal_meds(owner_id)))),
+                    lambda owner_id, prefs: _portal_medications_ctx(owner_id)),
     "labs":        ("Lab results",
                     lambda owner_id, prefs: _portal_labs(owner_id)),
     "timeline":    ("Clinical timeline",
@@ -4033,6 +4053,9 @@ def portal_view(token):
     events = db.get_clinical_events(owner_id)
     documents = db.get_clinical_documents(owner_id)
 
+    reaction_count = sum(len(iv["reactions"])
+                         for iv in _portal_intervention_reactions(owner_id))
+
     all_obs = sorted(db.get_all_daily_observations(owner_id), key=lambda x: x["date"])
     burden = _burden_series(all_obs, period["start"], period["end"], loc_key, owner_id)
 
@@ -4056,7 +4079,7 @@ def portal_view(token):
         counts={"documents": len(documents), "labs": len(labs["all_labs"]),
                 "ana": len(labs["ana_history"]), "meds_active": len(active_meds),
                 "meds_past": len(inactive_meds), "events": len(events),
-                "obs_days": period["obs_days"]},
+                "reactions": reaction_count, "obs_days": period["obs_days"]},
     )
     return render_template("portal_overview.html", **ctx)
 

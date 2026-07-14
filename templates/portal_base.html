@@ -161,6 +161,12 @@
     .badge-low    { background:color-mix(in srgb, var(--color-warning) 20%, transparent); color:var(--color-warning); }
     .badge-accent { background:color-mix(in srgb, var(--color-accent) 20%, transparent);  color:var(--color-accent); }
 
+    /* primary-intervention reaction blocks */
+    .ivblock { margin-bottom:var(--space-lg); }
+    .ivblock:last-child { margin-bottom:0; }
+    .ivblock .reactions { margin-top:var(--space-sm); }
+    .ivblock .empty-state { padding:var(--space-sm) 0; }
+
     /* medication rows */
     .medrow { display:flex; gap:var(--space-sm); align-items:baseline; padding:var(--space-sm) 0; border-bottom:1px solid var(--border-subtle); flex-wrap:wrap; }
     .medrow:last-child { border-bottom:none; }
