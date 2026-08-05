@@ -60,35 +60,24 @@ DATA_DIR = os.environ.get("SARDINE_DATA_DIR", os.path.dirname(__file__))
 # LAB ADJUSTMENTS
 # ============================================================
 
-# UV protection multipliers — applied to UV dose in scoring
-UV_PROTECTION_MULTIPLIERS = {
-    "none": 1.0,
-    "spf_hat": 0.3,
-    "full_cover": 0.1,
-    "indoors_only": 0.0,
-}
-
-
-def weighted_uv(uv_row):
-    """Compute weighted daily UV from morning/noon/evening readings."""
-    if not uv_row:
-        return 0.0
-    m = float(uv_row.get("uv_morning") or 0)
-    n = float(uv_row.get("uv_noon") or 0)
-    e = float(uv_row.get("uv_evening") or 0)
-    return m * 0.2 + n * 0.6 + e * 0.2
-
-
-def compute_rmssd(rr_intervals: list) -> float | None:
-    """Compute RMSSD from a list of RR intervals in milliseconds.
-    RMSSD = sqrt(mean(successive_differences^2))
-    Returns None if fewer than 2 intervals.
-    """
-    if len(rr_intervals) < 2:
-        return None
-    diffs = [rr_intervals[i + 1] - rr_intervals[i] for i in range(len(rr_intervals) - 1)]
-    squared = [d * d for d in diffs]
-    return round(math.sqrt(sum(squared) / len(squared)), 2)
+# The pure scoring primitives now live in scoring.py, so analysis scripts and
+# summarize.py can use them without importing this module — importing app runs
+# db.run_migrations() and starts a BackgroundScheduler, which a read-only
+# reporting tool has no business doing.
+#
+# Re-exported into this namespace so every existing call site below, and the
+# `from app import ...` in analysis_cycle_vs_hrv.py, keeps working unchanged.
+from scoring import (  # noqa: F401
+    UV_PROTECTION_MULTIPLIERS,
+    _SYMPTOM_KEYS,
+    _compute_resp_rate_deviation,
+    _compute_rmssd_deviation,
+    _compute_rmssd_instability,
+    _compute_symptom_burden_delta,
+    _daily_symptom_count,
+    compute_rmssd,
+    weighted_uv,
+)
 
 
 def _compute_cumulative_uv(obs_date: str, obs_by_date: dict, location_key: str) -> float:
@@ -117,180 +106,6 @@ def _compute_cumulative_uv(obs_date: str, obs_by_date: dict, location_key: str) 
         total += (w_uv ** 1.5) * sun_min * protection * w
 
     return total
-
-
-_SYMPTOM_KEYS = [
-    'neurological', 'cognitive', 'musculature', 'migraine',
-    'pulmonary', 'dermatological', 'rheumatic', 'mucosal', 'gastro',
-]
-
-
-def _daily_symptom_count(obs: dict | None) -> int | None:
-    """Count binary symptom flags for a single day's observation."""
-    if not obs:
-        return None
-    return sum(1 for sym in _SYMPTOM_KEYS if obs.get(sym))
-
-
-def _compute_symptom_burden_delta(obs_date: str, obs_by_date: dict) -> float | None:
-    """Symptom burden as deviation from personal rolling baseline.
-
-    Returns the delta between the 3-day recent average symptom count and
-    the 14-day rolling baseline (days -17 through -4, avoiding pre-flare
-    contamination). Positive = symptoms accelerating above normal.
-
-    The baseline starts at day -4, not -3, so it does not share day -3 with
-    the recent window (days -1..-3). Overlapping at -3 let the leading edge of
-    the pre-flare symptom ramp inflate the baseline and shrink the delta it is
-    meant to detect.
-    Returns None if insufficient baseline data (< 7 days).
-    """
-    target = datetime.strptime(obs_date, "%Y-%m-%d").date()
-
-    # 3-day recent window: days -1, -2, -3
-    recent = []
-    for offset in range(1, 4):
-        d = (target - timedelta(days=offset)).isoformat()
-        c = _daily_symptom_count(obs_by_date.get(d))
-        if c is not None:
-            recent.append(c)
-
-    if not recent:
-        return None
-
-    # 14-day baseline window: days -17 through -4 (gap at -3 avoids sharing the
-    # leading ramp day with the recent window)
-    baseline = []
-    for offset in range(4, 18):
-        d = (target - timedelta(days=offset)).isoformat()
-        c = _daily_symptom_count(obs_by_date.get(d))
-        if c is not None:
-            baseline.append(c)
-
-    if len(baseline) < 7:
-        return None
-
-    recent_avg = sum(recent) / len(recent)
-    baseline_avg = sum(baseline) / len(baseline)
-
-    return round(recent_avg - baseline_avg, 2)
-
-
-def _compute_rmssd_deviation(obs_date: str, obs_by_date: dict) -> float | None:
-    """Percentage deviation of 7-day RMSSD average from 30-day baseline.
-
-    Returns negative values when recent RMSSD is below baseline (vagal withdrawal).
-    Returns None if insufficient data in either window.
-    """
-    target = datetime.strptime(obs_date, "%Y-%m-%d").date()
-
-    # 7-day recent window (day-1 through day-7)
-    recent = []
-    for offset in range(1, 8):
-        d = (target - timedelta(days=offset)).isoformat()
-        obs = obs_by_date.get(d)
-        if obs and obs.get('hrv_rmssd') is not None:
-            recent.append(float(obs['hrv_rmssd']))
-
-    # 30-day baseline window (day-8 through day-37, avoids overlap with recent)
-    baseline = []
-    for offset in range(8, 38):
-        d = (target - timedelta(days=offset)).isoformat()
-        obs = obs_by_date.get(d)
-        if obs and obs.get('hrv_rmssd') is not None:
-            baseline.append(float(obs['hrv_rmssd']))
-
-    if len(recent) < 4 or len(baseline) < 4:
-        return None
-
-    recent_avg = sum(recent) / len(recent)
-    baseline_avg = sum(baseline) / len(baseline)
-
-    if baseline_avg == 0:
-        return None
-
-    return round((recent_avg - baseline_avg) / baseline_avg * 100, 1)
-
-
-def _compute_rmssd_instability(obs_date: str, obs_by_date: dict) -> float | None:
-    """Percentage deviation of recent day-to-day |ΔRMSSD| from a longer baseline.
-
-    Captures autonomic *instability* (wild parasympathetic swings) rather than
-    level-based withdrawal. Empirically, Alaric's major flares show their
-    cleanest signature in this: day-to-day |ΔRMSSD| in the week before onset
-    spikes well above her typical range, peaking at the day-1 → day-0 transition.
-    This is a separate signal from _compute_rmssd_deviation and can fire alongside it.
-
-    Recent: 5-day window (day-1 through day-5), yields 4 adjacent-day deltas.
-    Baseline: 30-day window (day-6 through day-35), yields ~29 deltas — large
-    enough to dilute post-flare-steroid oscillation days without skewing.
-
-    Returns None if insufficient data in either window or baseline is zero.
-    """
-    target = datetime.strptime(obs_date, "%Y-%m-%d").date()
-
-    def adjacent_deltas(start_offset: int, end_offset: int) -> list[float]:
-        """Return |RMSSD[d] - RMSSD[d-1]| for days in [start_offset..end_offset]
-        where both the day and the previous day have RMSSD values."""
-        deltas = []
-        for off in range(start_offset, end_offset + 1):
-            d_curr = (target - timedelta(days=off)).isoformat()
-            d_prev = (target - timedelta(days=off + 1)).isoformat()
-            curr = obs_by_date.get(d_curr)
-            prev = obs_by_date.get(d_prev)
-            if curr and prev and curr.get('hrv_rmssd') is not None and prev.get('hrv_rmssd') is not None:
-                deltas.append(abs(float(curr['hrv_rmssd']) - float(prev['hrv_rmssd'])))
-        return deltas
-
-    recent_deltas = adjacent_deltas(1, 5)
-    baseline_deltas = adjacent_deltas(6, 35)
-
-    if len(recent_deltas) < 3 or len(baseline_deltas) < 10:
-        return None
-
-    recent_mean = sum(recent_deltas) / len(recent_deltas)
-    baseline_mean = sum(baseline_deltas) / len(baseline_deltas)
-
-    if baseline_mean == 0:
-        return None
-
-    return round((recent_mean - baseline_mean) / baseline_mean * 100, 1)
-
-
-def _compute_resp_rate_deviation(obs_date: str, obs_by_date: dict) -> float | None:
-    """Percentage deviation of 3-day respiratory rate average from 14-day baseline.
-
-    Returns positive values when recent respiratory rate is elevated.
-    Returns None if insufficient data in either window.
-    """
-    target = datetime.strptime(obs_date, "%Y-%m-%d").date()
-
-    # 3-day recent window (day-1 through day-3)
-    recent = []
-    for offset in range(1, 4):
-        d = (target - timedelta(days=offset)).isoformat()
-        obs = obs_by_date.get(d)
-        if obs and obs.get('respiratory_rate') is not None:
-            recent.append(float(obs['respiratory_rate']))
-
-    # 14-day baseline window (day-4 through day-17, avoids pre-event contamination)
-    baseline = []
-    for offset in range(4, 18):
-        d = (target - timedelta(days=offset)).isoformat()
-        obs = obs_by_date.get(d)
-        if obs and obs.get('respiratory_rate') is not None:
-            baseline.append(float(obs['respiratory_rate']))
-
-    if len(recent) < 2 or len(baseline) < 4:
-        return None
-
-    recent_avg = sum(recent) / len(recent)
-    baseline_avg = sum(baseline) / len(baseline)
-
-    if baseline_avg == 0:
-        return None
-
-    return round((recent_avg - baseline_avg) / baseline_avg * 100, 1)
 
 
 def _inject_scoring_context(obs_list: list, obs_by_date: dict, loc_key: str,

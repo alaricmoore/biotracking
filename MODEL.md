@@ -29,7 +29,7 @@ The dose is computed as an interaction: `(weighted_UV_index ^ 1.5) x sun_exposur
 
 The cumulative UV load uses a decay-weighted sum of the prior 4 days (yesterday 0.8x, 2 days ago 0.6x, 3 days ago 0.4x, 4 days ago 0.2x). Personal data analysis showed UV signal persists 2-4 days before major flares — unprotected ≥60 min exposure on day -1 fires on 79% of major flares vs 35% of non-flare baseline, dropping to 58% at day -4 (still well above baseline). The older 3-day window with 0.7/0.4/0.2 decay dropped off too aggressively for a signal that stays visible this long. UV lag analysis shows 24-hour lag has the strongest single-day flare correlation.
 
-Protection factors: none (1.0), SPF + hat (0.3), full cover (0.1), indoors only (0.0).
+Protection factors: none (1.0), SPF + hat (0.5), full cover (0.3), indoors only (0.1). Defined in `scoring.py` as `UV_PROTECTION_MULTIPLIERS` — these are the values every score has actually been computed with. (Corrected 2026-08-05: this line previously documented 0.3 / 0.1 / 0.0, which never matched the code.)
 
 ### 2. Physical Overexertion
 
