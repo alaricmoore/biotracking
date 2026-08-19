@@ -22,6 +22,17 @@ Raspberry Pi remote access support via Tailscale
 
 > **Note:** I forgot this file existed for over a month. Entries from 2.2.0 onward were reconstructed from git history on 2026-04-26, so dates reflect when work landed but groupings are post-hoc.
 
+[2.9.0] — 2026-08-19
+Added
+- **Self-calibrating RMSSD artifact guard** on `/api/health-sync`. RMSSD is derived from inter-beat intervals, so an upstream sync bug can silently feed the flare model plausible-looking garbage. The endpoint now rejects an implausible RMSSD before it reaches the model; other fields in the same payload still store, and rejections come back in the response under `rejected`.
+- Thresholds are derived per-user from that user's own history (`calibrate_rmssd_bounds` in `scoring.py`): ceiling = P95 of their RMSSD × 2.25 (clamped 50–200 ms), ratio limit = P95 of their RMSSD/SDNN × 2.5 (clamped 3.0–10.0). A fixed universal limit cannot work — a genuine RMSSD of 10 ms and one of 120 ms are both normal, for different people.
+- Users with fewer than 90 usable observations (~3 months) stay on loose universal bounds that reject only the flatly impossible, so a new user is never told their real data is wrong.
+- The guard re-checks a stored RMSSD when a later sync updates SDNN alone, since RMSSD and SDNN can arrive in separate payloads for the same day.
+- `db.get_rmssd_history()` — narrow two-column query for calibration.
+
+Changed
+- `MODEL.md` §7 gains a technical caveat documenting both real-world RMSSD corruption incidents, why calibration uses the 95th percentile rather than the 99th (at ~1% contamination the 99th drifted +47%, the 95th +2.4%), and why the multipliers are deliberately generous.
+
 [2.8.0] — 2026-08-19
 Changed
 - **UV protection multipliers retuned** — `spf_hat` 0.3 → 0.5, `full_cover` 0.1 → 0.3, `indoors_only` 0.0 → 0.1. Protection is now modelled as less absolute: SPF and a hat cut UV dose by half rather than to a third, and "indoors only" no longer implies zero exposure, since window glass transmits UVA. **This changes computed UV risk scores** — historical scores are not comparable across this boundary. These values had been running in the author's own deployment for some time; this release brings the public code and `MODEL.md` in line with them.

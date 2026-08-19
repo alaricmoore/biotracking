@@ -68,8 +68,11 @@ DATA_DIR = os.environ.get("SARDINE_DATA_DIR", os.path.dirname(__file__))
 # Re-exported into this namespace so every existing call site below, and the
 # `from app import ...` in analysis_cycle_vs_hrv.py, keeps working unchanged.
 from scoring import (  # noqa: F401
+    UNCALIBRATED_RMSSD_BOUNDS,
     UV_PROTECTION_MULTIPLIERS,
     _SYMPTOM_KEYS,
+    calibrate_rmssd_bounds,
+    rmssd_is_implausible,
     _compute_resp_rate_deviation,
     _compute_rmssd_deviation,
     _compute_rmssd_instability,
@@ -6770,6 +6773,33 @@ def _burden_series(all_obs_sorted, start_date, end_date, loc_key, user_id):
 
 _HEALTH_SYNC_FIELDS = {"steps", "hrv", "hrv_rmssd", "resting_heart_rate", "basal_temp_delta", "sun_exposure_min", "spo2", "respiratory_rate"}
 
+# ------------------------------------------------------------
+# RMSSD artifact guard
+# ------------------------------------------------------------
+# The thresholds are derived from each user's own RMSSD history -- see the
+# design notes in scoring.py and the caveat in MODEL.md section 7. Recomputed
+# at most once per day per user: the bounds move on the timescale of months,
+# and the guard runs on every sync.
+_RMSSD_BOUNDS_CACHE = {}
+
+
+def _rmssd_bounds_for_user(user_id: int) -> dict:
+    """Return this user's calibrated RMSSD bounds, recomputing at most daily."""
+    today = date.today().isoformat()
+    cached = _RMSSD_BOUNDS_CACHE.get(user_id)
+    if cached and cached[0] == today:
+        return cached[1]
+    try:
+        bounds = calibrate_rmssd_bounds(db.get_rmssd_history(user_id))
+    except Exception as e:
+        # A calibration failure must never block a sync -- fall back to the
+        # loose universal bounds, which still catch the flatly impossible.
+        app.logger.warning("RMSSD calibration failed for user=%s: %s", user_id, e)
+        bounds = dict(UNCALIBRATED_RMSSD_BOUNDS)
+    _RMSSD_BOUNDS_CACHE[user_id] = (today, bounds)
+    return bounds
+
+
 @app.route("/api/health-sync", methods=["POST"])
 @csrf.exempt
 def api_health_sync():
@@ -6825,7 +6855,44 @@ def api_health_sync():
             except (ValueError, TypeError):
                 pass
 
+    # --- RMSSD artifact guard -------------------------------------------
+    # Drop an implausible RMSSD before it reaches the model. Other fields in
+    # the payload still store; a bad RMSSD does not invalidate the step count.
+    rejected = []
+    bounds = _rmssd_bounds_for_user(user_id)
+    if "hrv_rmssd" in data:
+        bad, reason = rmssd_is_implausible(data["hrv_rmssd"], data.get("hrv"), bounds)
+        if bad:
+            app.logger.warning("health_sync rejected RMSSD %.2f (%s) user=%s date=%s",
+                               data["hrv_rmssd"], reason, user_id, obs_date)
+            rejected.append({"field": "hrv_rmssd", "value": data["hrv_rmssd"],
+                             "reason": reason})
+            del data["hrv_rmssd"]
+            fields_updated.remove("hrv_rmssd")
+    elif "hrv" in data:
+        # RMSSD and SDNN can arrive in SEPARATE syncs for the same day, so a
+        # later payload carrying SDNN alone can retroactively expose an
+        # already-stored RMSSD as an artifact -- the ingest-time check passed
+        # against an SDNN that no longer exists. Re-judge what is on disk.
+        stored = db.get_daily_observations(user_id, obs_date) or {}
+        stored_rmssd = stored.get("hrv_rmssd")
+        if stored_rmssd is not None:
+            bad, reason = rmssd_is_implausible(float(stored_rmssd), data["hrv"], bounds)
+            if bad:
+                app.logger.warning(
+                    "health_sync nulled stored RMSSD %.2f on late SDNN update (%s) "
+                    "user=%s date=%s", float(stored_rmssd), reason, user_id, obs_date)
+                rejected.append({"field": "hrv_rmssd", "value": float(stored_rmssd),
+                                 "reason": f"late SDNN update: {reason}"})
+                data["hrv_rmssd"] = None
+                fields_updated.append("hrv_rmssd")
+
     if not fields_updated:
+        # If we only rejected an artifact, that is a successful filter rather
+        # than a client error -- do not signal a retry.
+        if rejected:
+            return jsonify({"ok": True, "date": obs_date, "fields_updated": [],
+                            "rejected": rejected})
         return jsonify({"error": "no valid health fields provided"}), 400
 
     db.upsert_daily_observations(user_id, data)
@@ -6844,7 +6911,10 @@ def api_health_sync():
     except Exception as e:
         app.logger.warning("health_sync_events insert failed: %s", e)
 
-    return jsonify({"ok": True, "date": obs_date, "fields_updated": fields_updated})
+    result = {"ok": True, "date": obs_date, "fields_updated": fields_updated}
+    if rejected:
+        result["rejected"] = rejected
+    return jsonify(result)
 
 
 # ============================================================

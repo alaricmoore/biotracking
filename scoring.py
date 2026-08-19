@@ -31,9 +31,9 @@ from datetime import datetime, timedelta
 
 # UV protection multipliers — applied to UV dose in scoring.
 #
-# NOTE: MODEL.md §1 currently documents these as 0.3 / 0.1 / 0.0. These values
-# are what every score has actually been computed with; the doc is the thing
-# that is wrong.
+# MODEL.md §1 documents these same values and names this file as their source of
+# truth. If you change them here, change them there in the same commit -- the two
+# drifted apart once already.
 UV_PROTECTION_MULTIPLIERS = {
     "none": 1.0,
     "spf_hat": 0.5,
@@ -236,3 +236,157 @@ def _resp_rate_deviation_detail(obs_date: str, obs_by_date: dict) -> tuple:
 def _compute_resp_rate_deviation(obs_date: str, obs_by_date: dict) -> float | None:
     """Deviation only. See _resp_rate_deviation_detail."""
     return _resp_rate_deviation_detail(obs_date, obs_by_date)[0]
+
+
+# ============================================================
+# RMSSD ARTIFACT GUARD — per-user calibration
+# ============================================================
+#
+# Why this exists (the short version of a long adventure):
+#
+# RMSSD is derived from inter-beat intervals, and the derivation is fragile. A
+# sync bug that pools intervals across separate overnight recordings, or that
+# fails to filter ectopic beats, produces values that are not *impossible* --
+# just wrong. Observed here: a run of correct nights around 8-11 ms punctuated
+# by junk spikes of 78-120 ms. Because RMSSD feeds the flare model, a silent
+# upstream regression silently poisons the forecast.
+#
+# A fixed universal threshold cannot catch this. "Physiologically impossible"
+# is somewhere north of 200 ms, but a person whose real RMSSD sits at 10 ms is
+# being handed garbage long before that. Meanwhile a healthy athlete can have a
+# genuine RMSSD of 100+ ms, so a tight universal ceiling would reject real data.
+# The only threshold that works is one derived from *this user's own history*.
+#
+# Two design constraints, both learned the hard way:
+#
+#   1. Calibrate on percentiles, never on min/max or mean/stdev. The history
+#      you calibrate from may itself be contaminated -- that is the whole
+#      problem -- and a single artifact drags a max or a mean with it.
+#
+#   2. Use P95, not P99. Measured on 425 real observations containing 4 known
+#      artifacts (0.93% contamination): P99 of the RMSSD/SDNN ratio drifted
+#      +47% while P95 drifted +2.4%. P99 sits close enough to a ~1% artifact
+#      rate to be captured by it. P95 tolerates contamination up to 5%.
+#
+# The multipliers below are deliberately generous. Rejecting one real night
+# costs almost nothing -- that day simply has no RMSSD. Accepting one artifact
+# corrupts a rolling baseline for weeks. The asymmetry is the design.
+
+_RMSSD_CALIBRATION_MIN_SAMPLES = 90    # ~3 months of nightly data before trusting a personal bound
+_RMSSD_CEILING_P95_MULT = 2.25
+_RMSSD_CEILING_FLOOR_MS = 50.0         # never tighter than this, however stable the user
+_RMSSD_CEILING_ABSOLUTE_MS = 200.0     # never looser: above this is not physiology
+_RMSSD_RATIO_P95_MULT = 2.5
+_RMSSD_RATIO_FLOOR = 3.0
+_RMSSD_RATIO_ABSOLUTE = 10.0
+_SDNN_PLAUSIBLE_FLOOR_MS = 3.0         # SDNN below this is itself broken -- don't judge RMSSD by it
+
+# Bounds used before a user has enough history. These reject only the flatly
+# impossible, so a new user is never told their real data is wrong.
+UNCALIBRATED_RMSSD_BOUNDS = {
+    "ceiling_ms": _RMSSD_CEILING_ABSOLUTE_MS,
+    "ratio_max": _RMSSD_RATIO_ABSOLUTE,
+    "calibrated": False,
+    "n": 0,
+}
+
+
+def _percentile(values: list[float], p: float) -> float:
+    """Linear-interpolated percentile. `values` need not be sorted."""
+    if not values:
+        raise ValueError("percentile of empty sequence")
+    v = sorted(values)
+    if len(v) == 1:
+        return v[0]
+    k = (len(v) - 1) * p / 100.0
+    lo = int(k)
+    if lo + 1 >= len(v):
+        return v[-1]
+    return v[lo] + (v[lo + 1] - v[lo]) * (k - lo)
+
+
+def calibrate_rmssd_bounds(history: list) -> dict:
+    """Derive per-user RMSSD plausibility bounds from that user's own history.
+
+    Args:
+        history: iterable of (rmssd, sdnn) pairs. sdnn may be None. Rows with a
+                 missing or non-positive rmssd are ignored.
+
+    Returns:
+        {"ceiling_ms", "ratio_max", "calibrated", "n"} -- the bounds to hand to
+        rmssd_is_implausible(). Below _RMSSD_CALIBRATION_MIN_SAMPLES usable
+        rows this returns UNCALIBRATED_RMSSD_BOUNDS, which reject only the
+        physiologically impossible.
+
+    The ratio bound is only computed from rows whose SDNN is itself plausible;
+    a broken-low SDNN would inflate the ratio and teach the guard to accept
+    genuinely bad RMSSD.
+    """
+    rmssd_vals = []
+    ratios = []
+    for pair in history:
+        try:
+            rmssd, sdnn = pair[0], pair[1]
+        except (TypeError, IndexError):
+            continue
+        if rmssd is None:
+            continue
+        try:
+            rmssd = float(rmssd)
+        except (TypeError, ValueError):
+            continue
+        if rmssd <= 0:
+            continue
+        rmssd_vals.append(rmssd)
+        if sdnn is not None:
+            try:
+                sdnn = float(sdnn)
+            except (TypeError, ValueError):
+                continue
+            if sdnn >= _SDNN_PLAUSIBLE_FLOOR_MS:
+                ratios.append(rmssd / sdnn)
+
+    if len(rmssd_vals) < _RMSSD_CALIBRATION_MIN_SAMPLES:
+        return dict(UNCALIBRATED_RMSSD_BOUNDS, n=len(rmssd_vals))
+
+    ceiling = _percentile(rmssd_vals, 95) * _RMSSD_CEILING_P95_MULT
+    ceiling = min(max(ceiling, _RMSSD_CEILING_FLOOR_MS), _RMSSD_CEILING_ABSOLUTE_MS)
+
+    # The ratio needs its own sample count -- a user syncing RMSSD without SDNN
+    # can clear the RMSSD threshold while having almost no ratio data.
+    if len(ratios) >= _RMSSD_CALIBRATION_MIN_SAMPLES // 2:
+        ratio_max = _percentile(ratios, 95) * _RMSSD_RATIO_P95_MULT
+        ratio_max = min(max(ratio_max, _RMSSD_RATIO_FLOOR), _RMSSD_RATIO_ABSOLUTE)
+    else:
+        ratio_max = _RMSSD_RATIO_ABSOLUTE
+
+    return {
+        "ceiling_ms": round(ceiling, 1),
+        "ratio_max": round(ratio_max, 2),
+        "calibrated": True,
+        "n": len(rmssd_vals),
+    }
+
+
+def rmssd_is_implausible(rmssd: float, sdnn, bounds: dict) -> tuple[bool, str]:
+    """Judge one RMSSD reading against calibrated bounds.
+
+    Returns (is_implausible, human_readable_reason). `sdnn` is the same-day
+    SDNN if known, else None; the ratio cross-check is skipped when SDNN is
+    absent or itself implausibly low.
+    """
+    ceiling = bounds.get("ceiling_ms", _RMSSD_CEILING_ABSOLUTE_MS)
+    ratio_max = bounds.get("ratio_max", _RMSSD_RATIO_ABSOLUTE)
+    tag = "personal" if bounds.get("calibrated") else "default"
+
+    if rmssd > ceiling:
+        return True, f"RMSSD {rmssd:.1f} ms exceeds {tag} ceiling {ceiling:.1f} ms"
+    if sdnn is not None:
+        try:
+            sdnn = float(sdnn)
+        except (TypeError, ValueError):
+            return False, ""
+        if sdnn >= _SDNN_PLAUSIBLE_FLOOR_MS and rmssd / sdnn > ratio_max:
+            return True, (f"RMSSD/SDNN ratio {rmssd / sdnn:.1f} exceeds {tag} "
+                          f"maximum {ratio_max:.1f} (artifact signature)")
+    return False, ""

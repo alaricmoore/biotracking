@@ -557,6 +557,21 @@ def get_daily_observations(user_id: int, date_str: str) -> Optional[dict]:
     return dict(row) if row else None
 
 
+def get_rmssd_history(user_id: int) -> list[tuple]:
+    """Fetch (rmssd, sdnn) pairs for a user, for RMSSD guard calibration.
+
+    Deliberately narrow: the guard runs on every health sync, so it should not
+    pull every column of every observation to look at two of them.
+    """
+    with get_db() as conn:
+        rows = conn.execute(
+            """SELECT hrv_rmssd, hrv FROM daily_observations
+               WHERE user_id = ? AND hrv_rmssd IS NOT NULL""",
+            (user_id,)
+        ).fetchall()
+    return [(r["hrv_rmssd"], r["hrv"]) for r in rows]
+
+
 def get_daily_observations_range(user_id: int, start_date: str, end_date: str) -> list[dict]:
     """Fetch all daily observations between two dates inclusive for a user."""
     with get_db() as conn:

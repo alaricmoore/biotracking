@@ -120,6 +120,72 @@ Based on the cholinergic anti-inflammatory pathway: the vagus nerve tonically su
 
 **Literature anchors.** Thanou et al. 2016 (n=53 SLE patients, 505 visit pairs) found ΔRMSSD inversely correlated with ΔSLEDAI within subject (p=0.007) and LF/HF ratio associated with the SELENA-SLEDAI Flare Index (p=0.008) — direct evidence that RMSSD tracks lupus disease activity longitudinally. Poliwczak et al. 2017 (24-hour Holter, 26 SLE women vs 30 controls) confirmed SLE patients have chronically reduced r-MSSD (23.5 ± 10.0 ms vs 35.7 ± 16.3 ms, p=0.002), so baseline parasympathetic impairment is expected in SLE even between flares.
 
+#### Technical caveat: RMSSD is fragile to measure, and the app now guards it
+
+RMSSD is the most useful signal in this model and the most easily corrupted. It is
+not measured directly — it is *derived* from the intervals between individual
+heartbeats, so any upstream mistake in how those intervals are collected or
+filtered propagates straight into the number. Two failure modes have actually
+occurred here, both silent:
+
+1. **Pooling across recordings (2026-06-14).** The iOS sync computed one RMSSD
+   over inter-beat intervals pooled from separate overnight `HeartbeatSeries`
+   recordings. The gaps *between* recordings became enormous "successive
+   differences." RMSSD read up to 468 ms on nights when same-day SDNN read ~12 ms.
+2. **A stale build tree (2026-07-10 → 2026-08-19).** The fix above was real, but
+   the app was rebuilt from a superseded source directory that predated it, so
+   the corrected code never reached the phone. Correct nights around 8–11 ms were
+   punctuated by spikes of 78–120 ms. Roughly 1% of observations were affected —
+   enough to corrupt a 30-day rolling baseline, small enough to miss by eye.
+
+The lesson is that a derived metric needs a plausibility check at the point of
+ingest, because the failure is silent by construction: the app builds, the sync
+succeeds, and the numbers look like numbers.
+
+**The guard.** `/api/health-sync` now rejects an implausible RMSSD before it
+reaches the model. Other fields in the same payload still store — a bad RMSSD
+does not invalidate the step count. Rejections are logged and returned in the
+API response under `rejected`.
+
+**Why the thresholds are per-user.** A fixed universal limit cannot work. A
+person whose real RMSSD sits at 10 ms is being handed garbage long before any
+"physiologically impossible" line; a healthy athlete can have a genuine RMSSD
+over 100 ms that a tight universal ceiling would throw away. So the bounds are
+derived from each user's own history (`calibrate_rmssd_bounds` in `scoring.py`):
+
+| Bound | Rule | Clamped to |
+|---|---|---|
+| Ceiling | 95th percentile of the user's RMSSD × 2.25 | 50–200 ms |
+| RMSSD/SDNN ratio | 95th percentile of the user's ratio × 2.5 | 3.0–10.0 |
+
+Below 90 usable observations — roughly three months of nightly data — a user is
+left on the loose universal bounds (200 ms / ratio 10), which reject only the
+flatly impossible. A new user is never told their real data is wrong.
+
+**Two design constraints, both learned the hard way.** First, calibrate on
+percentiles, never on min/max or mean/standard deviation: the history you
+calibrate from may itself be contaminated, which is the entire problem, and a
+single artifact drags a maximum or a mean along with it. Second, use the 95th
+percentile rather than the 99th. Measured on the 425 real observations behind
+this document, which contained 4 known artifacts (0.93% contamination), the 99th
+percentile of the RMSSD/SDNN ratio drifted **+47%** while the 95th drifted
+**+2.4%** — a ~1% artifact rate is close enough to the 99th percentile to capture
+it. Calibrated on the *contaminated* history, the resulting bounds still reject
+all four artifacts, so the guard converges on correct limits rather than learning
+the corruption.
+
+**The multipliers are deliberately generous**, because the error costs are
+asymmetric. Rejecting one real night costs almost nothing — that day simply has
+no RMSSD. Accepting one artifact corrupts a rolling baseline for weeks.
+
+**One more subtlety.** RMSSD and SDNN can arrive in *separate* syncs for the same
+day, so a later payload carrying SDNN alone can retroactively make an
+already-stored RMSSD implausible — the ingest check passed against an SDNN that
+no longer exists. This is precisely how the 2026-08-18 artifact survived: it was
+accepted at a ratio of 4.4, then a later sync lowered SDNN and left a stored
+ratio of 5.1. The guard therefore re-judges the stored RMSSD whenever a late SDNN
+update arrives.
+
 **Computation:**
 - **Recent**: 7-day rolling average of nightly RMSSD (days -1 through -7)
 - **Baseline**: 30-day rolling average (days -8 through -37, avoids overlap)
