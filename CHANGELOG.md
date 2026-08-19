@@ -22,6 +22,18 @@ Raspberry Pi remote access support via Tailscale
 
 > **Note:** I forgot this file existed for over a month. Entries from 2.2.0 onward were reconstructed from git history on 2026-04-26, so dates reflect when work landed but groupings are post-hoc.
 
+[2.8.0] — 2026-08-19
+Changed
+- **UV protection multipliers retuned** — `spf_hat` 0.3 → 0.5, `full_cover` 0.1 → 0.3, `indoors_only` 0.0 → 0.1. Protection is now modelled as less absolute: SPF and a hat cut UV dose by half rather than to a third, and "indoors only" no longer implies zero exposure, since window glass transmits UVA. **This changes computed UV risk scores** — historical scores are not comparable across this boundary. These values had been running in the author's own deployment for some time; this release brings the public code and `MODEL.md` in line with them.
+- `MODEL.md` §1 now names `scoring.py` as the source of truth for `UV_PROTECTION_MULTIPLIERS`, so the documented factors can't drift from the code again.
+
+Added
+- Apple Health auto-sync setup guide in the in-app help page (sardinessync iOS app and the iOS Shortcut route), previously only in the development deployment.
+- Clinician portal: reactions shown against primary therapy in the medications section.
+
+Internal
+- Extracted the pure scoring primitives out of `app.py` into a new `scoring.py`, and report generation into `summarize.py`. Analysis scripts and reporting tools can now import scoring logic without importing `app`, which ran migrations and started a background scheduler as a side effect of import.
+
 [2.7.0] — 2026-07-07
 Name Standardization
 - Renamed the GitHub repo sardine-track → sardinetracker, matching sardinetracker.com (old URLs redirect)
