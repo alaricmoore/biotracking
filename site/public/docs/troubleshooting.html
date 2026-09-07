@@ -120,7 +120,7 @@
     <p>Symptom-first triage for a deployed instance. What to check, in what order, when the site won&#x27;t load or a device stops syncing.</p>
   </div>
   <div class="wrap layout">
-    <nav class="toc" aria-label="On this page"><span class="lbl">On this page</span><ul><li><a href="#placeholders">Placeholders</a></li><li><a href="#the-map">The map</a></li><li><a href="#three-front-doors-one-database">Three front doors, one database</a></li><li><a href="#a--the-site-wont-load">A — the site won&#x27;t load</a></li><li><a href="#b--you-cant-ssh-to-the-pi">B — you can&#x27;t SSH to the Pi</a></li><li><a href="#c--backups-have-stopped-arriving">C — backups have stopped arriving</a></li><li><a href="#d--someone-says-their-portal-link-is-dead">D — someone says their portal link is dead</a></li><li><a href="#e--a-phone-or-device-stopped-syncing">E — a phone or device stopped syncing</a></li><li><a href="#the-cold-check">The cold check</a></li></ul></nav>
+    <nav class="toc" aria-label="On this page"><span class="lbl">On this page</span><ul><li><a href="#placeholders">Placeholders</a></li><li><a href="#the-map">The map</a></li><li><a href="#three-front-doors-one-database">Three front doors, one database</a></li><li><a href="#a--the-site-wont-load">A — the site won&#x27;t load</a></li><li><a href="#b--you-cant-ssh-to-the-pi">B — you can&#x27;t SSH to the Pi</a></li><li><a href="#c--backups-have-stopped-arriving">C — backups have stopped arriving</a></li><li><a href="#d--someone-says-their-portal-link-is-dead">D — someone says their portal link is dead</a></li><li><a href="#e--a-phone-or-device-stopped-syncing">E — a phone or device stopped syncing</a></li><li><a href="#the-cold-check">The cold check</a></li><li><a href="#reading-this-offline">Reading this offline</a></li></ul></nav>
     <article class="prose"><p>A symptom-first triage guide. It assumes the <strong>Option A</strong> topology from
 <a href="/docs/remote-access">remote access</a>: Flask on a Raspberry Pi at home, a Cloudflare Tunnel
 to a public hostname, optionally Cloudflare Access in front of it, and Tailscale for admin
@@ -391,6 +391,28 @@ cookies and no session:</p>
 <p>Both carve-out failures are <strong>silent</strong> — nothing alarms, and you find out when someone emails
 you or when a week of device data turns out to be missing. That's the whole reason to run the
 check rather than assume.</p>
+<h2 id="reading-this-offline">Reading this offline</h2>
+<p>Several of the failures above are &quot;the network is down&quot; or &quot;you can't reach the Pi&quot;,
+which is an awkward moment to need a web page. <code>make-manpage.py</code> in this repo renders
+this file as a man page, so it stays readable from a terminal with nothing else
+working:</p>
+<pre><code class="language-bash">python3 make-manpage.py --install
+man sardinetracker
+</code></pre>
+<p>No dependencies beyond Python 3 — it renders the markdown directly rather than
+pulling in a converter.</p>
+<p>Optionally, create a <code>runbook-site.md</code> next to it holding your own installation's
+details. It is folded in as the opening section, and a <code>## Substitutions</code> table in it
+replaces the placeholders above with your real values throughout, so the commands can
+be pasted without editing:</p>
+<pre><code class="language-markdown">## Substitutions
+
+| Placeholder | Real |
+|---|---|
+| `app.yourdomain.com` | `app.example.com` |
+| `&lt;pi-hostname&gt;` | `raspberrypi` |
+</code></pre>
+<p>That file is gitignored. Keep your own addresses out of version control.</p>
 </article>
   </div>
   <div class="wrap backto"><a href="/docs">&#8592; all documentation</a></div>

@@ -71,3 +71,7 @@ site/.wrangler/
 
 # docs build venv (site/)
 site/.venv/
+
+# man page: generated output, and a users own site overlay
+man/
+runbook-site.md

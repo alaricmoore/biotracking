@@ -214,3 +214,34 @@ cookies and no session:
 Both carve-out failures are **silent** — nothing alarms, and you find out when someone emails
 you or when a week of device data turns out to be missing. That's the whole reason to run the
 check rather than assume.
+
+## Reading this offline
+
+Several of the failures above are "the network is down" or "you can't reach the Pi",
+which is an awkward moment to need a web page. `make-manpage.py` in this repo renders
+this file as a man page, so it stays readable from a terminal with nothing else
+working:
+
+```bash
+python3 make-manpage.py --install
+man sardinetracker
+```
+
+No dependencies beyond Python 3 — it renders the markdown directly rather than
+pulling in a converter.
+
+Optionally, create a `runbook-site.md` next to it holding your own installation's
+details. It is folded in as the opening section, and a `## Substitutions` table in it
+replaces the placeholders above with your real values throughout, so the commands can
+be pasted without editing:
+
+```markdown
+## Substitutions
+
+| Placeholder | Real |
+|---|---|
+| `app.yourdomain.com` | `app.example.com` |
+| `<pi-hostname>` | `raspberrypi` |
+```
+
+That file is gitignored. Keep your own addresses out of version control.
