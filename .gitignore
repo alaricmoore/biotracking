@@ -68,3 +68,6 @@ documents/
 # Wrangler local build/dev cache — contains local request metadata, never commit
 .wrangler/
 site/.wrangler/
+
+# docs build venv (site/)
+site/.venv/

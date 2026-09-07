@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Using sardinetracker &#8212; sardinetracker</title>
+<meta name="description" content="The in-app help, on the web: what each view is for, what the numbers mean, and how to log a day without it becoming a chore.">
+<link rel="canonical" href="https://sardinetracker.com/docs/help">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://sardinetracker.com/docs/help">
+<meta property="og:site_name" content="sardinetracker">
+<meta property="og:title" content="Using sardinetracker &#8212; sardinetracker">
+<meta property="og:description" content="The in-app help, on the web: what each view is for, what the numbers mean, and how to log a day without it becoming a chore.">
+<meta property="og:image" content="https://sardinetracker.com/og-image.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,300;1,8..60,400&amp;family=IBM+Plex+Mono:wght@300;400&amp;display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0e0e12; --surface:#16161d; --elevated:#1e1e28;
+    --line:#2a2a38; --line2:#38384a;
+    --ink:#ffffff; --ink2:rgb(202,196,223); --muted:rgb(159,157,183);
+    --accent:#7a8de0; --flare:#e05656;
+    --display:'Playfair Display','Times New Roman',Georgia,serif;
+    --body:'Source Serif 4','Times New Roman',Georgia,serif;
+    --mono:'IBM Plex Mono','Courier New',monospace;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html{font-size:16px;scroll-behavior:smooth}
+  @media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto} }
+  body{background:var(--bg);color:var(--ink);font-family:var(--body);font-weight:300;line-height:1.65}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  a:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px}
+  .wrap{max-width:920px;margin:0 auto;padding:0 24px}
+  code,.mono{font-family:var(--mono);font-size:.875em;color:var(--ink2)}
+
+  header{border-bottom:1px solid var(--line);position:sticky;top:0;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);z-index:10}
+  .nav{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:14px 0;flex-wrap:wrap}
+  .wordmark{font-family:var(--display);font-weight:700;font-size:1.15rem;color:var(--ink);letter-spacing:.02em}
+  .wordmark span{color:var(--accent)}
+  .nav ul{display:flex;gap:20px;list-style:none;flex-wrap:wrap}
+  .nav ul a{font-family:var(--mono);font-size:.8rem;color:var(--ink2)}
+  .nav ul a.here{color:var(--accent)}
+
+  .dochead{padding:56px 0 30px;border-bottom:1px solid var(--line)}
+  .eyebrow{font-family:var(--mono);font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:16px}
+  .dochead h1{font-family:var(--display);font-weight:600;font-size:clamp(1.9rem,5vw,2.9rem);line-height:1.14;letter-spacing:-.01em;max-width:18ch}
+  .dochead p{font-size:1.05rem;color:var(--ink2);max-width:60ch;margin-top:18px}
+
+  .layout{display:grid;grid-template-columns:210px 1fr;gap:52px;padding:40px 0 20px;align-items:start}
+  @media(max-width:860px){.layout{grid-template-columns:1fr;gap:26px}}
+
+  .toc{position:sticky;top:78px;font-family:var(--mono);font-size:.76rem;line-height:1.5}
+  .toc .lbl{color:var(--muted);letter-spacing:.08em;text-transform:uppercase;font-size:.68rem;display:block;margin-bottom:12px}
+  .toc ul{list-style:none;display:flex;flex-direction:column;gap:9px}
+  .toc a{color:var(--ink2);display:block}
+  .toc .h3{padding-left:12px;border-left:1px solid var(--line);color:var(--muted)}
+  @media(max-width:860px){
+    .toc{position:static;max-height:172px;overflow-y:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+  }
+
+  .prose{min-width:0;font-size:1.02rem;color:var(--ink2)}
+  .prose > *+*{margin-top:20px}
+  .prose h2{font-family:var(--display);font-weight:600;font-size:clamp(1.35rem,2.6vw,1.75rem);color:var(--ink);margin-top:52px;line-height:1.25;scroll-margin-top:86px}
+  .prose h3{font-family:var(--body);font-weight:600;font-size:1.12rem;color:var(--ink);margin-top:38px;scroll-margin-top:86px}
+  .prose h4{font-family:var(--mono);font-weight:400;font-size:.86rem;letter-spacing:.05em;text-transform:uppercase;color:var(--accent);margin-top:32px;scroll-margin-top:86px}
+  .prose h2+*,.prose h3+*,.prose h4+*{margin-top:12px}
+  .prose p{max-width:68ch}
+  .prose strong{color:var(--ink);font-weight:600}
+  .prose em{font-style:italic}
+  .prose ul,.prose ol{padding-left:22px;max-width:68ch;display:flex;flex-direction:column;gap:8px}
+  .prose li{padding-left:4px}
+  .prose li::marker{color:var(--muted)}
+  .prose blockquote{border-left:3px solid var(--accent);background:var(--surface);border-radius:0 8px 8px 0;padding:14px 18px;font-style:italic;max-width:66ch}
+  .prose blockquote p{max-width:none}
+  .prose hr{border:0;border-top:1px solid var(--line);margin:44px 0}
+  .prose code{background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:1px 5px;color:var(--ink2);white-space:nowrap}
+  .prose pre{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 20px;overflow-x:auto;line-height:1.75}
+  .prose pre code{background:none;border:0;padding:0;font-size:.82rem;white-space:pre;color:var(--ink2)}
+  .prose .tablewrap{overflow-x:auto}
+  .prose table{border-collapse:collapse;width:100%;font-size:.92rem;min-width:520px}
+  .prose th{text-align:left;font-family:var(--mono);font-weight:400;font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:0 14px 9px 0;border-bottom:1px solid var(--line2);vertical-align:bottom}
+  .prose td{padding:12px 14px 12px 0;border-bottom:1px solid var(--line);vertical-align:top}
+  .prose td:first-child{color:var(--ink)}
+  .prose tr:last-child td{border-bottom:0}
+  .prose a code{color:var(--accent)}
+
+  .srconly{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .backto{font-family:var(--mono);font-size:.78rem;color:var(--muted);padding:26px 0 0}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-top:34px}
+  .card{background:var(--surface);padding:22px 24px;display:flex;flex-direction:column;gap:8px}
+  .card h2{font-family:var(--display);font-weight:600;font-size:1.2rem;color:var(--ink);margin:0}
+  .card p{font-size:.93rem;color:var(--ink2);margin:0}
+  .card .go{font-family:var(--mono);font-size:.76rem;margin-top:auto;padding-top:8px}
+
+  footer{border-top:1px solid var(--line);padding:36px 0 60px;color:var(--muted);font-size:.85rem;margin-top:56px}
+  footer .links{display:flex;gap:20px;flex-wrap:wrap;font-family:var(--mono);font-size:.8rem;margin-bottom:16px}
+  footer p{max-width:70ch}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap nav">
+    <div class="wordmark"><a href="/" style="color:inherit">sardine<span>tracker</span></a></div>
+    <ul><li><a href="/docs/remote-access">remote access</a></li><li><a href="/docs/troubleshooting">troubleshooting</a></li><li><a class="here" href="/docs/help">help</a></li><li><a href="https://github.com/alaricmoore/sardinetracker">github &#8599;</a></li></ul>
+  </div>
+</header>
+<main>
+  <div class="wrap dochead">
+    <p class="eyebrow">documentation</p>
+    <h1>Using sardinetracker</h1>
+    <p>The in-app help, on the web: what each view is for, what the numbers mean, and how to log a day without it becoming a chore.</p>
+  </div>
+  <div class="wrap layout">
+    <nav class="toc" aria-label="On this page"><span class="lbl">On this page</span><ul><li><a href="#what-is-this-app">What Is This App?</a></li><li><a href="#what-should-i-log-every-day">What Should I Log Every Day?</a></li><li><a href="#what-the-numbers-mean">What the Numbers Mean</a></li><li class="h3"><a href="#pain-scale-110">Pain Scale (1–10)</a></li><li class="h3"><a href="#fatigue-scale-110">Fatigue Scale (1–10)</a></li><li class="h3"><a href="#uv-index">UV Index</a></li><li><a href="#what-is-hrv">What Is HRV?</a></li><li><a href="#what-is-basal-body-temperature-bbt">What Is Basal Body Temperature (BBT)?</a></li><li class="h3"><a href="#why-does-it-matter-for-autoimmune-disease">Why does it matter for autoimmune disease?</a></li><li class="h3"><a href="#how-to-log-it">How to log it</a></li><li><a href="#the-forecast-model">The Forecast Model</a></li><li><a href="#the-clinical-record">The Clinical Record</a></li><li><a href="#the-interventions-view-interventions">The Interventions View (`/interventions`)</a></li><li class="h3"><a href="#logging-side-effects-rebounds-and-dose-changes">Logging side effects, rebounds, and dose changes</a></li><li class="h3"><a href="#why-a-separate-view-instead-of-putting-all-of-this-in-symptoms">Why a separate view instead of putting all of this in symptoms</a></li><li><a href="#notifications-ntfy">Notifications (ntfy)</a></li><li><a href="#auto-sync-from-apple-health">Auto-Sync from Apple Health</a></li><li class="h3"><a href="#option-a-sardinessync-ios-app-recommended-if-you-have-a-mac">Option A: sardinessync iOS app (recommended if you have a Mac)</a></li><li class="h3"><a href="#option-b-ios-shortcut-no-xcode-required">Option B: iOS Shortcut (no Xcode required)</a></li><li class="h3"><a href="#what-gets-synced-shortcut-version">What gets synced (Shortcut version)</a></li><li class="h3"><a href="#what-doesnt-get-synced-via-shortcuts">What doesn&#x27;t get synced via Shortcuts</a></li><li class="h3"><a href="#how-to-set-it-up">How to set it up</a></li><li class="h3"><a href="#make-it-automatic">Make it automatic</a></li><li class="h3"><a href="#a-note-about-your-api-token">A note about your API token</a></li><li><a href="#a-note-on-what-this-is-and-isnt">A Note on What This Is (and Isn&#x27;t)</a></li><li><a href="#tips-for-getting-started">Tips for Getting Started</a></li></ul></nav>
+    <article class="prose"><p><em>A plain-English guide to using the app and understanding what it's tracking.</em></p>
+<hr />
+<h2 id="what-is-this-app">What Is This App?</h2>
+<p>Sardine-track (formerly biotracker) is a personal health logging app built specifically for people managing photosensitive autoimmune and rheumatic conditions — things like lupus, mixed connective tissue disease, or any illness where symptoms are unpredictable, hard to explain to doctors, and deeply affected by things like sun exposure, sleep, and hormonal cycles.</p>
+<p>It was built by Alaric, who has lupus, because she couldn't find a tool that did what she actually needed: connect the dots between daily life and disease activity, and produce something useful to bring to a 15-minute doctor's appointment.</p>
+<p>Your data lives on whichever server you're logged into — if you're reading this on someone else's instance, ask them where it's hosted and how it's backed up. If you're running your own, it's in a SQLite file on your own machine. Either way it is not sold, shared, or sent to any third party. UV index data is pulled from a public weather API anonymously using only GPS coordinates — that's the only outside connection the app makes.</p>
+<hr />
+<h2 id="what-should-i-log-every-day">What Should I Log Every Day?</h2>
+<p>The daily entry form is the core of the app. You don't have to fill out every field — log what feels relevant. The more consistently you log, even minimally, the more useful the patterns become over time.</p>
+<p><strong>The fields the prediction model leans on most:</strong></p>
+<ul>
+<li><strong>Symptoms</strong> — which categories are active (neurological, cognitive, musculature, migraine, pulmonary, dermatological, mucosal, rheumatic, gastro). For rheumatic, mentioning a specific joint in the notes (&quot;right knee&quot;, &quot;jaw&quot;) lets the model weight it higher than unspecified aches.</li>
+<li><strong>Pain and fatigue</strong> on the 1-10 scale — the model scores these at every step from 4 upward, not just at 7+. A pain-6 day or a fatigue-5 day counts.</li>
+<li><strong>Flare occurred?</strong> — yes or no, plus severity (minor vs. major). This is the ground truth the model is trying to predict.</li>
+<li><strong>Sun exposure minutes</strong> and <strong>UV protection level</strong> — how long outside, and whether you wore SPF/hat/full cover/stayed indoors. The model multiplies UV index by exposure time by a protection factor.</li>
+<li><strong>Sleep hours</strong> — short sleep drives up the overexertion score.</li>
+</ul>
+<p>Biometrics from your Apple Watch (HRV, RMSSD, resting heart rate, respiratory rate, basal body temperature) fill in automatically if you're using the sardinessync iOS app or the Apple Health Shortcut — you don't have to type those.</p>
+<p>Everything else adds context and richness over time but won't change your daily score dramatically.</p>
+<p><strong>On hard days</strong>, there's a simplified quick-entry mode that shows only the fields the model needs. You can reach it by adding <code>?mode=quick</code> to the end of the daily entry URL, or tap &quot;quick entry&quot; in the daily form.</p>
+<hr />
+<h2 id="what-the-numbers-mean">What the Numbers Mean</h2>
+<h3 id="pain-scale-110">Pain Scale (1–10)</h3>
+<ul>
+<li><strong>1–3</strong>: Mild, noticeable but not limiting</li>
+<li><strong>4–6</strong>: Moderate, affecting what you can do</li>
+<li><strong>7–9</strong>: Severe, significantly limiting</li>
+<li><strong>10</strong>: Worst pain imaginable / emergency territory</li>
+</ul>
+<h3 id="fatigue-scale-110">Fatigue Scale (1–10)</h3>
+<p>Same idea. A 7 fatigue day is &quot;I cannot get up even though I want to.&quot; A 3 is &quot;tired but functional.&quot;</p>
+<h3 id="uv-index">UV Index</h3>
+<p>This is a measure of how strong the ultraviolet radiation from the sun is on a given day, on a scale from 0 to 11+.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>UV Index</th>
+<th>Level</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0–2</td>
+<td>Low</td>
+</tr>
+<tr>
+<td>3–5</td>
+<td>Moderate</td>
+</tr>
+<tr>
+<td>6–7</td>
+<td>High</td>
+</tr>
+<tr>
+<td>8–10</td>
+<td>Very High</td>
+</tr>
+<tr>
+<td>11+</td>
+<td>Extreme</td>
+</tr>
+</tbody>
+</table></div>
+<p>For photosensitive conditions, UV exposure on one day can trigger a flare one, two, or even three days later — not necessarily the same day. The app tracks this lag and shows you your personal pattern.</p>
+<hr />
+<h2 id="what-is-hrv">What Is HRV?</h2>
+<p><strong>HRV stands for Heart Rate Variability.</strong> It sounds technical but the concept is simple.</p>
+<p>Your heart doesn't beat like a metronome. Even at rest, the time between beats varies slightly — sometimes a bit longer, sometimes a bit shorter. That variation is HRV.</p>
+<p><strong>Higher HRV</strong> generally means your nervous system is relaxed, recovered, and adaptable. Your body has resources to work with.</p>
+<p><strong>Lower HRV</strong> generally means your body is under stress — from illness, poor sleep, inflammation, or overexertion.</p>
+<p>For people with autoimmune conditions, HRV can drop noticeably in the day or two <em>before</em> a flare becomes obvious. It's your body signaling that something is off before you fully feel it.</p>
+<p>You can track HRV with a wearable like an Apple Watch, Garmin, Fitbit, or Whoop. The app lets you log your morning HRV reading and visualize how it trends alongside your symptoms over time.</p>
+<p>You don't have to track HRV to use the app — it's an optional field. But if you have a device that measures it, it's one of the more interesting things to correlate with flare activity.</p>
+<hr />
+<h2 id="what-is-basal-body-temperature-bbt">What Is Basal Body Temperature (BBT)?</h2>
+<p><strong>Basal body temperature is your body temperature at complete rest</strong> — typically measured first thing in the morning before getting up, eating, or doing anything. It's usually taken with a special BBT thermometer that reads to two decimal places (like 97.42°F rather than just 97.4°F), though a regular digital thermometer works too.</p>
+<h3 id="why-does-it-matter-for-autoimmune-disease">Why does it matter for autoimmune disease?</h3>
+<p>BBT does two useful things in this context:</p>
+<p><strong>1. It can signal inflammation.</strong> When your immune system is active — fighting something, reacting to a trigger — your resting temperature can shift subtly before you feel obviously sick. A pattern of slightly elevated morning temperatures can be an early signal.</p>
+<p><strong>2. It tracks your menstrual cycle phase.</strong> This matters because hormonal cycles interact with immune activity. After ovulation, progesterone causes BBT to rise by about 0.2–0.5°F and stay elevated until your next period. The app detects this shift to figure out which phase of your cycle you're in — which is much more accurate than just counting days, especially if steroids or disease activity make your cycle irregular.</p>
+<h3 id="how-to-log-it">How to log it</h3>
+<p>Take your temperature first thing in the morning, before getting out of bed, and log it in the daily entry. Even just a few months of data starts to reveal patterns.</p>
+<hr />
+<h2 id="the-forecast-model">The Forecast Model</h2>
+<p>After about 7 days of logging, the app starts generating a daily flare risk score. This is not a medical prediction — it's a statistical pattern based on <em>your own</em> historical data.</p>
+<p>The score comes from adding up contributions from a dozen or so categories. You can see exactly what fired and how many points each contributed on the <strong>Forecast</strong> page, and the full breakdown over time on the <strong>Model</strong> page (<code>/model</code> in the URL).</p>
+<p><strong>What the model looks at:</strong></p>
+<ul>
+<li><strong>UV dose today</strong> — weighted UV index times minutes outside times a protection factor. Being in the sun at UV 9 for an hour without protection scores much higher than 30 min at UV 3.</li>
+<li><strong>UV over the prior 4 days</strong> — sun damage accumulates. The model adds up recent days with decay weights so yesterday counts more than 4 days ago, but 4 days ago still counts.</li>
+<li><strong>Overexertion</strong> — steps relative to your personal baseline, adjusted for sleep. A big walk on 4 hours of sleep scores higher than the same walk after 8.</li>
+<li><strong>Basal body temperature elevation</strong> — subtle rises above your personal baseline may signal building inflammation.</li>
+<li><strong>Active symptoms</strong> — each category contributes its own points, with rheumatic (joint) pain scored higher if you name a specific joint vs. an unspecified ache.</li>
+<li><strong>Pain and fatigue</strong> — <em>laddered</em> scoring. A pain of 4 counts a little, 5 counts more, 6 more, 7 more again. This replaces an older &quot;only counts at 7+&quot; threshold that missed function-limiting days where a single high-severity symptom was the whole story.</li>
+<li><strong>Symptom burden delta</strong> — how many more symptom categories are active than your personal 14-day baseline. Captures <em>acceleration</em> rather than raw count, which matters because chronic daily symptoms become constant noise and don't distinguish flare days.</li>
+<li><strong>RMSSD deviation</strong> — if your 7-day rolling RMSSD (a vagal-tone measure) is sitting noticeably below your 30-day baseline, that's &quot;vagal withdrawal.&quot; Empirically precedes flares; mechanistically grounded in the cholinergic anti-inflammatory pathway.</li>
+<li><strong>RMSSD instability</strong> — separate signal from the above. Measures how much your RMSSD has been <em>oscillating</em> day-to-day. Autonomic chaos (wild swings) tends to precede major flares more reliably than a simple steady drop. An additive independent signal — both the deviation and instability can fire on the same day.</li>
+<li><strong>Respiratory rate deviation</strong> — if your 3-day rolling respiratory rate is climbing above your 14-day baseline, the model scores it. This is a pending-validation feature based on ICU literature; the dashboard chart shows whether it's actually earning its weight in your own data.</li>
+<li><strong>Emotional state</strong> — a low day (mood ≤ 4) adds points, because emotional state often correlates with inflammatory load.</li>
+<li><strong>Cycle phase</strong> — if cycle tracking is enabled, luteal / PMS windows can add points. Currently weight 0 in defaults because the signal wasn't predictive in the author's data, but the hook is there if yours is different.</li>
+</ul>
+<p>It adds everything up into a risk score from 0 to 25. A threshold (default 8.0, tunable per user) divides &quot;probably just a regular day&quot; from &quot;flare likely.&quot; All weights are adjustable in the <strong>Forecast Lab</strong>.</p>
+<p><strong>The more data you have, the more accurate it becomes.</strong> Early on it will be rough. Over months, with 20+ logged flares under your belt, the within-person patterns get meaningful and the model can actually call it.</p>
+<p>The Model page shows you, visually, which days hit high risk and whether a flare actually followed — so you can see where the model is doing well and where it's missing.</p>
+<hr />
+<h2 id="the-clinical-record">The Clinical Record</h2>
+<p>This section is for organizing the medical side of your life — not just symptoms.</p>
+<ul>
+<li><strong>Labs</strong>: Log test results with values, reference ranges, and dates</li>
+<li><strong>Medications</strong>: Track what you've taken and when, with start and end dates</li>
+<li><strong>Clinical Events</strong>: Appointments, ER visits, procedures — with notes</li>
+<li><strong>Clinicians</strong>: A directory of your care team</li>
+<li><strong>ANA Tracking</strong>: Specialized tracking for ANA titers and patterns (relevant for lupus diagnosis)</li>
+</ul>
+<p>You can export any of these as a CSV file, which is useful for sending to a new provider, requesting records, or just keeping a personal copy.</p>
+<hr />
+<h2 id="the-interventions-view-interventions">The Interventions View (<code>/interventions</code>)</h2>
+<p>This is where you answer the question <strong>&quot;did that medication actually help?&quot;</strong> in stats rather than vibes.</p>
+<p>For each medication you've marked as a primary or secondary intervention (the tickbox on the medication edit form in <code>/clinical</code>), the Interventions page shows you a card with:</p>
+<ul>
+<li><strong>Flare impact</strong> — total flare count before vs. after starting it, broken down by severity (major, minor, ER), plus the average number of days between flares. Delta percentages are color-coded: green for improvement, red for worsening.</li>
+<li><strong>Autonomic shift</strong> — average RMSSD, SDNN, and respiratory rate before vs. after, so you can see whether the medication calmed or riled your nervous system.</li>
+<li><strong>Duration of effect</strong> (for one-time doses like a dex IV or a steroid injection) — how many days until the next flare of each severity, and how long it took your autonomic metrics to settle back to their pre-dose baseline.</li>
+<li><strong>Rebound flag</strong> (also for one-time doses) — if a medication helped initially but flares surged back 2-6 weeks later, an amber banner will call it out so you don't have to eyeball it yourself.</li>
+</ul>
+<h3 id="logging-side-effects-rebounds-and-dose-changes">Logging side effects, rebounds, and dose changes</h3>
+<p>Every intervention card has an &quot;events&quot; section where you can log dated observations about that specific medication:</p>
+<ul>
+<li><strong>Side effect</strong> — with a severity slider 0-10. Example: &quot;2026-02-14, HCQ, severity 3, mild GI upset if taken on empty stomach.&quot;</li>
+<li><strong>Rebound</strong> — manually confirming a rebound pattern, or noting an unexpected flare return.</li>
+<li><strong>Efficacy change</strong> — &quot;seems to be helping less lately&quot; or &quot;big improvement this month.&quot;</li>
+<li><strong>Dose change</strong> — timestamped dose adjustments separate from editing the medication record itself (so you can see &quot;200mg → 400mg on 2026-02-14&quot; as an event in context).</li>
+<li><strong>Note</strong> — general observation, no severity field.</li>
+</ul>
+<h3 id="why-a-separate-view-instead-of-putting-all-of-this-in-symptoms">Why a separate view instead of putting all of this in symptoms</h3>
+<p>The Interventions view is for medication-attributed observations. Regular symptom logging is for &quot;this happened today, cause unknown.&quot; Keeping them separate preserves the distinction between &quot;my body did X&quot; and &quot;I think the pill I took yesterday caused X.&quot; When you're talking to a rheumatologist about whether to continue a drug, the attributed events are what they need.</p>
+<hr />
+<h2 id="notifications-ntfy">Notifications (ntfy)</h2>
+<p>The app can send you a daily reminder to log, and an alert if your flare risk is elevated. This uses a free service called ntfy — you install the ntfy app on your phone, subscribe to a private channel, and that's it. No account required.</p>
+<p>Setup instructions are in your account profile.</p>
+<hr />
+<h2 id="auto-sync-from-apple-health">Auto-Sync from Apple Health</h2>
+<p>If you have an Apple Watch, you can have your iPhone send biometric data to sardinetracker automatically — no typing required for steps, HRV, resting heart rate, respiratory rate, SpO2, or basal body temperature.</p>
+<p>There are two ways to set this up. The <strong>native iOS app</strong> is more capable but requires you to build it yourself in Xcode. The <strong>iOS Shortcut</strong> approach is simpler but limited.</p>
+<h3 id="option-a-sardinessync-ios-app-recommended-if-you-have-a-mac">Option A: sardinessync iOS app (recommended if you have a Mac)</h3>
+<p><strong><a href="https://github.com/alaricmoore/sardinessync">sardinessync</a></strong> is a native iOS companion app that:</p>
+<ul>
+<li>Reads everything HealthKit offers, including the things Shortcuts can't reach (RR intervals for overnight RMSSD, Time in Daylight, respiratory rate)</li>
+<li>Computes RMSSD from raw heartbeat intervals on your phone (better accuracy than Apple's built-in HRV number)</li>
+<li>Handles background sync automatically — no manual triggering</li>
+<li>Gives you a tab with mobile-friendly sardinetracker pages and local push notifications for flare alerts / medication doses</li>
+</ul>
+<p>It's not in the App Store (not paying Apple $99/yr for a hobby project's listing). You clone the repo, open it in Xcode, plug your iPhone in, and build. With a free personal Apple ID the app expires every 7 days and needs a re-install — about 2 minutes if you leave Xcode configured. If you pay Apple the $99/yr, it lasts a year between rebuilds.</p>
+<p>See the sardinessync repo's README for the full setup walkthrough. The short version: change the bundle ID to something unique to you, set signing team to your personal Apple ID, hit build, configure the server URL and API token inside the app on first launch.</p>
+<h3 id="option-b-ios-shortcut-no-xcode-required">Option B: iOS Shortcut (no Xcode required)</h3>
+<p>This uses <strong>iOS Shortcuts</strong>, a built-in iPhone feature that lets you chain together small actions (like &quot;read my step count&quot; and &quot;send it to a website&quot;) without writing any code.</p>
+<p>It's a reasonable fallback if you can't or won't touch Xcode. Downsides vs. the native app:</p>
+<ul>
+<li>Can't compute RMSSD from RR intervals (Apple doesn't expose that data type to Shortcuts)</li>
+<li>Can't read Time in Daylight (sun exposure minutes)</li>
+<li>No background scheduling — has to be triggered by a Shortcuts automation or opened manually</li>
+<li>No local notifications tied to your data</li>
+</ul>
+<h3 id="what-gets-synced-shortcut-version">What gets synced (Shortcut version)</h3>
+<ul>
+<li><strong>Steps</strong> — your total for the day</li>
+<li><strong>HRV (SDNN)</strong> — heart rate variability from your watch</li>
+<li><strong>Resting heart rate</strong> — useful for tracking tachycardia or inflammation patterns</li>
+<li><strong>Basal body temperature</strong> — the delta your watch calculates from your personal baseline</li>
+</ul>
+<h3 id="what-doesnt-get-synced-via-shortcuts">What doesn't get synced via Shortcuts</h3>
+<ul>
+<li><strong>Sleep</strong> — Apple Health has trouble with polyphasic sleep and sleepwalking, so sleep is better entered manually</li>
+<li><strong>Sun exposure minutes</strong> — Apple tracks &quot;Time in Daylight&quot; on the watch but doesn't make it available to Shortcuts (thanks, Apple). The sardinessync native app <em>can</em> read this.</li>
+<li><strong>RMSSD</strong> — requires raw RR interval data, which Shortcuts can't access. Native app only.</li>
+<li><strong>Symptoms, flare status, notes</strong> — these are personal observations that only you can provide</li>
+</ul>
+<h3 id="how-to-set-it-up">How to set it up</h3>
+<ol>
+<li>Open the <strong>Shortcuts</strong> app on your iPhone (it's pre-installed — blue and pink icon)</li>
+<li>Tap <strong>+</strong> to create a new shortcut, name it something like &quot;Health Sync&quot;</li>
+<li>Use the search bar to add these actions in order:</li>
+</ol>
+<p><strong>Get the date:</strong></p>
+<ul>
+<li>Add a <strong>Date</strong> action</li>
+<li>Add a <strong>Format Date</strong> action — set to Custom format: <code>yyyy-MM-dd</code></li>
+</ul>
+<p><strong>Pull your health data (add four &quot;Find Health Samples&quot; actions):</strong></p>
+<ul>
+<li>Step Count — sort by Start Date, Most Recent, limit 1</li>
+<li>Heart Rate Variability — sort by Start Date, Most Recent, limit 1</li>
+<li>Resting Heart Rate — sort by Start Date, Most Recent, limit 1</li>
+<li>Body Temperature — sort by Start Date, Most Recent, limit 1</li>
+</ul>
+<p>For Steps, make sure you're getting the sum for the day, not just the last sample.</p>
+<p><strong>Build the data package:</strong></p>
+<ul>
+<li>Add a <strong>Dictionary</strong> action with these keys:
+<ul>
+<li><code>user_id</code> (Number) — your user ID, usually <code>1</code></li>
+<li><code>date</code> (Text) — select the formatted date from earlier</li>
+<li><code>steps</code> (Number) — select the step count result</li>
+<li><code>hrv</code> (Number) — select the HRV result</li>
+<li><code>resting_heart_rate</code> (Number) — select the resting HR result</li>
+<li><code>basal_temp_delta</code> (Number) — select the body temperature result</li>
+</ul>
+</li>
+</ul>
+<p><strong>Send it:</strong></p>
+<ul>
+<li>Add <strong>Get Contents of URL</strong>
+<ul>
+<li>URL: your biotracker address followed by <code>/api/health-sync</code></li>
+<li>Method: POST</li>
+<li>Add header <code>Authorization</code> with value <code>Bearer</code> followed by your API token (from config.json on the server)</li>
+<li>Add header <code>Content-Type</code> with value <code>application/json</code></li>
+<li>Request Body: JSON — select the Dictionary</li>
+</ul>
+</li>
+</ul>
+<p><strong>Test it</strong> by tapping the play button. You should see a response with <code>&quot;ok&quot;: true</code>.</p>
+<h3 id="make-it-automatic">Make it automatic</h3>
+<p>Go to the <strong>Automation</strong> tab in Shortcuts and set your shortcut to run automatically. Good trigger options:</p>
+<ul>
+<li><strong>Bedtime begins</strong> — syncs when your wind-down starts</li>
+<li><strong>Time of Day</strong> — set to late evening (like 11:50 PM)</li>
+</ul>
+<p>Set it to <strong>Run Immediately</strong> so it doesn't ask for confirmation each time.</p>
+<p>Once set up, your phone handles this in the background every night. On bad days — the days you need the data most — it's one less thing to do.</p>
+<h3 id="a-note-about-your-api-token">A note about your API token</h3>
+<p>The token in your Shortcut gives write access to a limited set of biometric fields. It cannot touch your symptoms, medications, flare logs, or notes. But treat it like a password — don't share your Shortcut with anyone you wouldn't trust with your biotracker login.</p>
+<hr />
+<h2 id="a-note-on-what-this-is-and-isnt">A Note on What This Is (and Isn't)</h2>
+<p>This app is not a medical device and does not give medical advice. It is a record-keeping and pattern-visualization tool.</p>
+<p>What it does well:</p>
+<ul>
+<li>Helps you notice your own patterns</li>
+<li>Gives you something concrete to bring to appointments</li>
+<li>Creates a longitudinal record that would otherwise exist only as fragmented memories</li>
+</ul>
+<p>What it can't do:</p>
+<ul>
+<li>Diagnose anything</li>
+<li>Replace your doctors</li>
+<li>Predict the future with certainty</li>
+</ul>
+<p>Use it as evidence for conversations with your care team, not as a substitute for those conversations.</p>
+<hr />
+<h2 id="tips-for-getting-started">Tips for Getting Started</h2>
+<p><strong>Log daily, even briefly.</strong> Consistency matters more than completeness. A 30-second entry every day is worth more than a detailed entry once a week.</p>
+<p><strong>Mark your flare days.</strong> This is the most important thing for the prediction model. If you're having a bad day, check the flare box.</p>
+<p><strong>Don't stress about missing days.</strong> Life happens. A gap in the data is fine — the model works around it.</p>
+<p><strong>Use the notes fields.</strong> You don't have to write much, but &quot;started new medication today&quot; or &quot;out in the sun for two hours&quot; adds context that pure numbers can't capture.</p>
+<p><strong>Come back to the Model page.</strong> After a month or two of data, the Model dashboard (<code>/model</code>) starts showing you things. UV spikes followed by symptom spikes a day later. Sleep drops before flares. RMSSD wobbling before a bad week. Patterns you couldn't see in the day-to-day. Click any of the expandable trend charts to pop it out to full size.</p>
+<p><strong>Check the Interventions page after a medication change.</strong> Give it a few weeks of data after starting or stopping a medication, then look at the intervention card. If your flare rate drops 40% post-start, that's information worth taking to your rheumatologist. If it doesn't budge, that's also information.</p>
+<hr />
+<p><em>Built by C. Alaric Moore. Data stays on whatever server you're signed into — ask your host if you don't know.</em></p>
+<p><em>If something isn't working or you want a feature added, just ask.</em></p>
+</article>
+  </div>
+  <div class="wrap backto"><a href="/docs">&#8592; all documentation</a></div>
+</main>
+<footer>
+  <div class="wrap">
+    <div class="links">
+      <a href="/">sardinetracker.com</a>
+      <a href="https://github.com/alaricmoore/sardinetracker">source &#8599;</a>
+      <a href="https://github.com/alaricmoore/sardinetracker/blob/main/MODEL.md">how the model works &#8599;</a>
+      <a href="https://github.com/alaricmoore/sardinetracker/blob/main/LICENSE">AGPL-3.0 &#8599;</a>
+    </div>
+    <p>A one-person project, built between doctor appointments, machine repair, and terrariums.
+       Not medical advice; always consult qualified clinicians. Trust your observations.
+       Keep asking questions.</p>
+  </div>
+</footer>
+</body>
+</html>

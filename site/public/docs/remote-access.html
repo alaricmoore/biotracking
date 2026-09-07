@@ -1,0 +1,692 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Remote access &#8212; sardinetracker</title>
+<meta name="description" content="Reaching your own instance from outside the house — a Cloudflare Tunnel or a Tailscale VPS, with the trade-offs of each spelled out.">
+<link rel="canonical" href="https://sardinetracker.com/docs/remote-access">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://sardinetracker.com/docs/remote-access">
+<meta property="og:site_name" content="sardinetracker">
+<meta property="og:title" content="Remote access &#8212; sardinetracker">
+<meta property="og:description" content="Reaching your own instance from outside the house — a Cloudflare Tunnel or a Tailscale VPS, with the trade-offs of each spelled out.">
+<meta property="og:image" content="https://sardinetracker.com/og-image.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,300;1,8..60,400&amp;family=IBM+Plex+Mono:wght@300;400&amp;display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0e0e12; --surface:#16161d; --elevated:#1e1e28;
+    --line:#2a2a38; --line2:#38384a;
+    --ink:#ffffff; --ink2:rgb(202,196,223); --muted:rgb(159,157,183);
+    --accent:#7a8de0; --flare:#e05656;
+    --display:'Playfair Display','Times New Roman',Georgia,serif;
+    --body:'Source Serif 4','Times New Roman',Georgia,serif;
+    --mono:'IBM Plex Mono','Courier New',monospace;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html{font-size:16px;scroll-behavior:smooth}
+  @media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto} }
+  body{background:var(--bg);color:var(--ink);font-family:var(--body);font-weight:300;line-height:1.65}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  a:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px}
+  .wrap{max-width:920px;margin:0 auto;padding:0 24px}
+  code,.mono{font-family:var(--mono);font-size:.875em;color:var(--ink2)}
+
+  header{border-bottom:1px solid var(--line);position:sticky;top:0;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);z-index:10}
+  .nav{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:14px 0;flex-wrap:wrap}
+  .wordmark{font-family:var(--display);font-weight:700;font-size:1.15rem;color:var(--ink);letter-spacing:.02em}
+  .wordmark span{color:var(--accent)}
+  .nav ul{display:flex;gap:20px;list-style:none;flex-wrap:wrap}
+  .nav ul a{font-family:var(--mono);font-size:.8rem;color:var(--ink2)}
+  .nav ul a.here{color:var(--accent)}
+
+  .dochead{padding:56px 0 30px;border-bottom:1px solid var(--line)}
+  .eyebrow{font-family:var(--mono);font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:16px}
+  .dochead h1{font-family:var(--display);font-weight:600;font-size:clamp(1.9rem,5vw,2.9rem);line-height:1.14;letter-spacing:-.01em;max-width:18ch}
+  .dochead p{font-size:1.05rem;color:var(--ink2);max-width:60ch;margin-top:18px}
+
+  .layout{display:grid;grid-template-columns:210px 1fr;gap:52px;padding:40px 0 20px;align-items:start}
+  @media(max-width:860px){.layout{grid-template-columns:1fr;gap:26px}}
+
+  .toc{position:sticky;top:78px;font-family:var(--mono);font-size:.76rem;line-height:1.5}
+  .toc .lbl{color:var(--muted);letter-spacing:.08em;text-transform:uppercase;font-size:.68rem;display:block;margin-bottom:12px}
+  .toc ul{list-style:none;display:flex;flex-direction:column;gap:9px}
+  .toc a{color:var(--ink2);display:block}
+  .toc .h3{padding-left:12px;border-left:1px solid var(--line);color:var(--muted)}
+  @media(max-width:860px){
+    .toc{position:static;max-height:172px;overflow-y:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+  }
+
+  .prose{min-width:0;font-size:1.02rem;color:var(--ink2)}
+  .prose > *+*{margin-top:20px}
+  .prose h2{font-family:var(--display);font-weight:600;font-size:clamp(1.35rem,2.6vw,1.75rem);color:var(--ink);margin-top:52px;line-height:1.25;scroll-margin-top:86px}
+  .prose h3{font-family:var(--body);font-weight:600;font-size:1.12rem;color:var(--ink);margin-top:38px;scroll-margin-top:86px}
+  .prose h4{font-family:var(--mono);font-weight:400;font-size:.86rem;letter-spacing:.05em;text-transform:uppercase;color:var(--accent);margin-top:32px;scroll-margin-top:86px}
+  .prose h2+*,.prose h3+*,.prose h4+*{margin-top:12px}
+  .prose p{max-width:68ch}
+  .prose strong{color:var(--ink);font-weight:600}
+  .prose em{font-style:italic}
+  .prose ul,.prose ol{padding-left:22px;max-width:68ch;display:flex;flex-direction:column;gap:8px}
+  .prose li{padding-left:4px}
+  .prose li::marker{color:var(--muted)}
+  .prose blockquote{border-left:3px solid var(--accent);background:var(--surface);border-radius:0 8px 8px 0;padding:14px 18px;font-style:italic;max-width:66ch}
+  .prose blockquote p{max-width:none}
+  .prose hr{border:0;border-top:1px solid var(--line);margin:44px 0}
+  .prose code{background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:1px 5px;color:var(--ink2);white-space:nowrap}
+  .prose pre{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 20px;overflow-x:auto;line-height:1.75}
+  .prose pre code{background:none;border:0;padding:0;font-size:.82rem;white-space:pre;color:var(--ink2)}
+  .prose .tablewrap{overflow-x:auto}
+  .prose table{border-collapse:collapse;width:100%;font-size:.92rem;min-width:520px}
+  .prose th{text-align:left;font-family:var(--mono);font-weight:400;font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:0 14px 9px 0;border-bottom:1px solid var(--line2);vertical-align:bottom}
+  .prose td{padding:12px 14px 12px 0;border-bottom:1px solid var(--line);vertical-align:top}
+  .prose td:first-child{color:var(--ink)}
+  .prose tr:last-child td{border-bottom:0}
+  .prose a code{color:var(--accent)}
+
+  .srconly{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .backto{font-family:var(--mono);font-size:.78rem;color:var(--muted);padding:26px 0 0}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-top:34px}
+  .card{background:var(--surface);padding:22px 24px;display:flex;flex-direction:column;gap:8px}
+  .card h2{font-family:var(--display);font-weight:600;font-size:1.2rem;color:var(--ink);margin:0}
+  .card p{font-size:.93rem;color:var(--ink2);margin:0}
+  .card .go{font-family:var(--mono);font-size:.76rem;margin-top:auto;padding-top:8px}
+
+  footer{border-top:1px solid var(--line);padding:36px 0 60px;color:var(--muted);font-size:.85rem;margin-top:56px}
+  footer .links{display:flex;gap:20px;flex-wrap:wrap;font-family:var(--mono);font-size:.8rem;margin-bottom:16px}
+  footer p{max-width:70ch}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap nav">
+    <div class="wordmark"><a href="/" style="color:inherit">sardine<span>tracker</span></a></div>
+    <ul><li><a class="here" href="/docs/remote-access">remote access</a></li><li><a href="/docs/troubleshooting">troubleshooting</a></li><li><a href="/docs/help">help</a></li><li><a href="https://github.com/alaricmoore/sardinetracker">github &#8599;</a></li></ul>
+  </div>
+</header>
+<main>
+  <div class="wrap dochead">
+    <p class="eyebrow">documentation</p>
+    <h1>Remote access</h1>
+    <p>Reaching your own instance from outside the house &#8212; a Cloudflare Tunnel or a Tailscale VPS, with the trade-offs of each spelled out.</p>
+  </div>
+  <div class="wrap layout">
+    <nav class="toc" aria-label="On this page"><span class="lbl">On this page</span><ul><li><a href="#read-this-first">Read This First</a></li><li><a href="#what-less-internet-means-and-doesnt-mean">What &quot;Less Internet&quot; Means and Doesn&#x27;t Mean</a></li><li><a href="#two-paths">Two Paths</a></li><li><a href="#option-a-cloudflare-tunnel">Option A: Cloudflare Tunnel</a></li><li class="h3"><a href="#how-it-works">How it works</a></li><li class="h3"><a href="#what-you-need">What you need</a></li><li class="h3"><a href="#step-1-get-sardine-track-running-on-the-pi">Step 1: Get sardine-track running on the Pi</a></li><li class="h3"><a href="#step-2-add-your-domain-to-cloudflare">Step 2: Add your domain to Cloudflare</a></li><li class="h3"><a href="#step-3-open-the-zero-trust-dashboard">Step 3: Open the Zero Trust dashboard</a></li><li class="h3"><a href="#step-4-create-a-tunnel">Step 4: Create a tunnel</a></li><li class="h3"><a href="#step-5-route-your-subdomain-to-the-tunnel">Step 5: Route your subdomain to the tunnel</a></li><li class="h3"><a href="#step-6-verify">Step 6: Verify</a></li><li class="h3"><a href="#optional-add-cloudflare-access-on-top">Optional: add Cloudflare Access on top</a></li><li class="h3"><a href="#sardine-track-sees-cloudflare-ips-not-real-user-ips">Sardine-track sees Cloudflare IPs, not real user IPs</a></li><li><a href="#option-b-tailscale--a-cloud-vps">Option B: Tailscale + a cloud VPS</a></li><li class="h3"><a href="#how-it-works-1">How it works</a></li><li class="h3"><a href="#what-you-need-1">What you need</a></li><li class="h3"><a href="#step-1-install-sardine-track-on-the-raspberry-pi">Step 1: Install sardine-track on the Raspberry Pi</a></li><li class="h3"><a href="#step-2-install-tailscale-on-the-raspberry-pi">Step 2: Install Tailscale on the Raspberry Pi</a></li><li class="h3"><a href="#step-3-provision-your-cloud-vps">Step 3: Provision your cloud VPS</a></li><li class="h3"><a href="#step-4-configure-the-vps-as-a-reverse-proxy">Step 4: Configure the VPS as a reverse proxy</a></li><li class="h3"><a href="#step-5-open-the-firewall-on-the-vps">Step 5: Open the firewall on the VPS</a></li><li class="h3"><a href="#step-6-start-sardine-track-on-the-pi-listening-on-tailscales-interface">Step 6: Start sardine-track on the Pi listening on Tailscale&#x27;s interface</a></li><li class="h3"><a href="#tailscale-funnel--a-third-option-briefly">Tailscale Funnel — a third option, briefly</a></li><li><a href="#security-notes--please-read-these-apply-to-both-options">Security Notes — Please Read These (apply to both options)</a></li><li class="h3"><a href="#use-a-strong-password-on-sardine-track-itself">Use a strong password on sardine-track itself</a></li><li class="h3"><a href="#add-another-auth-layer-if-you-can">Add another auth layer if you can</a></li><li class="h3"><a href="#https">HTTPS</a></li><li class="h3"><a href="#keep-software-updated">Keep software updated</a></li><li class="h3"><a href="#understand-your-tailscale-acls-option-b-only">Understand your Tailscale ACLs (Option B only)</a></li><li class="h3"><a href="#monitor">Monitor</a></li><li><a href="#on-starlink-specifically">On Starlink Specifically</a></li><li><a href="#you-can-always-go-back">You Can Always Go Back</a></li><li><a href="#auto-sync-from-apple-health">Auto-Sync from Apple Health</a></li><li class="h3"><a href="#option-a-sardinessync-native-ios-app-recommended-if-you-have-a-mac">Option A: sardinessync native iOS app (recommended if you have a Mac)</a></li><li class="h3"><a href="#option-b-ios-shortcut-no-mac-required">Option B: iOS Shortcut (no Mac required)</a></li><li class="h3"><a href="#setup">Setup</a></li><li class="h3"><a href="#building-the-shortcut">Building the Shortcut</a></li><li class="h3"><a href="#security-note">Security Note</a></li><li><a href="#final-note">Final Note</a></li></ul></nav>
+    <article class="prose"><h2 id="read-this-first">Read This First</h2>
+<p>This document describes how to access sardine-track from outside your local network — from your phone on cellular, from work, from anywhere.</p>
+<p>Before you do any of this, understand what you are doing:</p>
+<p><strong>Anything connected to the internet is dangerous and insecure. The most secure place for your health data is in your own head with a tight lip. A faraday cage helps too.</strong></p>
+<p>The default sardine-track setup runs on localhost. Nothing leaves your computer. Nobody can reach it but via physical access to that machine, <em>on</em> that machine, on <em>that</em> network. That is the safest possible configuration and it is sufficient for most people.</p>
+<p>This guide exists for people who understand the risk surface and want remote access anyway. If you are not comfortable with concepts like VPNs, reverse proxies, open ports, and what it means to expose a service to the internet, stop here. Use the local setup. It is genuinely good enough; for the gap between the doctor's waiting room or the ER for four hours and getting home to your own network, travel with a notebook. Seriously, it's great therapy and also provides notes for future-you when you want to log the whole thing in sardine-track.</p>
+<p>If you proceed, you accept that you are responsible for the security of your own data. The author of this software is not responsible for data exposure resulting from network configuration choices you make.</p>
+<hr />
+<h2 id="what-less-internet-means-and-doesnt-mean">What &quot;Less Internet&quot; Means and Doesn't Mean</h2>
+<p>There is no such thing as &quot;connected to the internet but safe.&quot; There is only a spectrum of exposure.</p>
+<p>The setups described in this guide are:</p>
+<ul>
+<li>More secure than a public URL with no auth</li>
+<li>More secure than port forwarding your router</li>
+<li>Not as secure as local only</li>
+<li>Not as secure as not having the data digitally at all</li>
+</ul>
+<p>Proceed accordingly.</p>
+<hr />
+<h2 id="two-paths">Two Paths</h2>
+<p>There are two patterns documented here. Pick the one that fits your stomach and your wallet.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th><strong>Option A: Cloudflare Tunnel</strong></th>
+<th><strong>Option B: Tailscale + cloud VPS</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>What you need</strong></td>
+<td>A domain you own + free Cloudflare account</td>
+<td>A Tailscale account + a small cloud VPS (any provider)</td>
+</tr>
+<tr>
+<td><strong>Router config</strong></td>
+<td>None</td>
+<td>None</td>
+</tr>
+<tr>
+<td><strong>Public IP needed?</strong></td>
+<td>No</td>
+<td>No (the VPS provides one)</td>
+</tr>
+<tr>
+<td><strong>Cost</strong></td>
+<td>~$10/yr for the domain; tunnel is free</td>
+<td>$0–$15/mo VPS depending on provider</td>
+</tr>
+<tr>
+<td><strong>HTTPS</strong></td>
+<td>Automatic at Cloudflare's edge</td>
+<td>You set up Let's Encrypt yourself</td>
+</tr>
+<tr>
+<td><strong>DDoS / abuse protection</strong></td>
+<td>Built in (Cloudflare)</td>
+<td>None (your VPS)</td>
+</tr>
+<tr>
+<td><strong>Traffic path</strong></td>
+<td>You → Cloudflare edge → tunnel → Pi</td>
+<td>You → VPS → Tailscale → Pi</td>
+</tr>
+<tr>
+<td><strong>Trust surface</strong></td>
+<td>Cloudflare can see your domain's traffic flow (not contents)</td>
+<td>Your VPS provider sees encrypted Tailscale traffic</td>
+</tr>
+<tr>
+<td><strong>Friction</strong></td>
+<td>Lower once set up; CF dashboard is polished</td>
+<td>More moving parts, but no third-party between you and your traffic</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Option A is what the author runs now.</strong> It moved off Option B after Oracle Cloud unceremoniously shut down the free-tier VM without warning, which is a useful data point about depending on free-tier VPS plans.</p>
+<p>If you don't want to own a domain or trust Cloudflare, Option B is still a fine setup.</p>
+<hr />
+<h2 id="option-a-cloudflare-tunnel">Option A: Cloudflare Tunnel</h2>
+<h3 id="how-it-works">How it works</h3>
+<pre><code>Your phone / laptop (anywhere)
+        |
+        | (HTTPS over the public internet)
+        |
+Cloudflare edge (terminates TLS, serves your custom domain)
+        |
+        | (encrypted tunnel established by cloudflared running on the Pi)
+        |
+Raspberry Pi (your home network, running sardine-track on localhost)
+</code></pre>
+<p>The Pi does not need a public IP. It does not need any router ports forwarded. A small daemon called <code>cloudflared</code> runs on the Pi and makes an <em>outbound</em> connection to Cloudflare's edge. When you visit <code>app.yourdomain.com</code>, Cloudflare routes the request down that tunnel to your Flask app on the Pi.</p>
+<p>Your database never leaves the Pi.</p>
+<h3 id="what-you-need">What you need</h3>
+<ul>
+<li>A Raspberry Pi (any model capable of running Python 3.9+, a Pi 4 or newer is comfortable. But if you want to get weird with it, host it on Plan 9 inside a gameboy color. I'll buy you lunch.)</li>
+<li>A domain name — buy via Cloudflare Registrar (cheapest, no markup) or transfer an existing one. ~$10/yr for <code>.com</code>, less for some TLDs.</li>
+<li>A free Cloudflare account</li>
+<li>Basic comfort with SSH and the Linux command line (<code>man -k</code> is your friend)</li>
+</ul>
+<h3 id="step-1-get-sardine-track-running-on-the-pi">Step 1: Get sardine-track running on the Pi</h3>
+<p>Follow the standard installation instructions in the README. Verify it runs on <code>http://localhost:5000</code> from the Pi itself before touching any networking. If you don't have a keyboard or screen, install headless debian onto the pi and ssh into it. You don't need a UI for any of this.</p>
+<p>The Flask app should keep listening on <code>127.0.0.1</code> (localhost). Unlike the Tailscale path, you do <strong>not</strong> need to change it to <code>0.0.0.0</code> — the tunnel runs on the Pi itself and reaches Flask via localhost.</p>
+<h3 id="step-2-add-your-domain-to-cloudflare">Step 2: Add your domain to Cloudflare</h3>
+<ol>
+<li>Sign up at <a href="https://cloudflare.com">cloudflare.com</a></li>
+<li>Add your domain. If you bought it through Cloudflare Registrar, this is automatic. If it's at another registrar, Cloudflare gives you two nameservers to set there — propagation usually takes under an hour.</li>
+<li>Confirm your domain shows &quot;Active&quot; status in the Cloudflare dashboard.</li>
+</ol>
+<h3 id="step-3-open-the-zero-trust-dashboard">Step 3: Open the Zero Trust dashboard</h3>
+<p>Cloudflare Tunnel lives under their Zero Trust product. Go to <a href="https://one.dash.cloudflare.com">one.dash.cloudflare.com</a> (recent accounts serve the same console at <code>dash.cloudflare.com/&lt;account-id&gt;/one/</code>). First time through, Zero Trust asks you to pick a team name and choose a plan — take <strong>Free</strong>. It will still walk you through payment details on the free tier and won't charge you.</p>
+<h3 id="step-4-create-a-tunnel">Step 4: Create a tunnel</h3>
+<ol>
+<li>In Zero Trust, go to <strong>Networks → Tunnels</strong></li>
+<li>Click <strong>Create a tunnel</strong>, choose <strong>Cloudflared</strong> as the connector type</li>
+<li>Name it something memorable like <code>home-pi</code> or <code>the-fish-tank</code></li>
+<li>Cloudflare gives you a one-line install command for your platform. For Raspberry Pi (64-bit OS), it looks like:</li>
+</ol>
+<pre><code class="language-bash">curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64.deb -o cloudflared.deb
+sudo dpkg -i cloudflared.deb
+sudo cloudflared service install &lt;YOUR_LONG_TOKEN&gt;
+</code></pre>
+<p>Copy the command Cloudflare shows you — it includes the token specific to your tunnel. Run it on the Pi. The <code>service install</code> step registers cloudflared as a systemd service, so it starts on boot and restarts if it crashes.</p>
+<p>Back in the dashboard, you should see the connector appear as <strong>Healthy</strong> within a few seconds.</p>
+<h3 id="step-5-route-your-subdomain-to-the-tunnel">Step 5: Route your subdomain to the tunnel</h3>
+<p>Still in the tunnel config, switch to the <strong>Public Hostnames</strong> tab. Add a hostname:</p>
+<ul>
+<li><strong>Subdomain</strong>: <code>app</code> (or whatever you want — <code>track</code>, <code>sardines</code>, your call)</li>
+<li><strong>Domain</strong>: pick your domain from the dropdown</li>
+<li><strong>Service type</strong>: <code>HTTP</code></li>
+<li><strong>URL</strong>: <code>localhost:5000</code></li>
+</ul>
+<p>Save. Cloudflare automatically creates the DNS record. Within seconds, <code>https://app.yourdomain.com</code> should serve your Flask app — with a valid HTTPS certificate, terminated at Cloudflare's edge.</p>
+<h3 id="step-6-verify">Step 6: Verify</h3>
+<p>From your phone on cellular (not your home WiFi — that's the whole point), visit <code>https://app.yourdomain.com</code>. You should see the sardine-track login page. Log in, poke around. If it works, you're done with the network side.</p>
+<h3 id="optional-add-cloudflare-access-on-top">Optional: add Cloudflare Access on top</h3>
+<p>Sardine-track has its own login, but that's one password facing the open internet. <strong>Cloudflare Access</strong> adds a second gate at Cloudflare's edge, in front of the tunnel: visitors prove who they are before a request ever reaches the Pi. Your Flask login is untouched and still applies — Access sits in front of it.</p>
+<p>Access binds to a <em>hostname</em>, not to a server. Your tunnel already answers &quot;where does this traffic go&quot;, so there is no IP, port, or protocol to enter here. If a setup wizard asks you for those, you're in the flow for people who don't have a tunnel yet — back out of it.</p>
+<h4 id="read-this-first-three-kinds-of-traffic-share-one-hostname">Read this first: three kinds of traffic share one hostname</h4>
+<pre><code>                app.yourdomain.com  (Cloudflare edge)
+                            |
+    +-----------------------+-----------------------+
+    |                       |                       |
+/portal/*                /api/*            everything else
+clinicians          phone + wearable         you, a browser
+token in the URL       bearer token           Flask login
+    |                       |                       |
+ BYPASS                  BYPASS              ALLOW + MFA
+    +-----------------------+-----------------------+
+                            |
+                    Cloudflare Tunnel
+                            |
+                      Pi -&gt; Flask :5000
+</code></pre>
+<p>Gating the whole hostname in one click breaks two of those three. Clinician portal links would land on a Cloudflare login page instead of the record, and the phone sync plus the UV wearable would get an HTML redirect where they expect JSON. Neither failure is loud — you find out when a doctor emails you, or when a week of wearable data turns out to be missing.</p>
+<p>Access resolves overlapping rules by <strong>most-specific-path-wins</strong>, so carve out the two machine-and-token lanes first, then gate everything else. Build them in that order and there's never a window where the portal is dark.</p>
+<h4 id="step-1-onboard-to-zero-trust">Step 1: Onboard to Zero Trust</h4>
+<p>Access lives in a separate console from your domain dashboard. The Access page you'll find under your domain is an advert for it, not the product. Go to <a href="https://one.dash.cloudflare.com">one.dash.cloudflare.com</a> (recent accounts serve the same console at <code>dash.cloudflare.com/&lt;account-id&gt;/one/</code>).</p>
+<p>First time through you'll pick a <strong>team name</strong> — it becomes <code>&lt;teamname&gt;.cloudflareaccess.com</code>, the host that serves your login page and sends your PIN emails. Pick something you'd recognize half-asleep; it's how you tell a real Access prompt from a phished one. Accept the auto-generated name and you'll get a random one like <code>quiet-harbor-4f21</code> instead.</p>
+<p>You'll also be asked for a plan. Choose <strong>Free</strong>. Cloudflare still walks you through payment details on the free tier and won't charge you; this setup uses one of the 50 free seats.</p>
+<h4 id="step-2-turn-on-a-login-method">Step 2: Turn on a login method</h4>
+<p><strong>Integrations → Identity providers → Add new → One-time PIN.</strong> Nothing to configure. Access emails you a single-use code that expires in 10 minutes.</p>
+<h4 id="step-3-create-the-open-lane--do-this-one-first">Step 3: Create the open lane — do this one first</h4>
+<p><strong>Access controls → Applications → Add an application → Self-hosted.</strong> Name it <code>sardine-open</code>.</p>
+<p>Under <strong>Destinations</strong>, add two public hostnames. One application can hold many destinations, and its policy applies to all of them — which is exactly what you want here, since both lanes need the same rule:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Subdomain</th>
+<th>Domain</th>
+<th>Path</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>app</code></td>
+<td><code>yourdomain.com</code></td>
+<td><code>portal/*</code></td>
+</tr>
+<tr>
+<td><code>app</code></td>
+<td><code>yourdomain.com</code></td>
+<td><code>api/*</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>Leave off the leading slash; the UI supplies it. Then <strong>Create new policy</strong> → Action <strong>Bypass</strong> → Include → <strong>Everyone</strong>, and save. (The Action selector is inside the policy form, not on the application page.)</p>
+<p>Bypass means Access doesn't inspect these paths at all. That is not a downgrade: portal links are already gated by an unguessable token that you can revoke and that expires, and every <code>/api/</code> route either checks a bearer token or is <code>@login_required</code>. They end up exactly as protected as they were before you added Access.</p>
+<p>Note that <code>portal/*</code> matches <code>/portal/&lt;token&gt;</code> but <strong>not</strong> <code>/portals</code>, your link-management page — the wildcard sits after a slash. That's deliberate, and worth verifying in Step 6 rather than assuming.</p>
+<h4 id="step-4-gate-everything-else">Step 4: Gate everything else</h4>
+<p>A second self-hosted application, named <code>sardine</code>. One destination: subdomain <code>app</code>, domain <code>yourdomain.com</code>, <strong>Path empty</strong>. Empty path means the whole hostname.</p>
+<p>Policy → Action <strong>Allow</strong> → Include → <strong>Emails</strong> → your address. Set the session duration long — a month — so you aren't re-authenticating daily.</p>
+<p>If a setup wizard already created an application for you, check the policy it generated before you attach a hostname to it. It guesses at your email, and a wrong guess locks you out of your own app.</p>
+<h4 id="step-5-add-a-real-second-factor">Step 5: Add a real second factor</h4>
+<p>Identity providers are alternative ways to prove <em>who</em> you are. Enabling two of them (say, one-time PIN and a Cloudflare account) gives you two front doors, not a door and a deadbolt — an attacker takes whichever is weaker. If you stop here, your real second factor is whatever protects your email account.</p>
+<p>For an explicit second factor, use <strong>Independent MFA</strong> — Cloudflare enforces it itself, so you don't need a Google or Okta account in the loop:</p>
+<ol>
+<li><strong>Access controls → Access settings</strong> → enable Independent MFA and tick the methods you'll accept: authenticator app (TOTP), security key, or biometrics (Touch ID, Face ID, Windows Hello). This is the organization-wide switch.</li>
+<li>On the <code>sardine</code> application → <strong>Authentication → MFA</strong> tab → <strong>Custom MFA settings</strong>. Choose which of those methods this application accepts, and set <strong>Authentication duration</strong> — how often Access re-challenges you. &quot;Require every login&quot; is the strict setting; every 24 hours is a reasonable middle if you gave the application a long session duration in Step 4.</li>
+<li>Enroll your own device: sign in at <code>&lt;teamname&gt;.cloudflareaccess.com</code> → Account settings → <strong>MFA devices</strong>.</li>
+</ol>
+<p>Note the direction of travel between those first two steps. The application's MFA tab can only <em>narrow</em> what the organization already allows — it can't add a method. If that tab offers you nothing selectable, step 1 isn't done.</p>
+<p>Enroll while you still have a working session, and keep that browser open until a <em>second</em>, private window has logged in and cleared the MFA prompt. You are probably the only administrator on this account, so there is nobody to let you back in.</p>
+<h4 id="step-6-verify-every-lane-before-you-trust-it">Step 6: Verify every lane before you trust it</h4>
+<p>Check each lane from something with no cookies and no session — a private window, or curl from a different machine. A setup that's wrong in one lane looks completely fine from the lane you happen to test.</p>
+<pre><code class="language-bash">APP=https://app.yourdomain.com
+curl -s -o /dev/null -w 'root      %{http_code} %{redirect_url}\n' $APP/
+curl -s -o /dev/null -w 'portals   %{http_code}\n' $APP/portals
+curl -s -o /dev/null -w 'portal    %{http_code}\n' $APP/portal/badtoken
+curl -s -w '\nsync      %{http_code}\n' -X POST -H 'Content-Type: application/json' \
+     -d '{}' $APP/api/health-sync
+</code></pre>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Request</th>
+<th>Expect</th>
+<th>What it proves</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/</code></td>
+<td>302 to <code>&lt;teamname&gt;.cloudflareaccess.com</code></td>
+<td>the gate is live</td>
+</tr>
+<tr>
+<td><code>/portals</code></td>
+<td>302 to Access</td>
+<td>management page is gated — the wildcard didn't leak</td>
+</tr>
+<tr>
+<td><code>/portal/badtoken</code></td>
+<td><strong>403</strong> from sardine-track</td>
+<td>bypass works; traffic reached the Pi</td>
+</tr>
+<tr>
+<td><code>POST /api/health-sync</code></td>
+<td><strong>401</strong> <code>{&quot;error&quot;:&quot;unauthorized&quot;}</code></td>
+<td>bypass works; bearer auth still enforced</td>
+</tr>
+</tbody>
+</table></div>
+<p>One quirk that looks like a failure and isn't: a <strong>GET</strong> on <code>/api/health-sync</code> redirects to <code>/login</code> rather than returning 401. That's sardine-track's own <code>require_login</code>, which sees <code>request.endpoint</code> as <code>None</code> on a 405 method mismatch. The POST path — the one your phone and wearable actually use — returns clean JSON. Test with POST.</p>
+<p><strong>Three things curl cannot tell you.</strong> MFA fires <em>after</em> identity, behind the login — from the outside, a gate with MFA and a gate without it are byte-identical. That's the point of it, and it's also why you have to check these by hand:</p>
+<ul>
+<li>Click a real portal link and confirm the record still renders. A 403 on a bad token proves traffic reaches the Pi; only a live token proves the page still draws.</li>
+<li>Sign in from a private window. You should hit, in order: the Access login → your PIN or identity provider → <strong>an authenticator challenge</strong> → <em>then</em> the sardine-track Flask login. If that third step doesn't appear and you land straight on the Flask login, MFA is configured but not enforcing — check the organization switch and the Authentication duration.</li>
+<li>Confirm your phone actually completes a sync, rather than trusting the 401 above. The 401 proves Access let the request through to Flask; it doesn't prove your token is still right.</li>
+</ul>
+<p>Keep that table somewhere you can reach when the site <em>isn't</em> reachable. <a href="/docs/troubleshooting">troubleshooting</a> has it alongside symptom-by-symptom triage for the rest of the stack — tunnel, Tailscale, backups, and the portal and API lanes.</p>
+<h3 id="sardine-track-sees-cloudflare-ips-not-real-user-ips">Sardine-track sees Cloudflare IPs, not real user IPs</h3>
+<p>Behind a Cloudflare tunnel, <code>request.remote_addr</code> in Flask is a Cloudflare edge IP, not the actual visitor's IP. If you need the real client IP (for logging, rate limiting, etc.), Cloudflare passes it in the <code>CF-Connecting-IP</code> header. Flask doesn't read it by default; for sardine-track's purposes (a personal app with login) you likely don't need to bother.</p>
+<hr />
+<h2 id="option-b-tailscale--a-cloud-vps">Option B: Tailscale + a cloud VPS</h2>
+<p>This is the original setup. It works without owning a domain (you can use the VPS's raw IP), at the cost of needing a small cloud server somewhere.</p>
+<h3 id="how-it-works-1">How it works</h3>
+<pre><code>Your phone / laptop (anywhere)
+        |
+        | (HTTPS to the VPS's public IP)
+        |
+Cloud VPS (public IP, runs nginx as reverse proxy, runs Tailscale)
+        |
+        | (Tailscale encrypted tunnel)
+        |
+Raspberry Pi (your home network, runs Tailscale + sardine-track)
+        |
+        | (localhost)
+        |
+sardine-track app + SQLite database
+</code></pre>
+<p>Your database never leaves the Raspberry Pi. The VPS sees only encrypted Tailscale traffic — it cannot read the contents. Your phone connects to the VPS's public IP, which proxies through Tailscale to the Pi.</p>
+<h3 id="what-you-need-1">What you need</h3>
+<ul>
+<li>A Raspberry Pi (see notes above)</li>
+<li>A Tailscale account (free tier is sufficient)</li>
+<li>A small cloud VPS — any provider works. Hetzner CX11 (~$4/mo), DigitalOcean droplet (~$6/mo), Linode nanode (~$5/mo) are all fine. Oracle's &quot;always-free&quot; tier <em>technically</em> works but the author had her free VM shut down without warning, so plan for that possibility if you go that route.</li>
+<li>A DNS name if you want a human-readable URL (optional)</li>
+<li>Basic comfort with SSH and the Linux command line</li>
+<li>Starlink or any ISP — this setup works without a static public IP at home, which is the point</li>
+</ul>
+<h3 id="step-1-install-sardine-track-on-the-raspberry-pi">Step 1: Install sardine-track on the Raspberry Pi</h3>
+<p>Same as Option A — get it running on <code>http://localhost:5000</code> first. For this path, you'll need to change the bind address in step 6 below.</p>
+<h3 id="step-2-install-tailscale-on-the-raspberry-pi">Step 2: Install Tailscale on the Raspberry Pi</h3>
+<pre><code class="language-bash">curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
+</code></pre>
+<p>Follow the authentication link. The Pi will appear in your Tailscale admin console with a Tailscale IP (usually in the <code>100.x.x.x</code> range).</p>
+<h3 id="step-3-provision-your-cloud-vps">Step 3: Provision your cloud VPS</h3>
+<p>Pick a provider, spin up the smallest VM they offer running Ubuntu 22.04 LTS (or whatever Debian-family OS you prefer). Note the public IP. Don't lose your SSH key.</p>
+<p>SSH in and install Tailscale on the VPS too:</p>
+<pre><code class="language-bash">curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
+</code></pre>
+<p>Both the Pi and the VPS should now appear in your Tailscale admin console.</p>
+<h3 id="step-4-configure-the-vps-as-a-reverse-proxy">Step 4: Configure the VPS as a reverse proxy</h3>
+<p>Install nginx on the VPS:</p>
+<pre><code class="language-bash">sudo apt update &amp;&amp; sudo apt install nginx -y
+</code></pre>
+<p>Create a config at <code>/etc/nginx/sites-available/sardinetrack</code>:</p>
+<pre><code class="language-nginx">server {
+    listen 80;
+    server_name YOUR_VPS_PUBLIC_IP;
+
+    # Basic auth is strongly recommended — see security notes below
+    # auth_basic &quot;sardinetrack&quot;;
+    # auth_basic_user_file /etc/nginx/.htpasswd;
+
+    location / {
+        proxy_pass http://YOUR_PI_TAILSCALE_IP:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+</code></pre>
+<p>Replace <code>YOUR_VPS_PUBLIC_IP</code> and <code>YOUR_PI_TAILSCALE_IP</code> with the actual values.</p>
+<p>Enable the config:</p>
+<pre><code class="language-bash">sudo ln -s /etc/nginx/sites-available/sardinetrack /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
+</code></pre>
+<h3 id="step-5-open-the-firewall-on-the-vps">Step 5: Open the firewall on the VPS</h3>
+<p>Open port 80 (and 443 if you add HTTPS):</p>
+<pre><code class="language-bash">sudo ufw allow 80
+sudo ufw allow 443
+sudo ufw enable
+</code></pre>
+<p>If your provider has a separate cloud-level firewall (Oracle did, AWS does), open those ports in their console too.</p>
+<h3 id="step-6-start-sardine-track-on-the-pi-listening-on-tailscales-interface">Step 6: Start sardine-track on the Pi listening on Tailscale's interface</h3>
+<p>By default sardine-track listens on <code>127.0.0.1</code> only. To accept Tailscale traffic from the VPS, edit <code>app.py</code> and change:</p>
+<pre><code class="language-python">host='127.0.0.1'
+</code></pre>
+<p>to:</p>
+<pre><code class="language-python">host='0.0.0.0'
+</code></pre>
+<p>Restart the app. You should now be able to reach it from your VPS's public IP. And if you dig around the Tailscale options you can even give your Pi a nifty easy-remember-name.</p>
+<p><strong>Keep it running:</strong>
+Use systemd, screen, or tmux so the app doesn't die when you close SSH:</p>
+<pre><code class="language-bash">screen -S sardinetrack
+python3 app.py
+# Ctrl+A, D to detach
+</code></pre>
+<h3 id="tailscale-funnel--a-third-option-briefly">Tailscale Funnel — a third option, briefly</h3>
+<p>Tailscale offers a feature called <strong>Funnel</strong> that lets you expose a tailnet service to the public internet <em>without</em> a separate VPS. It uses Tailscale's edge as the public-facing layer. As of writing it's free for personal use with limits.</p>
+<p>It's a reasonable middle ground if you want to skip the VPS but don't want Cloudflare in the loop. Setup is essentially: <code>tailscale funnel 5000</code> on the Pi. Their docs cover it well.</p>
+<hr />
+<h2 id="security-notes--please-read-these-apply-to-both-options">Security Notes — Please Read These (apply to both options)</h2>
+<h3 id="use-a-strong-password-on-sardine-track-itself">Use a strong password on sardine-track itself</h3>
+<p>Whichever path you choose, sardine-track's own login is the last line of defense. Use a real password — long, unique, not your email password, not your phone PIN.</p>
+<h3 id="add-another-auth-layer-if-you-can">Add another auth layer if you can</h3>
+<ul>
+<li><strong>Option A</strong>: Cloudflare Access (free) — an identity gate at Cloudflare's edge in front of the Flask login, with optional authenticator-app MFA. See <a href="#optional-add-cloudflare-access-on-top">Optional: add Cloudflare Access on top</a> above; it needs path carve-outs for <code>/portal/*</code> and <code>/api/*</code> or it will break clinician links and device sync.</li>
+<li><strong>Option B</strong>: nginx basic auth (the commented lines in the config above) — uncomment them, then:</li>
+</ul>
+<pre><code class="language-bash">sudo apt install apache2-utils
+sudo htpasswd -c /etc/nginx/.htpasswd yourname
+</code></pre>
+<h3 id="https">HTTPS</h3>
+<ul>
+<li><strong>Option A</strong>: handled automatically by Cloudflare at the edge.</li>
+<li><strong>Option B</strong>: you need to set this up yourself. Get a domain pointed at the VPS, then:</li>
+</ul>
+<pre><code class="language-bash">sudo apt install certbot python3-certbot-nginx
+sudo certbot --nginx -d your.domain.com
+</code></pre>
+<p>Without HTTPS on Option B, your health data travels in plaintext between your phone and the VPS. Tailscale encrypts the VPS-to-Pi leg, not the you-to-VPS leg.</p>
+<h3 id="keep-software-updated">Keep software updated</h3>
+<pre><code class="language-bash">sudo apt update &amp;&amp; sudo apt upgrade -y
+</code></pre>
+<p>Run this on the Pi (and, for Option B, on the VPS) regularly. Unpatched software is how things go wrong.</p>
+<h3 id="understand-your-tailscale-acls-option-b-only">Understand your Tailscale ACLs (Option B only)</h3>
+<p>By default Tailscale allows all devices in your network to talk to each other. Review your ACL settings in the Tailscale admin console and restrict access to only what is needed.</p>
+<h3 id="monitor">Monitor</h3>
+<ul>
+<li><strong>Option A</strong>: Cloudflare's Analytics tab shows you traffic. Check it occasionally for anything weird.</li>
+<li><strong>Option B</strong>: your VPS provider's monitoring + your nginx access logs. Same idea.</li>
+</ul>
+<hr />
+<h2 id="on-starlink-specifically">On Starlink Specifically</h2>
+<p>Starlink uses carrier-grade NAT (CGNAT) which means you do not get a static public IP and cannot port-forward directly. Both options here handle that:</p>
+<ul>
+<li><strong>Option A</strong>: the Pi opens an outbound tunnel — CGNAT can't block outbound connections.</li>
+<li><strong>Option B</strong>: same — both the Pi and the VPS open outbound Tailscale connections; the VPS just happens to also have its own public IP for the world to reach.</li>
+</ul>
+<p>This works on any CGNAT'd ISP, not just Starlink.</p>
+<hr />
+<h2 id="you-can-always-go-back">You Can Always Go Back</h2>
+<p>If any of this feels wrong, too complex, or like you've exposed something you didn't mean to — stop. Your data on the Pi is unaffected.</p>
+<p><strong>Option A</strong>: in the Cloudflare dashboard, go to your tunnel and click <strong>Delete</strong>. The DNS record disappears. cloudflared keeps running but has nowhere to route. Stop it with <code>sudo systemctl stop cloudflared</code> if you want it gone entirely.</p>
+<p><strong>Option B</strong>: stop nginx on the VPS:</p>
+<pre><code class="language-bash">sudo systemctl stop nginx
+</code></pre>
+<p>Done. You're local only again either way.</p>
+<hr />
+<h2 id="auto-sync-from-apple-health">Auto-Sync from Apple Health</h2>
+<p>You don't have to type biometrics in by hand. Two options, pick the one that fits.</p>
+<h3 id="option-a-sardinessync-native-ios-app-recommended-if-you-have-a-mac">Option A: sardinessync native iOS app (recommended if you have a Mac)</h3>
+<p><strong><a href="https://github.com/alaricmoore/sardinessync">sardinessync</a></strong> is a native SwiftUI companion app that reads HealthKit on your iPhone, computes RMSSD on-device from raw RR intervals, and POSTs the result to your sardine-track instance. It's in its own repo because the iOS code and the Flask code evolve on different cadences.</p>
+<p><strong>Why this and not the App Store?</strong> It's not in the App Store. I don't pay Apple $99 a year to list a tool that runs on my own server, talks only to my own server, and has one user. You build it yourself in Xcode.</p>
+<p><strong>What you need:</strong> a Mac with Xcode installed, and an Apple ID. No developer account required.</p>
+<p><strong>Free-signing reality:</strong> with a free personal Apple ID, builds work but the cert expires every 7 days — you plug the phone back into Xcode and hit build-run again, about 2 minutes. If you pay Apple $99/year, builds last a year. I free-sign; weekly rebuild is an annoyance, not a blocker.</p>
+<p><strong>What it syncs that the Shortcut route can't:</strong></p>
+<ul>
+<li><strong>RMSSD</strong> — requires raw RR interval data, which Apple doesn't expose to Shortcuts. The native app reads it and computes RMSSD on-device during an overnight window (10pm-8am).</li>
+<li><strong>Time in Daylight</strong> (sun exposure minutes) — Apple tracks this on the watch but hides it from Shortcuts.</li>
+<li><strong>Respiratory rate</strong> and <strong>SpO2</strong> — same story.</li>
+</ul>
+<p>Full walkthrough in the sardinessync repo's README. Short version:</p>
+<ol>
+<li>Clone the repo on your Mac</li>
+<li>Open the <code>.xcodeproj</code> in Xcode</li>
+<li>In <strong>Signing &amp; Capabilities</strong>, set Team to your personal Apple ID and change the bundle identifier to something unique (e.g. <code>com.yourname.sardinessync</code>)</li>
+<li>Plug in your iPhone (not the Simulator — HealthKit only works on real devices)</li>
+<li>Hit build; trust the dev cert on the phone (Settings → General → VPN &amp; Device Management)</li>
+<li>In the app, set the server URL (<code>https://your-sardinetrack-instance/api/health-sync</code>) and the bearer token from your <code>config.json</code></li>
+<li>Grant HealthKit permissions</li>
+<li>&quot;Sync Now&quot; should report <code>synced N fields: steps, hrv, rmssd, ...</code></li>
+</ol>
+<p>It then runs automatically in the background overnight. Flare alerts and medication dose reminders arrive as local push notifications.</p>
+<p><strong>Xcode sucks. Hard.</strong> If you're reading this after the third &quot;Command failed due to signal: Segmentation fault: 11&quot; — I'm sorry, we've all been there.</p>
+<h3 id="option-b-ios-shortcut-no-mac-required">Option B: iOS Shortcut (no Mac required)</h3>
+<p>Good fallback if you don't have a Mac or don't want to touch Xcode. This uses the built-in Shortcuts app, no code.</p>
+<p><strong>What it syncs:</strong> steps, HRV (SDNN, not RMSSD), resting heart rate, and basal body temperature (delta).</p>
+<p><strong>What it doesn't sync:</strong> RMSSD (requires raw RR intervals — native-app-only), sleep (enter manually — Apple Health struggles with polyphasic sleep and sleepwalking), sun exposure minutes (Apple doesn't expose Time in Daylight to Shortcuts despite tracking it on the watch), respiratory rate, SpO2, and period flow (use sardine-track directly — it's better at cycle tracking than Apple Health anyway).</p>
+<h3 id="setup">Setup</h3>
+<p>Your sardine-track instance has an API endpoint at <code>/api/health-sync</code> that accepts health data via a secure token. The token is in your <code>config.json</code> file on the Pi (generated when you run <code>setup.py</code>). Treat this token like a password.</p>
+<h3 id="building-the-shortcut">Building the Shortcut</h3>
+<p>Open the <strong>Shortcuts</strong> app on your iPhone and create a new shortcut:</p>
+<p><strong>1. Get today's date</strong></p>
+<ul>
+<li>Add a <strong>Date</strong> action</li>
+<li>Add a <strong>Format Date</strong> action, set format to <strong>Custom</strong>: <code>yyyy-MM-dd</code></li>
+</ul>
+<p><strong>2. Pull health data</strong></p>
+<p>Add four <strong>Find Health Samples</strong> actions, one for each metric:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Sample Type</th>
+<th>Sort By</th>
+<th>Limit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Step Count</td>
+<td>Start Date, Most Recent</td>
+<td>1</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Heart Rate Variability</td>
+<td>Start Date, Most Recent</td>
+<td>1</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Resting Heart Rate</td>
+<td>Start Date, Most Recent</td>
+<td>1</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Body Temperature</td>
+<td>Start Date, Most Recent</td>
+<td>1</td>
+</tr>
+</tbody>
+</table></div>
+<p>For Step Count, make sure you're getting the <strong>sum for the day</strong>, not just the most recent sample.</p>
+<p><strong>3. Build the request</strong></p>
+<p>Add a <strong>Dictionary</strong> action with these keys:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Type</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>user_id</td>
+<td>Number</td>
+<td>Your user ID (usually 1)</td>
+</tr>
+<tr>
+<td>date</td>
+<td>Text</td>
+<td><em>select the Formatted Date from step 1</em></td>
+</tr>
+<tr>
+<td>steps</td>
+<td>Number</td>
+<td><em>select result from step 2, action 1</em></td>
+</tr>
+<tr>
+<td>hrv</td>
+<td>Number</td>
+<td><em>select result from step 2, action 2</em></td>
+</tr>
+<tr>
+<td>resting_heart_rate</td>
+<td>Number</td>
+<td><em>select result from step 2, action 3</em></td>
+</tr>
+<tr>
+<td>basal_temp_delta</td>
+<td>Number</td>
+<td><em>select result from step 2, action 4</em></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>4. Send it</strong></p>
+<p>Add a <strong>Get Contents of URL</strong> action:</p>
+<ul>
+<li>URL: <code>https://your-sardinetrack-instance/api/health-sync</code></li>
+<li>Method: <strong>POST</strong></li>
+<li>Headers:
+<ul>
+<li><code>Authorization</code>: <code>Bearer YOUR_TOKEN_HERE</code></li>
+<li><code>Content-Type</code>: <code>application/json</code></li>
+</ul>
+</li>
+<li>Request Body: <strong>JSON</strong> — select the Dictionary from step 3</li>
+</ul>
+<p><strong>5. Test it</strong></p>
+<p>Tap the play button to run the shortcut. You should see a response like <code>{&quot;ok&quot;: true, &quot;fields_updated&quot;: [&quot;steps&quot;, &quot;hrv&quot;, ...]}</code>. Check your sardine-track daily entry to confirm the values appeared.</p>
+<p><strong>6. Automate it</strong></p>
+<p>Go to the <strong>Automation</strong> tab in the Shortcuts app:</p>
+<ul>
+<li>Tap <strong>+</strong>, choose a trigger:
+<ul>
+<li><strong>&quot;Bedtime begins&quot;</strong> — syncs when your wind-down starts (recommended)</li>
+<li><strong>&quot;Time of Day&quot;</strong> — set to 11:50 PM daily</li>
+</ul>
+</li>
+<li>Set to <strong>Run Immediately</strong> so it doesn't ask for confirmation</li>
+<li>Select your Health Sync shortcut</li>
+</ul>
+<p>Once set up, your phone will quietly sync your health data every night without you lifting a finger. On bad days, that's one less thing to worry about.</p>
+<h3 id="security-note">Security Note</h3>
+<p>The API token in your Shortcut has write access to your health data. It can only write a limited set of biometric fields (steps, HRV, heart rate, temperature, sun minutes) and cannot touch symptoms, flare status, medications, or notes. But still — don't share your Shortcut with anyone unless you trust them with your sardine-track login.</p>
+<hr />
+<h2 id="final-note">Final Note</h2>
+<p>This guide describes two specific setups, both of which the author has actually run. There are other valid patterns (WireGuard direct, ZeroTier, Headscale, plain VPN, etc.) and what's documented here is not the only way. Security is not a product, it's a practice. The threat model for your health data is yours to assess.</p>
+<p>If you are a domestic violence survivor, a person in an unsafe living situation, or someone whose health data could be used against them in any context — think carefully before putting any of this on the internet in any form. Local only may be the right choice permanently.</p>
+<p>Take care of your data the way you take care of yourself. Carefully, with attention, and with the understanding that you are worth protecting.</p>
+<hr />
+<p><em>This document is provided for informational purposes only. The author is not responsible for security outcomes resulting from network configuration choices made by users of this software.</em></p>
+</article>
+  </div>
+  <div class="wrap backto"><a href="/docs">&#8592; all documentation</a></div>
+</main>
+<footer>
+  <div class="wrap">
+    <div class="links">
+      <a href="/">sardinetracker.com</a>
+      <a href="https://github.com/alaricmoore/sardinetracker">source &#8599;</a>
+      <a href="https://github.com/alaricmoore/sardinetracker/blob/main/MODEL.md">how the model works &#8599;</a>
+      <a href="https://github.com/alaricmoore/sardinetracker/blob/main/LICENSE">AGPL-3.0 &#8599;</a>
+    </div>
+    <p>A one-person project, built between doctor appointments, machine repair, and terrariums.
+       Not medical advice; always consult qualified clinicians. Trust your observations.
+       Keep asking questions.</p>
+  </div>
+</footer>
+</body>
+</html>

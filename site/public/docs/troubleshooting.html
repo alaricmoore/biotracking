@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Troubleshooting &#8212; sardinetracker</title>
+<meta name="description" content="Symptom-first triage for a deployed instance. What to check, in what order, when the site won&#x27;t load or a device stops syncing.">
+<link rel="canonical" href="https://sardinetracker.com/docs/troubleshooting">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://sardinetracker.com/docs/troubleshooting">
+<meta property="og:site_name" content="sardinetracker">
+<meta property="og:title" content="Troubleshooting &#8212; sardinetracker">
+<meta property="og:description" content="Symptom-first triage for a deployed instance. What to check, in what order, when the site won&#x27;t load or a device stops syncing.">
+<meta property="og:image" content="https://sardinetracker.com/og-image.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,300;1,8..60,400&amp;family=IBM+Plex+Mono:wght@300;400&amp;display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0e0e12; --surface:#16161d; --elevated:#1e1e28;
+    --line:#2a2a38; --line2:#38384a;
+    --ink:#ffffff; --ink2:rgb(202,196,223); --muted:rgb(159,157,183);
+    --accent:#7a8de0; --flare:#e05656;
+    --display:'Playfair Display','Times New Roman',Georgia,serif;
+    --body:'Source Serif 4','Times New Roman',Georgia,serif;
+    --mono:'IBM Plex Mono','Courier New',monospace;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html{font-size:16px;scroll-behavior:smooth}
+  @media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto} }
+  body{background:var(--bg);color:var(--ink);font-family:var(--body);font-weight:300;line-height:1.65}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  a:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px}
+  .wrap{max-width:920px;margin:0 auto;padding:0 24px}
+  code,.mono{font-family:var(--mono);font-size:.875em;color:var(--ink2)}
+
+  header{border-bottom:1px solid var(--line);position:sticky;top:0;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);z-index:10}
+  .nav{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:14px 0;flex-wrap:wrap}
+  .wordmark{font-family:var(--display);font-weight:700;font-size:1.15rem;color:var(--ink);letter-spacing:.02em}
+  .wordmark span{color:var(--accent)}
+  .nav ul{display:flex;gap:20px;list-style:none;flex-wrap:wrap}
+  .nav ul a{font-family:var(--mono);font-size:.8rem;color:var(--ink2)}
+  .nav ul a.here{color:var(--accent)}
+
+  .dochead{padding:56px 0 30px;border-bottom:1px solid var(--line)}
+  .eyebrow{font-family:var(--mono);font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:16px}
+  .dochead h1{font-family:var(--display);font-weight:600;font-size:clamp(1.9rem,5vw,2.9rem);line-height:1.14;letter-spacing:-.01em;max-width:18ch}
+  .dochead p{font-size:1.05rem;color:var(--ink2);max-width:60ch;margin-top:18px}
+
+  .layout{display:grid;grid-template-columns:210px 1fr;gap:52px;padding:40px 0 20px;align-items:start}
+  @media(max-width:860px){.layout{grid-template-columns:1fr;gap:26px}}
+
+  .toc{position:sticky;top:78px;font-family:var(--mono);font-size:.76rem;line-height:1.5}
+  .toc .lbl{color:var(--muted);letter-spacing:.08em;text-transform:uppercase;font-size:.68rem;display:block;margin-bottom:12px}
+  .toc ul{list-style:none;display:flex;flex-direction:column;gap:9px}
+  .toc a{color:var(--ink2);display:block}
+  .toc .h3{padding-left:12px;border-left:1px solid var(--line);color:var(--muted)}
+  @media(max-width:860px){
+    .toc{position:static;max-height:172px;overflow-y:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+  }
+
+  .prose{min-width:0;font-size:1.02rem;color:var(--ink2)}
+  .prose > *+*{margin-top:20px}
+  .prose h2{font-family:var(--display);font-weight:600;font-size:clamp(1.35rem,2.6vw,1.75rem);color:var(--ink);margin-top:52px;line-height:1.25;scroll-margin-top:86px}
+  .prose h3{font-family:var(--body);font-weight:600;font-size:1.12rem;color:var(--ink);margin-top:38px;scroll-margin-top:86px}
+  .prose h4{font-family:var(--mono);font-weight:400;font-size:.86rem;letter-spacing:.05em;text-transform:uppercase;color:var(--accent);margin-top:32px;scroll-margin-top:86px}
+  .prose h2+*,.prose h3+*,.prose h4+*{margin-top:12px}
+  .prose p{max-width:68ch}
+  .prose strong{color:var(--ink);font-weight:600}
+  .prose em{font-style:italic}
+  .prose ul,.prose ol{padding-left:22px;max-width:68ch;display:flex;flex-direction:column;gap:8px}
+  .prose li{padding-left:4px}
+  .prose li::marker{color:var(--muted)}
+  .prose blockquote{border-left:3px solid var(--accent);background:var(--surface);border-radius:0 8px 8px 0;padding:14px 18px;font-style:italic;max-width:66ch}
+  .prose blockquote p{max-width:none}
+  .prose hr{border:0;border-top:1px solid var(--line);margin:44px 0}
+  .prose code{background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:1px 5px;color:var(--ink2);white-space:nowrap}
+  .prose pre{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 20px;overflow-x:auto;line-height:1.75}
+  .prose pre code{background:none;border:0;padding:0;font-size:.82rem;white-space:pre;color:var(--ink2)}
+  .prose .tablewrap{overflow-x:auto}
+  .prose table{border-collapse:collapse;width:100%;font-size:.92rem;min-width:520px}
+  .prose th{text-align:left;font-family:var(--mono);font-weight:400;font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:0 14px 9px 0;border-bottom:1px solid var(--line2);vertical-align:bottom}
+  .prose td{padding:12px 14px 12px 0;border-bottom:1px solid var(--line);vertical-align:top}
+  .prose td:first-child{color:var(--ink)}
+  .prose tr:last-child td{border-bottom:0}
+  .prose a code{color:var(--accent)}
+
+  .srconly{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .backto{font-family:var(--mono);font-size:.78rem;color:var(--muted);padding:26px 0 0}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-top:34px}
+  .card{background:var(--surface);padding:22px 24px;display:flex;flex-direction:column;gap:8px}
+  .card h2{font-family:var(--display);font-weight:600;font-size:1.2rem;color:var(--ink);margin:0}
+  .card p{font-size:.93rem;color:var(--ink2);margin:0}
+  .card .go{font-family:var(--mono);font-size:.76rem;margin-top:auto;padding-top:8px}
+
+  footer{border-top:1px solid var(--line);padding:36px 0 60px;color:var(--muted);font-size:.85rem;margin-top:56px}
+  footer .links{display:flex;gap:20px;flex-wrap:wrap;font-family:var(--mono);font-size:.8rem;margin-bottom:16px}
+  footer p{max-width:70ch}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap nav">
+    <div class="wordmark"><a href="/" style="color:inherit">sardine<span>tracker</span></a></div>
+    <ul><li><a href="/docs/remote-access">remote access</a></li><li><a class="here" href="/docs/troubleshooting">troubleshooting</a></li><li><a href="/docs/help">help</a></li><li><a href="https://github.com/alaricmoore/sardinetracker">github &#8599;</a></li></ul>
+  </div>
+</header>
+<main>
+  <div class="wrap dochead">
+    <p class="eyebrow">documentation</p>
+    <h1>Troubleshooting</h1>
+    <p>Symptom-first triage for a deployed instance. What to check, in what order, when the site won&#x27;t load or a device stops syncing.</p>
+  </div>
+  <div class="wrap layout">
+    <nav class="toc" aria-label="On this page"><span class="lbl">On this page</span><ul><li><a href="#placeholders">Placeholders</a></li><li><a href="#the-map">The map</a></li><li><a href="#three-front-doors-one-database">Three front doors, one database</a></li><li><a href="#a--the-site-wont-load">A — the site won&#x27;t load</a></li><li><a href="#b--you-cant-ssh-to-the-pi">B — you can&#x27;t SSH to the Pi</a></li><li><a href="#c--backups-have-stopped-arriving">C — backups have stopped arriving</a></li><li><a href="#d--someone-says-their-portal-link-is-dead">D — someone says their portal link is dead</a></li><li><a href="#e--a-phone-or-device-stopped-syncing">E — a phone or device stopped syncing</a></li><li><a href="#the-cold-check">The cold check</a></li></ul></nav>
+    <article class="prose"><p>A symptom-first triage guide. It assumes the <strong>Option A</strong> topology from
+<a href="/docs/remote-access">remote access</a>: Flask on a Raspberry Pi at home, a Cloudflare Tunnel
+to a public hostname, optionally Cloudflare Access in front of it, and Tailscale for admin
+access. If you're on Option B, the Flask and backup sections still apply — the Cloudflare
+ones don't.</p>
+<p>Everything here is organized by <strong>what you actually see first</strong>, not by which component
+failed. That's deliberate: several very different faults present as &quot;the site is down&quot;, and
+the fastest way out is to tell them apart before you start fixing.</p>
+<h2 id="placeholders">Placeholders</h2>
+<p>Substitute your own values throughout. Where an address appears, <code>x</code> stands in for a digit.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Placeholder</th>
+<th>Yours will look like</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>app.yourdomain.com</code></td>
+<td>the public hostname routed to your tunnel</td>
+</tr>
+<tr>
+<td><code>&lt;pi-hostname&gt;</code></td>
+<td>your Pi's hostname, e.g. what you set at first boot</td>
+</tr>
+<tr>
+<td><code>192.168.x.x</code></td>
+<td>your actual LAN IP for the Pi — find it with <code>ip addr</code> on the Pi, or <code>ping &lt;pi-hostname&gt;.local</code></td>
+</tr>
+<tr>
+<td><code>100.x.x.x</code></td>
+<td>your actual Tailscale IP for the Pi — <code>tailscale ip -4</code> on the Pi</td>
+</tr>
+<tr>
+<td><code>&lt;your-team-name&gt;</code></td>
+<td>your Zero Trust team name, <code>&lt;team&gt;.cloudflareaccess.com</code></td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="the-map">The map</h2>
+<pre><code> CLIENTS                  CLOUDFLARE EDGE              HOME (behind CGNAT)
+
+ you, a browser  ------&gt;  +---------------------+
+ MFA + login              | Access gate         |
+                          |   whole hostname    |
+ clinician       ------&gt;  +---------------------+       +------------------+
+ token in URL             | Bypass  /portal/*   | ====&gt; | Pi &lt;pi-hostname&gt; |
+                          +---------------------+ tunnel|  flask :5000     |
+ phone/wearable  ------&gt;  | Bypass  /api/*      |       |  cloudflared     |
+ bearer token             +---------------------+       |  tailscaled      |
+                                                        +--------+---------+
+                                                                 |
+                                                                 v
+                                                         biotracking.db
+ ---------------------------------------------------------------------------
+ you, admin (ssh) ---+
+                     +--- Tailscale, does not touch Cloudflare ---&gt; (same Pi)
+ backup machine   ---+
+</code></pre>
+<p>The two halves share only their destination. <strong>A Tailscale fault and a Cloudflare fault are
+never the same fault</strong> — an expired Tailscale key takes out SSH and your backups while the
+public site keeps serving perfectly, and a tunnel or Access problem does the reverse. Half
+of triage is working out which half you're in.</p>
+<h2 id="three-front-doors-one-database">Three front doors, one database</h2>
+<p>If you've added Access and the portal, three independent credentials now reach the same
+SQLite file. They're issued, revoked and broken separately — changing your own password does
+nothing to the other two.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Who</th>
+<th>Credential</th>
+<th>Skips</th>
+<th>Revoke by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>You</td>
+<td>Access identity + MFA, then the Flask login</td>
+<td>nothing</td>
+<td>Access policy, or change the password</td>
+</tr>
+<tr>
+<td>Clinicians</td>
+<td>capability token in the URL, time-limited, logged</td>
+<td>Access <strong>and</strong> the Flask login</td>
+<td><code>/portals</code> → revoke</td>
+</tr>
+<tr>
+<td>Phone apps</td>
+<td><code>api_token</code> bearer header</td>
+<td>Access <strong>and</strong> the Flask login</td>
+<td>rotate in <code>config.json</code>, re-enter on each device</td>
+</tr>
+<tr>
+<td>A device / wearable</td>
+<td><code>wearable_token</code> bearer header</td>
+<td>Access <strong>and</strong> the Flask login</td>
+<td>rotate in <code>config.json</code>, then reflash the device</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="a--the-site-wont-load">A — the site won't load</h2>
+<ol>
+<li>
+<p><strong>Check it cold</strong>, from cellular rather than your home WiFi.</p>
+<pre><code class="language-bash">curl -sI https://app.yourdomain.com/ | head -1
+</code></pre>
+<p>A <code>302</code> toward <code>&lt;your-team-name&gt;.cloudflareaccess.com</code> is <strong>healthy</strong> — that's the Access
+gate doing its job, not an error.</p>
+</li>
+<li>
+<p>A Cloudflare <strong>error 1033</strong> or an Argo Tunnel error page means the edge is up but
+<code>cloudflared</code> isn't connected. The fault is on the Pi side — skip to step 4.</p>
+</li>
+<li>
+<p><strong>Get to the Pi.</strong> Try the LAN name first; it works even when Tailscale doesn't.</p>
+<pre><code class="language-bash">ssh you@&lt;pi-hostname&gt;.local
+</code></pre>
+<p>No route at all? That's section B, a different failure.</p>
+</li>
+<li>
+<p><strong>On the Pi, separate Flask from the tunnel.</strong></p>
+<pre><code class="language-bash">systemctl status cloudflared
+curl -sI localhost:5000/login | head -1
+</code></pre>
+<p>Flask <code>200</code> with cloudflared dead is a tunnel fault. No <code>200</code> means the app itself
+stopped — restart it.</p>
+</li>
+<li>
+<p>Everything up but the browser is refused? That's an Access <strong>policy</strong> fault, not
+infrastructure. Confirm your applications still hold their destinations.</p>
+</li>
+</ol>
+<h2 id="b--you-cant-ssh-to-the-pi">B — you can't SSH to the Pi</h2>
+<ol>
+<li>
+<p><strong>Name the cause</strong> before assuming the Pi is down.</p>
+<pre><code class="language-bash">tailscale ping &lt;pi-hostname&gt;
+</code></pre>
+<p><code>peer's node key has expired</code> is Tailscale's periodic node-key expiry (180 days by
+default). The Pi is fine and the public site is still serving. Only admin access and
+anything running over Tailscale — like a backup pull — are broken.</p>
+<p>This one is worth internalizing: <code>tailscale status</code> reports the machine as <code>offline</code>,
+which reads exactly like a dead Pi. It isn't. The Pi is still checking in with the
+control plane; peers just can't build a connection to it.</p>
+</li>
+<li>
+<p><strong>Recover over the LAN.</strong> Tailscale is the broken thing, so don't route through it.</p>
+<pre><code class="language-bash">ssh you@&lt;pi-hostname&gt;.local        # 192.168.x.x
+</code></pre>
+<p>If your <code>~/.ssh/config</code> points the short host name at the <em>Tailscale</em> address, the short
+name will fail during an expiry. Use the <code>.local</code> name or the LAN IP.</p>
+</li>
+<li>
+<p><strong>Bring the tailnet back</strong> from on the Pi, then open the URL it prints.</p>
+<pre><code class="language-bash">sudo tailscale up
+</code></pre>
+</li>
+<li>
+<p><strong>Durable fix:</strong> Tailscale admin console → Machines → your Pi → Disable key expiry. Key
+expiry on an always-on server is a trap — it locks you out of the exact machine you need
+Tailscale to reach.</p>
+</li>
+<li>
+<p>If <code>&lt;pi-hostname&gt;.local</code> won't resolve either, the Pi really is down. Power, storage, or
+an unclean reboot.</p>
+</li>
+</ol>
+<h2 id="c--backups-have-stopped-arriving">C — backups have stopped arriving</h2>
+<p>Two different faults produce the same silence, and the logs tell them apart.</p>
+<ol>
+<li>
+<p><strong>Read the receiving side first.</strong></p>
+<pre><code class="language-bash">tail -5 ~/backups/pi-biotracking/pull.log
+</code></pre>
+<p><code>FAIL</code> lines mean a network or Tailscale partition. The snapshots still exist on the Pi
+and backfill on recovery — nothing is lost.</p>
+</li>
+<li>
+<p><strong>If the pull looks clean, check whether the snapshot was ever made.</strong></p>
+<pre><code class="language-bash">ssh &lt;pi-hostname&gt; 'tail -5 ~/backups/biotracking/backup.log'
+</code></pre>
+<p>A missing night means the Pi was down through the backup window. That snapshot is gone
+permanently — but no health data is lost, because the live database is cumulative. You
+lose a restore point, not records.</p>
+</li>
+<li>
+<p>If you schedule the snapshot with <code>cron</code>, a reboot through the backup window skips it
+silently and never catches up. A systemd timer with <code>Persistent=true</code> fires the missed
+run on the next boot instead. Worth the switch if your power isn't reliable.</p>
+</li>
+</ol>
+<h2 id="d--someone-says-their-portal-link-is-dead">D — someone says their portal link is dead</h2>
+<ol>
+<li>
+<p><strong>Ask what they see.</strong> A <em>Cloudflare login page</em> means your Access carve-out broke. <em>Your
+own 403 page</em> means the token expired or was revoked — ordinary, and expected.</p>
+</li>
+<li>
+<p><strong>Test the carve-out cold.</strong> No real token needed:</p>
+<pre><code class="language-bash">curl -s -o /dev/null -w '%{http_code}\n' https://app.yourdomain.com/portal/badtoken
+</code></pre>
+<p><code>403</code> is correct — traffic reached the Pi. A <code>302</code> means your bypass application lost its
+<code>/portal/*</code> destination.</p>
+</li>
+<li>
+<p>If it's only expiry, issue a fresh link from <code>/portals</code>. The old one stays revoked and the
+access log keeps its history.</p>
+</li>
+</ol>
+<h2 id="e--a-phone-or-device-stopped-syncing">E — a phone or device stopped syncing</h2>
+<ol>
+<li>
+<p><strong>Prove the lane still reaches Flask.</strong> Use POST — this matters:</p>
+<pre><code class="language-bash">curl -s -X POST -H 'Content-Type: application/json' -d '{}' \
+  https://app.yourdomain.com/api/health-sync
+</code></pre>
+<p><code>{&quot;error&quot;:&quot;unauthorized&quot;}</code> is <strong>correct</strong>: Access let it through and the bearer check ran.
+Getting HTML back means the <code>/api/*</code> bypass broke.</p>
+</li>
+<li>
+<p>A <strong>GET</strong> on that same route returns <code>302</code> to <code>/login</code>, not <code>401</code>. That's <code>require_login</code>
+seeing <code>request.endpoint</code> as <code>None</code> on a 405 method mismatch — not an Access fault, and
+not worth chasing. Always test with POST.</p>
+</li>
+<li>
+<p>If it's only one device, suspect the device before the server — especially anything with
+flaky WiFi or no real-time clock. Check when its last ingest actually landed.</p>
+</li>
+</ol>
+<h2 id="the-cold-check">The cold check</h2>
+<p>Run this after any change to Access, your tunnel, or your DNS. From something with no
+cookies and no session:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Request</th>
+<th>Expect</th>
+<th>What it proves</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/</code></td>
+<td><code>302</code> to your team domain</td>
+<td>the gate is live</td>
+</tr>
+<tr>
+<td><code>/portals</code></td>
+<td><code>302</code> to Access</td>
+<td>management is gated — the wildcard didn't leak</td>
+</tr>
+<tr>
+<td><code>/portal/badtoken</code></td>
+<td><code>403</code> from the app</td>
+<td>the portal bypass works</td>
+</tr>
+<tr>
+<td><code>POST /api/health-sync</code></td>
+<td><code>401</code> JSON</td>
+<td>the API bypass works, bearer auth still enforced</td>
+</tr>
+</tbody>
+</table></div>
+<p>Both carve-out failures are <strong>silent</strong> — nothing alarms, and you find out when someone emails
+you or when a week of device data turns out to be missing. That's the whole reason to run the
+check rather than assume.</p>
+</article>
+  </div>
+  <div class="wrap backto"><a href="/docs">&#8592; all documentation</a></div>
+</main>
+<footer>
+  <div class="wrap">
+    <div class="links">
+      <a href="/">sardinetracker.com</a>
+      <a href="https://github.com/alaricmoore/sardinetracker">source &#8599;</a>
+      <a href="https://github.com/alaricmoore/sardinetracker/blob/main/MODEL.md">how the model works &#8599;</a>
+      <a href="https://github.com/alaricmoore/sardinetracker/blob/main/LICENSE">AGPL-3.0 &#8599;</a>
+    </div>
+    <p>A one-person project, built between doctor appointments, machine repair, and terrariums.
+       Not medical advice; always consult qualified clinicians. Trust your observations.
+       Keep asking questions.</p>
+  </div>
+</footer>
+</body>
+</html>
