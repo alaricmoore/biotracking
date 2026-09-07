@@ -5,22 +5,21 @@ All notable changes to this project will be documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-[1.0.0] — 2026-03-06
-Added
-
-Initial public release
-Daily symptom and biometric tracking
-UV lag correlation analysis
-Flare forecasting with model accuracy assessment
-HRV and autonomic tracking with medication comparison
-Clinical record: labs, ANA, medications, events, clinicians
-The Forecast Lab
-Clinical report generation with PDF export
-Full data export and deletion
-Apple Health import
-Raspberry Pi remote access support via Tailscale
-
 > **Note:** I forgot this file existed for over a month. Entries from 2.2.0 onward were reconstructed from git history on 2026-04-26, so dates reflect when work landed but groupings are post-hoc.
+
+[2.10.0] — 2026-09-07
+Documentation
+- **Cloudflare Access section in `REMOTE_ACCESS.md` rewritten.** The old version said to put Access on the hostname and stopped there. Following it breaks two of the three kinds of traffic the app serves: clinician portal links (`/portal/*`, authenticated by the token in the URL) and device sync (`/api/*`, authenticated by a bearer token). Both fail silently. The section now covers the three-lane topology, Zero Trust onboarding, an open-lane application carrying both bypass paths under one policy, the hostname gate, Independent MFA, and a cold-client verification table.
+- **`TROUBLESHOOTING.md`** — new. Symptom-first triage for a deployed instance, organised by what you see first rather than by which component failed: site unreachable, no SSH, backups stalled, a dead portal link, a device that stopped syncing. Each step gives the command and what its answer means, including the results that look alarming but are healthy.
+- Documentation is now published at **https://sardinetracker.com/docs**, rendered from the repo markdown by `site/build-docs.py` so the pages cannot drift from the source.
+- **`make-manpage.py`** — renders `TROUBLESHOOTING.md` as `sardinetracker(7)`, readable from a terminal when the network is the thing that broke. No dependencies beyond Python 3. An optional `runbook-site.md` overlay substitutes your own hostnames for the placeholders.
+
+Changed
+- Standardised every user-facing surface on `sardinetracker`. Three spellings were still in circulation — `sardine-track`, `sardinetrack`, and capitalised `Sardine-track` — across the docs, the in-app help, and script output. The `sardine-tracker schema` strings in `db.py` are deliberately untouched: those are stored values in `column_provenance.source`, not the product name.
+- Corrected the release history below: the 2026-05-25 entry was mis-numbered 2.2.0, duplicating the 2026-03-29 release. It is now 2.6.1, which is where it belongs chronologically. Nothing had been tagged at either number, so no install is affected.
+
+Added
+- `robots.txt`, `sitemap.xml` and JSON-LD structured data for the site, so the documentation can actually be found. The sitemap is generated with the docs and cannot go stale.
 
 [2.9.0] — 2026-08-19
 Added
@@ -51,6 +50,26 @@ Name Standardization
 - Standardized every user-facing surface on `sardinetracker` (was a mix of sardine-track, sardinetrack, and sardinetracking across README, app wordmark, script output, and docs)
 - Fixed broken Android companion links: the repo is sardinesync-android, not sardinessync-android
 - Added OpenGraph/Twitter meta tags and canonical URL to the landing page so shared links unfurl properly
+
+[2.6.1] — 2026-05-25
+Added
+
+- UV wearable view (`/wearable`) — prototype. Charts per-sample UVA/UVB/UV index from a DIY VEML6075 wrist sensor over selectable windows (24h/1w/1mo/6mo/all), with auto-bucketing as the range grows and a stats panel for mean/peak values
+- Per-day UV summary: peak UV index and hours above the moderate threshold (UVI ≥ 3.0) per day — a daily-dose view robust to timestamp drift
+- Ingest endpoint `POST /api/uv/ingest` — accepts a bearer-authenticated CSV batch from the device; idempotent (INSERT OR IGNORE on user/boot/ms), filters failed I2C reads, back-anchors timestamps for buffered/stale-boot samples
+- `uv_sensor_readings` table added via idempotent `run_migrations()` (no manual migration step)
+- Config options for the wearable: `wearable_token` (shared bearer secret) and `wearable_user_id` (target account); endpoint returns a clear error and the view shows no data when unset
+
+Changed
+
+- Nav: medication-evaluation view relabeled "interventions" → "reactions" (desktop and mobile). Route stays `/interventions`; the view is as much about how the body reacts to an intervention — side effects, rebounds, autonomic shifts — as the intervention itself
+- Added "wearable" to the nav (desktop and mobile "more" menu)
+
+Documentation
+
+- README: new "UV Wearable — Prototype" section, including the no-RTC timestamp caveat (back-anchoring heuristic, approximate rows shown dimmed)
+- README: intervention section reframed as "reactions"; wearable.html added to project structure
+- Updated help page with current model info + link to model explainer
 
 [2.6.0] — 2026-04-26
 Public Release Prep
@@ -95,26 +114,6 @@ Model Dashboard + MODEL.md
 - Added sparklines to forecast breakdown + CSV score export
 - Fixed data export to include all columns; updated forecast lab manual
 
-[2.2.0] - 2026-05-25
-Added
-
-- UV wearable view (`/wearable`) — prototype. Charts per-sample UVA/UVB/UV index from a DIY VEML6075 wrist sensor over selectable windows (24h/1w/1mo/6mo/all), with auto-bucketing as the range grows and a stats panel for mean/peak values
-- Per-day UV summary: peak UV index and hours above the moderate threshold (UVI ≥ 3.0) per day — a daily-dose view robust to timestamp drift
-- Ingest endpoint `POST /api/uv/ingest` — accepts a bearer-authenticated CSV batch from the device; idempotent (INSERT OR IGNORE on user/boot/ms), filters failed I2C reads, back-anchors timestamps for buffered/stale-boot samples
-- `uv_sensor_readings` table added via idempotent `run_migrations()` (no manual migration step)
-- Config options for the wearable: `wearable_token` (shared bearer secret) and `wearable_user_id` (target account); endpoint returns a clear error and the view shows no data when unset
-
-Changed
-
-- Nav: medication-evaluation view relabeled "interventions" → "reactions" (desktop and mobile). Route stays `/interventions`; the view is as much about how the body reacts to an intervention — side effects, rebounds, autonomic shifts — as the intervention itself
-- Added "wearable" to the nav (desktop and mobile "more" menu)
-
-Documentation
-
-- README: new "UV Wearable — Prototype" section, including the no-RTC timestamp caveat (back-anchoring heuristic, approximate rows shown dimmed)
-- README: intervention section reframed as "reactions"; wearable.html added to project structure
-- Updated help page with current model info + link to model explainer
-
 [2.2.0] — 2026-03-29
 iOS Health Sync + RMSSD
 - Added iOS health sync app + SpO2/respiratory rate support
@@ -141,8 +140,7 @@ Polish + Bug Fixes
 - config.json.example, custom_weights.json, .gitignore cleanup, removed .venv from tracking
 - Download/delete bug fixes
 
-[2.1.0] - 2026-03-07
-
+[2.1.0] — 2026-03-07
 - Added Cycle Phase Flare Weighting
 - Added _inject_cycle_phase() and_compute_phase_by_date_from_obs() helpers — annotates observation dicts with cycle_in_high_risk_phase (bool) and cycle_phase_name using BBT-anchored ovulation detection
 - Added cycle_phase: 1.0 to DEFAULT_WEIGHTS — PMS/luteal phase contributes +1.0 to flare score (adjustable in Forecast Lab, no-op when track_cycle: false)
@@ -184,3 +182,18 @@ Polish + Bug Fixes
 - README: Optional Passcode section with step-by-step setup instructions
 - README: login.html added to project structure
 - README: Data Privacy & Security bullet added for passcode feature
+
+[1.0.0] — 2026-03-06
+Added
+
+Initial public release
+Daily symptom and biometric tracking
+UV lag correlation analysis
+Flare forecasting with model accuracy assessment
+HRV and autonomic tracking with medication comparison
+Clinical record: labs, ANA, medications, events, clinicians
+The Forecast Lab
+Clinical report generation with PDF export
+Full data export and deletion
+Apple Health import
+Raspberry Pi remote access support via Tailscale
