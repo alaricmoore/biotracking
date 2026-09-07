@@ -94,6 +94,66 @@
   footer .links{display:flex;gap:20px;flex-wrap:wrap;font-family:var(--mono);font-size:.8rem;margin-bottom:16px}
   footer p{max-width:70ch}
 </style>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://sardinetracker.com/#app",
+      "name": "sardinetracker",
+      "alternateName": "sardine-track",
+      "url": "https://sardinetracker.com",
+      "applicationCategory": "HealthApplication",
+      "applicationSubCategory": "Chronic illness self-tracking",
+      "operatingSystem": "Linux, macOS, Windows",
+      "softwareRequirements": "Python 3, SQLite",
+      "programmingLanguage": "Python",
+      "codeRepository": "https://github.com/alaricmoore/sardinetracker",
+      "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "author": {
+        "@id": "https://sardinetracker.com/#author"
+      },
+      "description": "Self-hosted health tracking for systemic autoimmune rheumatic disease. Logs daily symptoms, wearable biometrics, UV exposure, labs and medications, and runs a transparent flare-forecast model over them. All data stays in one SQLite file on your own machine.",
+      "featureList": [
+        "Daily symptom and flare logging",
+        "Apple Health and Health Connect biometric sync",
+        "UV exposure tracking for photosensitive disease",
+        "Lab result history with reference ranges",
+        "Transparent, documented flare-forecast scoring",
+        "Read-only clinician portal via revocable capability links",
+        "Self-hosted; no data leaves your machine"
+      ],
+      "keywords": "lupus, SLE, systemic autoimmune rheumatic disease, SARD, Sjogren's, photosensitivity, flare tracking, flare forecasting, HRV, RMSSD, self-hosted, local-first, quantified self, chronic illness, patient-built, SQLite, Flask, open source health app"
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://sardinetracker.com/#site",
+      "url": "https://sardinetracker.com",
+      "name": "sardinetracker",
+      "inLanguage": "en",
+      "about": {
+        "@id": "https://sardinetracker.com/#app"
+      },
+      "publisher": {
+        "@id": "https://sardinetracker.com/#author"
+      }
+    },
+    {
+      "@type": "Person",
+      "@id": "https://sardinetracker.com/#author",
+      "name": "Alaric Moore",
+      "description": "Electronics technician and patient with systemic lupus, who built sardinetracker for her own disease."
+    }
+  ]
+}
+</script>
 </head>
 <body>
 

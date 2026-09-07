@@ -23,7 +23,9 @@ whose git origin is the public repo. That guard is the reason it is safe to
 add MODEL.md to DOCS later; do not weaken it.
 """
 
+import datetime as dt
 import html
+import json
 import re
 import subprocess
 import sys
@@ -219,6 +221,20 @@ def nav(current: str) -> str:
 
 
 def shell(*, title, desc, canonical, body, current="") -> str:
+    # TechArticle so a crawler -- or a model answering a question -- can tell
+    # what this page is and who wrote it without parsing the prose.
+    schema = json.dumps({
+        "@context": "https://schema.org",
+        "@type": "TechArticle",
+        "headline": title,
+        "description": desc,
+        "url": canonical,
+        "inLanguage": "en",
+        "isPartOf": {"@type": "WebSite", "@id": "https://sardinetracker.com/#site"},
+        "about": {"@type": "SoftwareApplication", "@id": "https://sardinetracker.com/#app"},
+        "author": {"@type": "Person", "name": "Alaric Moore"},
+        "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+    }, ensure_ascii=False)
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -240,6 +256,7 @@ def shell(*, title, desc, canonical, body, current="") -> str:
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,300;1,8..60,400&amp;family=IBM+Plex+Mono:wght@300;400&amp;display=swap" rel="stylesheet">
 <style>{STYLE}</style>
+<script type="application/ld+json">{schema}</script>
 </head>
 <body>
 {nav(current)}
@@ -378,6 +395,55 @@ def build_index() -> None:
     print(f"  {'(index)':<22} -> public/docs/index.html  ({len(page)//1024} KB)")
 
 
+SITE_URL = "https://sardinetracker.com"
+
+
+def build_sitemap() -> None:
+    """Every published URL, with a real lastmod from its source file."""
+    pages = [("/", ROOT / "site" / "public" / "index.html", "1.0"),
+             ("/docs", None, "0.8")]
+    pages += [(f'/docs/{d["slug"]}', ROOT / d["src"], "0.7") for d in DOCS]
+
+    rows = []
+    for path, src, priority in pages:
+        when = (dt.date.fromtimestamp(src.stat().st_mtime).isoformat()
+                if src and src.exists() else dt.date.today().isoformat())
+        rows.append(
+            f"  <url>\n    <loc>{SITE_URL}{path}</loc>\n"
+            f"    <lastmod>{when}</lastmod>\n"
+            f"    <priority>{priority}</priority>\n  </url>"
+        )
+    xml = ('<?xml version="1.0" encoding="UTF-8"?>\n'
+           '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+           + "\n".join(rows) + "\n</urlset>\n")
+    (SITE / "public" / "sitemap.xml").write_text(xml, encoding="utf-8")
+    print(f"  {'(sitemap)':<22} -> public/sitemap.xml  ({len(pages)} urls)")
+
+
+def build_robots() -> None:
+    """Our own robots.txt.
+
+    Cloudflare injects a managed one that disallows every AI crawler by
+    default -- ClaudeBot, GPTBot and CCBot among them. CCBot is Common Crawl,
+    so that default is what keeps this site out of model training data. This
+    file states the opposite intent; the managed robots.txt has to be turned
+    off in the dashboard for it to be served.
+    """
+    txt = f"""# sardinetracker.com
+# Open documentation for a self-hosted health tracker. Indexing, retrieval and
+# training are all welcome -- the point is for people looking for this to find
+# it, including through whatever they happen to ask.
+
+User-agent: *
+Content-Signal: search=yes,ai-train=yes,use=reference
+Allow: /
+
+Sitemap: {SITE_URL}/sitemap.xml
+"""
+    (SITE / "public" / "robots.txt").write_text(txt, encoding="utf-8")
+    print(f"  {'(robots)':<22} -> public/robots.txt")
+
+
 def main() -> None:
     guard_repo()
     OUT.mkdir(parents=True, exist_ok=True)
@@ -385,6 +451,8 @@ def main() -> None:
     for doc in DOCS:
         build_doc(doc)
     build_index()
+    build_sitemap()
+    build_robots()
     print("done. deploy with: npx wrangler deploy")
 
 

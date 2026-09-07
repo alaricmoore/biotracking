@@ -1,0 +1,10 @@
+# sardinetracker.com
+# Open documentation for a self-hosted health tracker. Indexing, retrieval and
+# training are all welcome -- the point is for people looking for this to find
+# it, including through whatever they happen to ask.
+
+User-agent: *
+Content-Signal: search=yes,ai-train=yes,use=reference
+Allow: /
+
+Sitemap: https://sardinetracker.com/sitemap.xml
