@@ -236,6 +236,8 @@ One quirk that looks like a failure and isn't: a **GET** on `/api/health-sync` r
 - Sign in from a private window. You should hit, in order: the Access login → your PIN or identity provider → **an authenticator challenge** → *then* the sardine-track Flask login. If that third step doesn't appear and you land straight on the Flask login, MFA is configured but not enforcing — check the organization switch and the Authentication duration.
 - Confirm your phone actually completes a sync, rather than trusting the 401 above. The 401 proves Access let the request through to Flask; it doesn't prove your token is still right.
 
+Keep that table somewhere you can reach when the site *isn't* reachable. [TROUBLESHOOTING.md](TROUBLESHOOTING.md) has it alongside symptom-by-symptom triage for the rest of the stack — tunnel, Tailscale, backups, and the portal and API lanes.
+
 ### Sardine-track sees Cloudflare IPs, not real user IPs
 
 Behind a Cloudflare tunnel, `request.remote_addr` in Flask is a Cloudflare edge IP, not the actual visitor's IP. If you need the real client IP (for logging, rate limiting, etc.), Cloudflare passes it in the `CF-Connecting-IP` header. Flask doesn't read it by default; for sardine-track's purposes (a personal app with login) you likely don't need to bother.
