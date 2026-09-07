@@ -94,7 +94,7 @@ The Flask app should keep listening on `127.0.0.1` (localhost). Unlike the Tails
 
 ### Step 3: Open the Zero Trust dashboard
 
-Cloudflare Tunnel lives under their Zero Trust product. Go to [one.dash.cloudflare.com](https://one.dash.cloudflare.com), accept the free plan (no card required for the basic tunnel feature).
+Cloudflare Tunnel lives under their Zero Trust product. Go to [one.dash.cloudflare.com](https://one.dash.cloudflare.com) (recent accounts serve the same console at `dash.cloudflare.com/<account-id>/one/`). First time through, Zero Trust asks you to pick a team name and choose a plan — take **Free**. It will still walk you through payment details on the free tier and won't charge you.
 
 ### Step 4: Create a tunnel
 
@@ -130,13 +130,111 @@ From your phone on cellular (not your home WiFi — that's the whole point), vis
 
 ### Optional: add Cloudflare Access on top
 
-Sardine-track already has its own login. If you want a second gate in front of it — useful if you're paranoid, or if you want to require email-verified access from only specific people before they even see the login page — set up **Cloudflare Access** in Zero Trust:
+Sardine-track has its own login, but that's one password facing the open internet. **Cloudflare Access** adds a second gate at Cloudflare's edge, in front of the tunnel: visitors prove who they are before a request ever reaches the Pi. Your Flask login is untouched and still applies — Access sits in front of it.
 
-1. Zero Trust → **Access → Applications → Add an application → Self-hosted**
-2. Application name: anything, Domain: your `app.yourdomain.com`
-3. Add an access policy: e.g., "allow if email is one of: you@you.com, partner@you.com"
+Access binds to a *hostname*, not to a server. Your tunnel already answers "where does this traffic go", so there is no IP, port, or protocol to enter here. If a setup wizard asks you for those, you're in the flow for people who don't have a tunnel yet — back out of it.
 
-Now visitors hit a Cloudflare-hosted email login *before* reaching your Flask login. Two-factor by design.
+#### Read this first: three kinds of traffic share one hostname
+
+```
+                app.yourdomain.com  (Cloudflare edge)
+                            |
+    +-----------------------+-----------------------+
+    |                       |                       |
+/portal/*                /api/*            everything else
+clinicians          phone + wearable         you, a browser
+token in the URL       bearer token           Flask login
+    |                       |                       |
+ BYPASS                  BYPASS              ALLOW + MFA
+    +-----------------------+-----------------------+
+                            |
+                    Cloudflare Tunnel
+                            |
+                      Pi -> Flask :5000
+```
+
+Gating the whole hostname in one click breaks two of those three. Clinician portal links would land on a Cloudflare login page instead of the record, and the phone sync plus the UV wearable would get an HTML redirect where they expect JSON. Neither failure is loud — you find out when a doctor emails you, or when a week of wearable data turns out to be missing.
+
+Access resolves overlapping rules by **most-specific-path-wins**, so carve out the two machine-and-token lanes first, then gate everything else. Build them in that order and there's never a window where the portal is dark.
+
+#### Step 1: Onboard to Zero Trust
+
+Access lives in a separate console from your domain dashboard. The Access page you'll find under your domain is an advert for it, not the product. Go to [one.dash.cloudflare.com](https://one.dash.cloudflare.com) (recent accounts serve the same console at `dash.cloudflare.com/<account-id>/one/`).
+
+First time through you'll pick a **team name** — it becomes `<teamname>.cloudflareaccess.com`, the host that serves your login page and sends your PIN emails. Pick something you'd recognize half-asleep; it's how you tell a real Access prompt from a phished one. Accept the auto-generated name and you'll get a random one like `quiet-harbor-4f21` instead.
+
+You'll also be asked for a plan. Choose **Free**. Cloudflare still walks you through payment details on the free tier and won't charge you; this setup uses one of the 50 free seats.
+
+#### Step 2: Turn on a login method
+
+**Integrations → Identity providers → Add new → One-time PIN.** Nothing to configure. Access emails you a single-use code that expires in 10 minutes.
+
+#### Step 3: Create the open lane — do this one first
+
+**Access controls → Applications → Add an application → Self-hosted.** Name it `sardine-open`.
+
+Under **Destinations**, add two public hostnames. One application can hold many destinations, and its policy applies to all of them — which is exactly what you want here, since both lanes need the same rule:
+
+| Subdomain | Domain | Path |
+|-----------|--------------|------------|
+| `app` | `yourdomain.com` | `portal/*` |
+| `app` | `yourdomain.com` | `api/*` |
+
+Leave off the leading slash; the UI supplies it. Then **Create new policy** → Action **Bypass** → Include → **Everyone**, and save. (The Action selector is inside the policy form, not on the application page.)
+
+Bypass means Access doesn't inspect these paths at all. That is not a downgrade: portal links are already gated by an unguessable token that you can revoke and that expires, and every `/api/` route either checks a bearer token or is `@login_required`. They end up exactly as protected as they were before you added Access.
+
+Note that `portal/*` matches `/portal/<token>` but **not** `/portals`, your link-management page — the wildcard sits after a slash. That's deliberate, and worth verifying in Step 6 rather than assuming.
+
+#### Step 4: Gate everything else
+
+A second self-hosted application, named `sardine`. One destination: subdomain `app`, domain `yourdomain.com`, **Path empty**. Empty path means the whole hostname.
+
+Policy → Action **Allow** → Include → **Emails** → your address. Set the session duration long — a month — so you aren't re-authenticating daily.
+
+If a setup wizard already created an application for you, check the policy it generated before you attach a hostname to it. It guesses at your email, and a wrong guess locks you out of your own app.
+
+#### Step 5: Add a real second factor
+
+Identity providers are alternative ways to prove *who* you are. Enabling two of them (say, one-time PIN and a Cloudflare account) gives you two front doors, not a door and a deadbolt — an attacker takes whichever is weaker. If you stop here, your real second factor is whatever protects your email account.
+
+For an explicit second factor, use **Independent MFA** — Cloudflare enforces it itself, so you don't need a Google or Okta account in the loop:
+
+1. **Access controls → Access settings** → enable Independent MFA and tick the methods you'll accept: authenticator app (TOTP), security key, or biometrics (Touch ID, Face ID, Windows Hello). This is the organization-wide switch.
+2. On the `sardine` application → **Authentication → MFA** tab → **Custom MFA settings**. Choose which of those methods this application accepts, and set **Authentication duration** — how often Access re-challenges you. "Require every login" is the strict setting; every 24 hours is a reasonable middle if you gave the application a long session duration in Step 4.
+3. Enroll your own device: sign in at `<teamname>.cloudflareaccess.com` → Account settings → **MFA devices**.
+
+Note the direction of travel between those first two steps. The application's MFA tab can only *narrow* what the organization already allows — it can't add a method. If that tab offers you nothing selectable, step 1 isn't done.
+
+Enroll while you still have a working session, and keep that browser open until a *second*, private window has logged in and cleared the MFA prompt. You are probably the only administrator on this account, so there is nobody to let you back in.
+
+#### Step 6: Verify every lane before you trust it
+
+Check each lane from something with no cookies and no session — a private window, or curl from a different machine. A setup that's wrong in one lane looks completely fine from the lane you happen to test.
+
+```bash
+APP=https://app.yourdomain.com
+curl -s -o /dev/null -w 'root      %{http_code} %{redirect_url}\n' $APP/
+curl -s -o /dev/null -w 'portals   %{http_code}\n' $APP/portals
+curl -s -o /dev/null -w 'portal    %{http_code}\n' $APP/portal/badtoken
+curl -s -w '\nsync      %{http_code}\n' -X POST -H 'Content-Type: application/json' \
+     -d '{}' $APP/api/health-sync
+```
+
+| Request | Expect | What it proves |
+|---------|--------|----------------|
+| `/` | 302 to `<teamname>.cloudflareaccess.com` | the gate is live |
+| `/portals` | 302 to Access | management page is gated — the wildcard didn't leak |
+| `/portal/badtoken` | **403** from sardine-track | bypass works; traffic reached the Pi |
+| `POST /api/health-sync` | **401** `{"error":"unauthorized"}` | bypass works; bearer auth still enforced |
+
+One quirk that looks like a failure and isn't: a **GET** on `/api/health-sync` redirects to `/login` rather than returning 401. That's sardine-track's own `require_login`, which sees `request.endpoint` as `None` on a 405 method mismatch. The POST path — the one your phone and wearable actually use — returns clean JSON. Test with POST.
+
+**Three things curl cannot tell you.** MFA fires *after* identity, behind the login — from the outside, a gate with MFA and a gate without it are byte-identical. That's the point of it, and it's also why you have to check these by hand:
+
+- Click a real portal link and confirm the record still renders. A 403 on a bad token proves traffic reaches the Pi; only a live token proves the page still draws.
+- Sign in from a private window. You should hit, in order: the Access login → your PIN or identity provider → **an authenticator challenge** → *then* the sardine-track Flask login. If that third step doesn't appear and you land straight on the Flask login, MFA is configured but not enforcing — check the organization switch and the Authentication duration.
+- Confirm your phone actually completes a sync, rather than trusting the 401 above. The 401 proves Access let the request through to Flask; it doesn't prove your token is still right.
 
 ### Sardine-track sees Cloudflare IPs, not real user IPs
 
@@ -293,7 +391,7 @@ Whichever path you choose, sardine-track's own login is the last line of defense
 
 ### Add another auth layer if you can
 
-- **Option A**: Cloudflare Access (free, email-verified gate in front of Flask login)
+- **Option A**: Cloudflare Access (free) — an identity gate at Cloudflare's edge in front of the Flask login, with optional authenticator-app MFA. See [Optional: add Cloudflare Access on top](#optional-add-cloudflare-access-on-top) above; it needs path carve-outs for `/portal/*` and `/api/*` or it will break clinician links and device sync.
 - **Option B**: nginx basic auth (the commented lines in the config above) — uncomment them, then:
 
 ```bash
