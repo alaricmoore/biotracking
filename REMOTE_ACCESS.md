@@ -2,15 +2,15 @@
 
 ## Read This First
 
-This document describes how to access sardine-track from outside your local network — from your phone on cellular, from work, from anywhere.
+This document describes how to access sardinetracker from outside your local network — from your phone on cellular, from work, from anywhere.
 
 Before you do any of this, understand what you are doing:
 
 **Anything connected to the internet is dangerous and insecure. The most secure place for your health data is in your own head with a tight lip. A faraday cage helps too.**
 
-The default sardine-track setup runs on localhost. Nothing leaves your computer. Nobody can reach it but via physical access to that machine, *on* that machine, on *that* network. That is the safest possible configuration and it is sufficient for most people.
+The default sardinetracker setup runs on localhost. Nothing leaves your computer. Nobody can reach it but via physical access to that machine, *on* that machine, on *that* network. That is the safest possible configuration and it is sufficient for most people.
 
-This guide exists for people who understand the risk surface and want remote access anyway. If you are not comfortable with concepts like VPNs, reverse proxies, open ports, and what it means to expose a service to the internet, stop here. Use the local setup. It is genuinely good enough; for the gap between the doctor's waiting room or the ER for four hours and getting home to your own network, travel with a notebook. Seriously, it's great therapy and also provides notes for future-you when you want to log the whole thing in sardine-track.
+This guide exists for people who understand the risk surface and want remote access anyway. If you are not comfortable with concepts like VPNs, reverse proxies, open ports, and what it means to expose a service to the internet, stop here. Use the local setup. It is genuinely good enough; for the gap between the doctor's waiting room or the ER for four hours and getting home to your own network, travel with a notebook. Seriously, it's great therapy and also provides notes for future-you when you want to log the whole thing in sardinetracker.
 
 If you proceed, you accept that you are responsible for the security of your own data. The author of this software is not responsible for data exposure resulting from network configuration choices you make.
 
@@ -66,7 +66,7 @@ Cloudflare edge (terminates TLS, serves your custom domain)
         |
         | (encrypted tunnel established by cloudflared running on the Pi)
         |
-Raspberry Pi (your home network, running sardine-track on localhost)
+Raspberry Pi (your home network, running sardinetracker on localhost)
 ```
 
 The Pi does not need a public IP. It does not need any router ports forwarded. A small daemon called `cloudflared` runs on the Pi and makes an *outbound* connection to Cloudflare's edge. When you visit `app.yourdomain.com`, Cloudflare routes the request down that tunnel to your Flask app on the Pi.
@@ -80,7 +80,7 @@ Your database never leaves the Pi.
 - A free Cloudflare account
 - Basic comfort with SSH and the Linux command line (`man -k` is your friend)
 
-### Step 1: Get sardine-track running on the Pi
+### Step 1: Get sardinetracker running on the Pi
 
 Follow the standard installation instructions in the README. Verify it runs on `http://localhost:5000` from the Pi itself before touching any networking. If you don't have a keyboard or screen, install headless debian onto the pi and ssh into it. You don't need a UI for any of this.
 
@@ -126,11 +126,11 @@ Save. Cloudflare automatically creates the DNS record. Within seconds, `https://
 
 ### Step 6: Verify
 
-From your phone on cellular (not your home WiFi — that's the whole point), visit `https://app.yourdomain.com`. You should see the sardine-track login page. Log in, poke around. If it works, you're done with the network side.
+From your phone on cellular (not your home WiFi — that's the whole point), visit `https://app.yourdomain.com`. You should see the sardinetracker login page. Log in, poke around. If it works, you're done with the network side.
 
 ### Optional: add Cloudflare Access on top
 
-Sardine-track has its own login, but that's one password facing the open internet. **Cloudflare Access** adds a second gate at Cloudflare's edge, in front of the tunnel: visitors prove who they are before a request ever reaches the Pi. Your Flask login is untouched and still applies — Access sits in front of it.
+Sardinetracker has its own login, but that's one password facing the open internet. **Cloudflare Access** adds a second gate at Cloudflare's edge, in front of the tunnel: visitors prove who they are before a request ever reaches the Pi. Your Flask login is untouched and still applies — Access sits in front of it.
 
 Access binds to a *hostname*, not to a server. Your tunnel already answers "where does this traffic go", so there is no IP, port, or protocol to enter here. If a setup wizard asks you for those, you're in the flow for people who don't have a tunnel yet — back out of it.
 
@@ -225,22 +225,22 @@ curl -s -w '\nsync      %{http_code}\n' -X POST -H 'Content-Type: application/js
 |---------|--------|----------------|
 | `/` | 302 to `<teamname>.cloudflareaccess.com` | the gate is live |
 | `/portals` | 302 to Access | management page is gated — the wildcard didn't leak |
-| `/portal/badtoken` | **403** from sardine-track | bypass works; traffic reached the Pi |
+| `/portal/badtoken` | **403** from sardinetracker | bypass works; traffic reached the Pi |
 | `POST /api/health-sync` | **401** `{"error":"unauthorized"}` | bypass works; bearer auth still enforced |
 
-One quirk that looks like a failure and isn't: a **GET** on `/api/health-sync` redirects to `/login` rather than returning 401. That's sardine-track's own `require_login`, which sees `request.endpoint` as `None` on a 405 method mismatch. The POST path — the one your phone and wearable actually use — returns clean JSON. Test with POST.
+One quirk that looks like a failure and isn't: a **GET** on `/api/health-sync` redirects to `/login` rather than returning 401. That's sardinetracker's own `require_login`, which sees `request.endpoint` as `None` on a 405 method mismatch. The POST path — the one your phone and wearable actually use — returns clean JSON. Test with POST.
 
 **Three things curl cannot tell you.** MFA fires *after* identity, behind the login — from the outside, a gate with MFA and a gate without it are byte-identical. That's the point of it, and it's also why you have to check these by hand:
 
 - Click a real portal link and confirm the record still renders. A 403 on a bad token proves traffic reaches the Pi; only a live token proves the page still draws.
-- Sign in from a private window. You should hit, in order: the Access login → your PIN or identity provider → **an authenticator challenge** → *then* the sardine-track Flask login. If that third step doesn't appear and you land straight on the Flask login, MFA is configured but not enforcing — check the organization switch and the Authentication duration.
+- Sign in from a private window. You should hit, in order: the Access login → your PIN or identity provider → **an authenticator challenge** → *then* the sardinetracker Flask login. If that third step doesn't appear and you land straight on the Flask login, MFA is configured but not enforcing — check the organization switch and the Authentication duration.
 - Confirm your phone actually completes a sync, rather than trusting the 401 above. The 401 proves Access let the request through to Flask; it doesn't prove your token is still right.
 
 Keep that table somewhere you can reach when the site *isn't* reachable. [TROUBLESHOOTING.md](TROUBLESHOOTING.md) has it alongside symptom-by-symptom triage for the rest of the stack — tunnel, Tailscale, backups, and the portal and API lanes.
 
-### Sardine-track sees Cloudflare IPs, not real user IPs
+### Sardinetracker sees Cloudflare IPs, not real user IPs
 
-Behind a Cloudflare tunnel, `request.remote_addr` in Flask is a Cloudflare edge IP, not the actual visitor's IP. If you need the real client IP (for logging, rate limiting, etc.), Cloudflare passes it in the `CF-Connecting-IP` header. Flask doesn't read it by default; for sardine-track's purposes (a personal app with login) you likely don't need to bother.
+Behind a Cloudflare tunnel, `request.remote_addr` in Flask is a Cloudflare edge IP, not the actual visitor's IP. If you need the real client IP (for logging, rate limiting, etc.), Cloudflare passes it in the `CF-Connecting-IP` header. Flask doesn't read it by default; for sardinetracker's purposes (a personal app with login) you likely don't need to bother.
 
 ---
 
@@ -259,11 +259,11 @@ Cloud VPS (public IP, runs nginx as reverse proxy, runs Tailscale)
         |
         | (Tailscale encrypted tunnel)
         |
-Raspberry Pi (your home network, runs Tailscale + sardine-track)
+Raspberry Pi (your home network, runs Tailscale + sardinetracker)
         |
         | (localhost)
         |
-sardine-track app + SQLite database
+sardinetracker app + SQLite database
 ```
 
 Your database never leaves the Raspberry Pi. The VPS sees only encrypted Tailscale traffic — it cannot read the contents. Your phone connects to the VPS's public IP, which proxies through Tailscale to the Pi.
@@ -277,7 +277,7 @@ Your database never leaves the Raspberry Pi. The VPS sees only encrypted Tailsca
 - Basic comfort with SSH and the Linux command line
 - Starlink or any ISP — this setup works without a static public IP at home, which is the point
 
-### Step 1: Install sardine-track on the Raspberry Pi
+### Step 1: Install sardinetracker on the Raspberry Pi
 
 Same as Option A — get it running on `http://localhost:5000` first. For this path, you'll need to change the bind address in step 6 below.
 
@@ -311,7 +311,7 @@ Install nginx on the VPS:
 sudo apt update && sudo apt install nginx -y
 ```
 
-Create a config at `/etc/nginx/sites-available/sardinetrack`:
+Create a config at `/etc/nginx/sites-available/sardinetracker`:
 
 ```nginx
 server {
@@ -319,7 +319,7 @@ server {
     server_name YOUR_VPS_PUBLIC_IP;
 
     # Basic auth is strongly recommended — see security notes below
-    # auth_basic "sardinetrack";
+    # auth_basic "sardinetracker";
     # auth_basic_user_file /etc/nginx/.htpasswd;
 
     location / {
@@ -335,7 +335,7 @@ Replace `YOUR_VPS_PUBLIC_IP` and `YOUR_PI_TAILSCALE_IP` with the actual values.
 Enable the config:
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/sardinetrack /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/sardinetracker /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl reload nginx
 ```
@@ -352,9 +352,9 @@ sudo ufw enable
 
 If your provider has a separate cloud-level firewall (Oracle did, AWS does), open those ports in their console too.
 
-### Step 6: Start sardine-track on the Pi listening on Tailscale's interface
+### Step 6: Start sardinetracker on the Pi listening on Tailscale's interface
 
-By default sardine-track listens on `127.0.0.1` only. To accept Tailscale traffic from the VPS, edit `app.py` and change:
+By default sardinetracker listens on `127.0.0.1` only. To accept Tailscale traffic from the VPS, edit `app.py` and change:
 
 ```python
 host='127.0.0.1'
@@ -372,7 +372,7 @@ Restart the app. You should now be able to reach it from your VPS's public IP. A
 Use systemd, screen, or tmux so the app doesn't die when you close SSH:
 
 ```bash
-screen -S sardinetrack
+screen -S sardinetracker
 python3 app.py
 # Ctrl+A, D to detach
 ```
@@ -387,9 +387,9 @@ It's a reasonable middle ground if you want to skip the VPS but don't want Cloud
 
 ## Security Notes — Please Read These (apply to both options)
 
-### Use a strong password on sardine-track itself
+### Use a strong password on sardinetracker itself
 
-Whichever path you choose, sardine-track's own login is the last line of defense. Use a real password — long, unique, not your email password, not your phone PIN.
+Whichever path you choose, sardinetracker's own login is the last line of defense. Use a real password — long, unique, not your email password, not your phone PIN.
 
 ### Add another auth layer if you can
 
@@ -465,7 +465,7 @@ You don't have to type biometrics in by hand. Two options, pick the one that fit
 
 ### Option A: sardinessync native iOS app (recommended if you have a Mac)
 
-**[sardinessync](https://github.com/alaricmoore/sardinessync)** is a native SwiftUI companion app that reads HealthKit on your iPhone, computes RMSSD on-device from raw RR intervals, and POSTs the result to your sardine-track instance. It's in its own repo because the iOS code and the Flask code evolve on different cadences.
+**[sardinessync](https://github.com/alaricmoore/sardinessync)** is a native SwiftUI companion app that reads HealthKit on your iPhone, computes RMSSD on-device from raw RR intervals, and POSTs the result to your sardinetracker instance. It's in its own repo because the iOS code and the Flask code evolve on different cadences.
 
 **Why this and not the App Store?** It's not in the App Store. I don't pay Apple $99 a year to list a tool that runs on my own server, talks only to my own server, and has one user. You build it yourself in Xcode.
 
@@ -486,7 +486,7 @@ Full walkthrough in the sardinessync repo's README. Short version:
 3. In **Signing & Capabilities**, set Team to your personal Apple ID and change the bundle identifier to something unique (e.g. `com.yourname.sardinessync`)
 4. Plug in your iPhone (not the Simulator — HealthKit only works on real devices)
 5. Hit build; trust the dev cert on the phone (Settings → General → VPN & Device Management)
-6. In the app, set the server URL (`https://your-sardinetrack-instance/api/health-sync`) and the bearer token from your `config.json`
+6. In the app, set the server URL (`https://your-sardinetracker-instance/api/health-sync`) and the bearer token from your `config.json`
 7. Grant HealthKit permissions
 8. "Sync Now" should report `synced N fields: steps, hrv, rmssd, ...`
 
@@ -500,11 +500,11 @@ Good fallback if you don't have a Mac or don't want to touch Xcode. This uses th
 
 **What it syncs:** steps, HRV (SDNN, not RMSSD), resting heart rate, and basal body temperature (delta).
 
-**What it doesn't sync:** RMSSD (requires raw RR intervals — native-app-only), sleep (enter manually — Apple Health struggles with polyphasic sleep and sleepwalking), sun exposure minutes (Apple doesn't expose Time in Daylight to Shortcuts despite tracking it on the watch), respiratory rate, SpO2, and period flow (use sardine-track directly — it's better at cycle tracking than Apple Health anyway).
+**What it doesn't sync:** RMSSD (requires raw RR intervals — native-app-only), sleep (enter manually — Apple Health struggles with polyphasic sleep and sleepwalking), sun exposure minutes (Apple doesn't expose Time in Daylight to Shortcuts despite tracking it on the watch), respiratory rate, SpO2, and period flow (use sardinetracker directly — it's better at cycle tracking than Apple Health anyway).
 
 ### Setup
 
-Your sardine-track instance has an API endpoint at `/api/health-sync` that accepts health data via a secure token. The token is in your `config.json` file on the Pi (generated when you run `setup.py`). Treat this token like a password.
+Your sardinetracker instance has an API endpoint at `/api/health-sync` that accepts health data via a secure token. The token is in your `config.json` file on the Pi (generated when you run `setup.py`). Treat this token like a password.
 
 ### Building the Shortcut
 
@@ -543,7 +543,7 @@ Add a **Dictionary** action with these keys:
 **4. Send it**
 
 Add a **Get Contents of URL** action:
-- URL: `https://your-sardinetrack-instance/api/health-sync`
+- URL: `https://your-sardinetracker-instance/api/health-sync`
 - Method: **POST**
 - Headers:
   - `Authorization`: `Bearer YOUR_TOKEN_HERE`
@@ -552,7 +552,7 @@ Add a **Get Contents of URL** action:
 
 **5. Test it**
 
-Tap the play button to run the shortcut. You should see a response like `{"ok": true, "fields_updated": ["steps", "hrv", ...]}`. Check your sardine-track daily entry to confirm the values appeared.
+Tap the play button to run the shortcut. You should see a response like `{"ok": true, "fields_updated": ["steps", "hrv", ...]}`. Check your sardinetracker daily entry to confirm the values appeared.
 
 **6. Automate it**
 
@@ -567,7 +567,7 @@ Once set up, your phone will quietly sync your health data every night without y
 
 ### Security Note
 
-The API token in your Shortcut has write access to your health data. It can only write a limited set of biometric fields (steps, HRV, heart rate, temperature, sun minutes) and cannot touch symptoms, flare status, medications, or notes. But still — don't share your Shortcut with anyone unless you trust them with your sardine-track login.
+The API token in your Shortcut has write access to your health data. It can only write a limited set of biometric fields (steps, HRV, heart rate, temperature, sun minutes) and cannot touch symptoms, flare status, medications, or notes. But still — don't share your Shortcut with anyone unless you trust them with your sardinetracker login.
 
 ---
 

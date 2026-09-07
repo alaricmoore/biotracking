@@ -1,4 +1,4 @@
-# Sardine-track — Help Guide
+# Sardinetracker — Help Guide
 
 *A plain-English guide to using the app and understanding what it's tracking.*
 
@@ -6,7 +6,7 @@
 
 ## What Is This App?
 
-Sardine-track (formerly biotracker) is a personal health logging app built specifically for people managing photosensitive autoimmune and rheumatic conditions — things like lupus, mixed connective tissue disease, or any illness where symptoms are unpredictable, hard to explain to doctors, and deeply affected by things like sun exposure, sleep, and hormonal cycles.
+Sardinetracker (formerly biotracker) is a personal health logging app built specifically for people managing photosensitive autoimmune and rheumatic conditions — things like lupus, mixed connective tissue disease, or any illness where symptoms are unpredictable, hard to explain to doctors, and deeply affected by things like sun exposure, sleep, and hormonal cycles.
 
 It was built by Alaric, who has lupus, because she couldn't find a tool that did what she actually needed: connect the dots between daily life and disease activity, and produce something useful to bring to a 15-minute doctor's appointment.
 

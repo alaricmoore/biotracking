@@ -155,7 +155,7 @@
 <!-- Auto-Sync from Apple Health -->
 <div class="card help-section" style="margin-bottom: var(--space-md);">
     <h2>Auto-Sync from Apple Health</h2>
-    <p>If you have an Apple Watch, you can have your iPhone send biometric data to sardine-track automatically &mdash; no typing required for steps, HRV, resting heart rate, respiratory rate, SpO2, or basal body temperature.</p>
+    <p>If you have an Apple Watch, you can have your iPhone send biometric data to sardinetracker automatically &mdash; no typing required for steps, HRV, resting heart rate, respiratory rate, SpO2, or basal body temperature.</p>
     <p>There are two ways to set this up. The <strong>native iOS app</strong> is more capable but requires you to build it yourself in Xcode. The <strong>iOS Shortcut</strong> approach is simpler but limited.</p>
 
     <h3>Option A: sardinessync iOS app (recommended if you have a Mac)</h3>
@@ -164,7 +164,7 @@
         <li>Reads everything HealthKit offers, including the things Shortcuts can't reach (RR intervals for overnight RMSSD, Time in Daylight, respiratory rate)</li>
         <li>Computes RMSSD from raw heartbeat intervals on your phone (better accuracy than Apple's built-in HRV number)</li>
         <li>Handles background sync automatically &mdash; no manual triggering</li>
-        <li>Gives you a tab with mobile-friendly sardine-track pages and local push notifications for flare alerts / medication doses</li>
+        <li>Gives you a tab with mobile-friendly sardinetracker pages and local push notifications for flare alerts / medication doses</li>
     </ul>
     <p>It's not in the App Store (not paying Apple $99/yr for a hobby project's listing). You clone the repo, open it in Xcode, plug your iPhone in, and build. With a free personal Apple ID the app expires every 7 days and needs a re-install &mdash; about 2 minutes if you leave Xcode configured. If you pay Apple the $99/yr, it lasts a year between rebuilds.</p>
     <p>See the sardinessync repo's README for the full setup walkthrough. The short version: change the bundle ID to something unique to you, set signing team to your personal Apple ID, hit build, configure the server URL and API token inside the app on first launch.</p>

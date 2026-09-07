@@ -137,7 +137,10 @@ STYLE = """
   .layout{display:grid;grid-template-columns:210px 1fr;gap:52px;padding:40px 0 20px;align-items:start}
   @media(max-width:860px){.layout{grid-template-columns:1fr;gap:26px}}
 
-  .toc{position:sticky;top:78px;font-family:var(--mono);font-size:.76rem;line-height:1.5}
+  .toc{position:sticky;top:78px;max-height:calc(100vh - 104px);overflow-y:auto;overscroll-behavior:contain;font-family:var(--mono);font-size:.76rem;line-height:1.5;scrollbar-width:thin;scrollbar-color:var(--line2) transparent}
+  .toc::-webkit-scrollbar{width:6px}
+  .toc::-webkit-scrollbar-thumb{background:var(--line2);border-radius:3px}
+  .toc ul{padding-bottom:8px}
   .toc .lbl{color:var(--muted);letter-spacing:.08em;text-transform:uppercase;font-size:.68rem;display:block;margin-bottom:12px}
   .toc ul{list-style:none;display:flex;flex-direction:column;gap:9px}
   .toc a{color:var(--ink2);display:block}
